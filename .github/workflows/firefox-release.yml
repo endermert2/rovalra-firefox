@@ -1,0 +1,96 @@
+name: Adapt and publish RoValra for Developer Edition
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */12 * * *'
+
+permissions:
+  contents: write
+concurrency:
+  group: firefox-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: firefox-port
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      FIREFOX_ADDON_ID: ${{ vars.FIREFOX_ADDON_ID }}
+      FIREFOX_RELEASE_REPOSITORY: ${{ github.repository }}
+      NO_UPDATE_NOTIFIER: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: firefox-port/package-lock.json
+      - run: npm ci
+      - name: Check public repository and configuration
+        run: |
+          node --input-type=module <<'JS'
+          import {readConfig} from './adapter.mjs';
+          const config=await readConfig();
+          if(config.upstreamRepository!=='NotValra/RoValra') throw new Error('Keep upstreamRepository as NotValra/RoValra.');
+          const response=await fetch(`https://api.github.com/repos/${config.releaseRepository}`,{headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`}});
+          if(!response.ok) throw new Error(`Repository lookup failed: ${response.status}`);
+          if((await response.json()).private) throw new Error('Firefox needs public release downloads; use a public repository for this workflow.');
+          JS
+      - run: npm run update
+      - name: Check whether this port is already published
+        id: state
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('build/release.json'));
+          const response=await fetch(`https://api.github.com/repos/${process.env.FIREFOX_RELEASE_REPOSITORY}/releases/tags/${state.tag}`,{headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json'}});
+          if(!response.ok && response.status!==404) throw new Error(`Release lookup failed: ${response.status}`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`exists=${response.ok}\ntag=${state.tag}\n`);
+          JS
+      - if: steps.state.outputs.exists != 'true'
+        run: npm test && npm run verify
+      - name: Install Firefox Developer Edition for tests
+        if: steps.state.outputs.exists != 'true'
+        id: firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest-devedition
+      - name: Test compatibility and permanent unsigned installation
+        if: steps.state.outputs.exists != 'true'
+        env:
+          FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
+        run: |
+          node --input-type=module -e 'import {download} from "geckodriver"; await download(undefined,"build/tools");'
+          npm run test:firefox
+          npm run test:install
+      - name: Prepare corresponding source
+        if: steps.state.outputs.exists != 'true'
+        run: node source-package.mjs
+      - name: Prepare unsigned update manifest
+        if: steps.state.outputs.exists != 'true'
+        run: node publish-manifest.mjs
+      - name: Publish unsigned port and update manifest together
+        if: steps.state.outputs.exists != 'true'
+        env:
+          RELEASE_TAG: ${{ steps.state.outputs.tag }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          fs.writeFileSync('build/release-notes.md','Unofficial unsigned Firefox port of RoValra. Requires Developer Edition (or another supporting edition), with xpinstall.signatures.required=false.\n\nIncludes the XPI, corresponding source, SHA-256 update manifest and build report. See README for setup and compatibility limits.\n');
+          JS
+          PACKAGE=$(node --input-type=module -e "import fs from 'node:fs'; process.stdout.write(JSON.parse(fs.readFileSync('build/report.json')).package)")
+          gh release create "$RELEASE_TAG" "build/$PACKAGE" build/updates.json build/source.zip build/report.json --repo "$FIREFOX_RELEASE_REPOSITORY" --title "RoValra $RELEASE_TAG (unsigned)" --notes-file build/release-notes.md --latest
+      - name: Retain validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-validation
+          path: |
+            firefox-port/build/report.json
+            firefox-port/build/lint.json
+            firefox-port/build/firefox-smoke.json
+            firefox-port/build/permanent-install.json
