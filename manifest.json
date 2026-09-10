@@ -1,0 +1,136 @@
+{
+  "manifest_version": 3,
+  "name": "RoValra (Unofficial Firefox Port)",
+  "version": "2.6.8.2",
+  "description": "An extension aiming to provide features that other Roblox extensions paywall!",
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.roblox.com/*"
+      ],
+      "js": [
+        "intercept.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "*://*.roblox.com/*"
+      ],
+      "js": [
+        "public/Assets/data/serverid_extractor.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*.roblox.com/*"
+      ],
+      "js": [
+        "firefox/content.js",
+        "content.js"
+      ],
+      "css": [
+        "css/sitewide.css",
+        "css/rovalra.css"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "permissions": [
+    "declarativeNetRequest",
+    "storage",
+    "scripting",
+    "clipboardWrite",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://games.roblox.com/*",
+    "*://*.roblox.com/*",
+    "https://gamejoin.roblox.com/v1/join-game-instance",
+    "https://users.roblox.com/*",
+    "https://setup.rbxcdn.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "firefox/background.js",
+      "background.js"
+    ],
+    "persistent": false
+  },
+  "optional_permissions": [
+    "webNavigation",
+    "webRequest"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_status",
+        "enabled": false,
+        "path": "public/Assets/Rules/StatusRules.json"
+      },
+      {
+        "id": "ruleset_3",
+        "enabled": false,
+        "path": "public/Assets/Rules/beta-rules.json"
+      }
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "public/Assets/*",
+        "public/data/*",
+        "Assets/data/serverid_extractor.js",
+        "data/*",
+        "intercept.js",
+        "assets/*",
+        "css/*"
+      ],
+      "matches": [
+        "https://www.roblox.com/*",
+        "*://*.roblox.com/*"
+      ]
+    },
+    {
+      "resources": [
+        "firefox/beta-programs.json"
+      ],
+      "matches": [
+        "*://*.roblox.com/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "public/Assets/popup/popup.html",
+    "default_icon": {
+      "16": "public/Assets/icon-16.png",
+      "48": "public/Assets/icon-48.png",
+      "128": "public/Assets/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "public/Assets/icon-16.png",
+    "48": "public/Assets/icon-48.png",
+    "128": "public/Assets/icon-128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "rovalra-firefox@endermert2",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "authenticationInfo",
+          "personallyIdentifyingInfo",
+          "websiteContent",
+          "websiteActivity"
+        ]
+      },
+      "update_url": "https://github.com/endermert2/rovalra-firefox/releases/latest/download/updates.json"
+    }
+  }
+}
