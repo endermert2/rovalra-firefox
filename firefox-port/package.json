@@ -1,0 +1,27 @@
+{
+  "name": "rovalra-firefox-adapter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node adapter.mjs --source upstream",
+    "update": "node update.mjs",
+    "test": "node --test test/*.test.mjs",
+    "lint:firefox": "node verify.mjs",
+    "verify": "node verify.mjs",
+    "test:firefox": "node test/firefox-smoke.mjs",
+    "test:install": "node test/permanent-install.mjs"
+  },
+  "devDependencies": {
+    "acorn": "8.18.0",
+    "acorn-walk": "8.3.5",
+    "esbuild": "0.28.2",
+    "fflate": "0.8.3",
+    "geckodriver": "6.1.1",
+    "selenium-webdriver": "4.49.0",
+    "web-ext": "10.6.0"
+  }
+}
