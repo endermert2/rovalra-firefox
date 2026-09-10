@@ -23,8 +23,8 @@ jobs:
       FIREFOX_RELEASE_REPOSITORY: ${{ github.repository }}
       NO_UPDATE_NOTIFIER: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -86,7 +86,7 @@ jobs:
           gh release create "$RELEASE_TAG" "build/$PACKAGE" build/updates.json build/source.zip build/report.json --repo "$FIREFOX_RELEASE_REPOSITORY" --title "RoValra $RELEASE_TAG (unsigned)" --notes-file build/release-notes.md --latest
       - name: Retain validation reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: firefox-validation
           path: |
