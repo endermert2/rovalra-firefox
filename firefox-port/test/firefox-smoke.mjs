@@ -16,6 +16,13 @@ const fixture = await fs.mkdtemp(path.join(build, 'smoke-extension-'));
 await fs.cp(path.join(build, 'extension'), fixture, { recursive: true });
 const results = [];
 const handler = async (req, res) => {
+  if(req.url==='/transport-fixture') {
+    let body='';for await(const chunk of req)body+=chunk;
+    res.setHeader('Content-Type','application/json');
+    res.end(JSON.stringify({status:'success',setting:{key:'pronouns',value:JSON.parse(body).value},
+      bearerReceived:req.headers.authorization==='Bearer test-only-value',cookieReceived:Boolean(req.headers.cookie)}));
+    return;
+  }
   if (req.url === '/result' && req.method === 'POST') {
     let body = '';
     for await (const chunk of req) body += chunk;
@@ -27,7 +34,8 @@ const handler = async (req, res) => {
     res.setHeader('Content-Type', 'text/javascript');
     res.end(`window.launches = []; window.Roblox = { GameLauncher: Object.fromEntries(
       ['joinGameInstance','joinPrivateGame','joinMultiplayerGame','followPlayerIntoGame','editGameInStudio','openProtocolUrl']
-        .map(method => [method, (...args) => window.launches.push({method,args})])) };
+        .map(method => [method, (...args) => window.launches.push({method,args})])),
+      DeepLinkService: {navigateToDeepLink:(...args)=>window.launches.push({method:'navigateToDeepLink',args})} };
       document.addEventListener('rovalra-firefox-test-event', event => {
         document.documentElement.dataset.eventValue = event.detail.nested.value;
       });`);
@@ -47,6 +55,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 await new Promise(resolve => secureServer.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
 const base = `https://www.roblox.com:${secureServer.address().port}`;
+const apiBase = `https://apis.rovalra.com:${secureServer.address().port}`;
 const manifest = JSON.parse(await fs.readFile(path.join(fixture, 'manifest.json'), 'utf8'));
 manifest.host_permissions.push('http://127.0.0.1/*');
 manifest.background.scripts.push('smoke-background.js');
@@ -85,11 +94,19 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   const session = await RoValraFirefoxStorage.session.get('firefoxSmokeKey');
   const changed = await Promise.race([change,new Promise(resolve=>setTimeout(()=>resolve('timeout'),5000))]);
   const response = await browser.runtime.sendMessage({action:'getLatestPresence'});
+  let pageFetchBlocked=false;
+  try { await fetch('${apiBase}/transport-fixture'); } catch { pageFetchBlocked=true; }
+  const synced=await RoValraFirefoxFetch('${apiBase}/transport-fixture',{
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer test-only-value'},
+    body:JSON.stringify({value:'they/them'})});
+  const publicSync=await synced.clone().json();
+  const blockedHost=await browser.runtime.sendMessage({action:'rovalraFirefoxFetch',url:'https://example.com/',method:'GET',body:null});
   const launches = [];
   for (const method of ['joinGameInstance','joinPrivateGame','joinMultiplayerGame','followPlayerIntoGame','editGameInStudio','openProtocolUrl']) {
     launches.push(await browser.runtime.sendMessage({action:'rovalraFirefoxLaunch',method,args:[123,'test']}));
   }
   const invalid = await browser.runtime.sendMessage({action:'rovalraFirefoxLaunch',method:'eval',args:[]});
+  launches.push(await browser.runtime.sendMessage({action:'rovalraFirefoxLaunch',method:'navigateToDeepLink',args:['roblox://navigation/chat?userId=123']}));
   const worker = new RoValraFirefoxWorker();
   const workerReady = await new Promise(resolve => {
     worker.onmessage = event => resolve({data:event.data[0],values:Array.from(new Float32Array(event.data[1]))});
@@ -99,7 +116,8 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   });
   worker.terminate();
   await report({test:'content',event:document.documentElement.dataset.eventValue,session:session.firefoxSmokeKey,changed,
-    response,launches,invalid,workerReady,contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
+    response,launches,invalid,workerReady,pageFetchBlocked,publicSync,blockedHost,
+    contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
 })().catch(error=>browser.runtime.sendMessage({action:'smokeReport',result:{error:String(error),stack:error.stack}}));
 `);
 
@@ -111,7 +129,7 @@ try {
   service.addArguments('--allow-system-access');
   const options = new firefox.Options().addArguments('-headless')
     .setAcceptInsecureCerts(true)
-    .setPreference('network.dns.localDomains', 'www.roblox.com')
+    .setPreference('network.dns.localDomains', 'www.roblox.com,apis.rovalra.com')
     .setPreference('network.stricttransportsecurity.preloadlist', false)
     .setPreference('dom.security.https_only_mode', false)
     .setPreference('dom.security.https_first', false)
@@ -124,6 +142,8 @@ try {
   const fixtureXpi=path.join(fixture,'fixture.xpi');
   await fs.writeFile(fixtureXpi,zipSync(await filesIn(fixture)));
   const id = await driver.installAddon(fixtureXpi, false);
+  // Establish WebDriver's test-certificate exception for the second fixture host.
+  await driver.get(apiBase+'/certificate-fixture');
   await driver.get(base + '/compatibility-fixture');
   await driver.wait(() => results.some(result => result.test === 'content') || results.some(result => result.error), 30000).catch(() => {});
   const page = await driver.executeScript('return {url:location.href,title:document.title,launches:window.launches,interceptor:window.__ROVALRA_INTERCEPTOR_SETUP__}');
@@ -140,8 +160,11 @@ try {
   }
   if (!bg || !content || results.some(r => r.error) || bg.promises !== 42 || bg.callbacks !== 43 ||
       content.event !== 'readable' || content.session !== 123 || content.changed !== 123 ||
-      !content.launches.every(r => r.success) || content.invalid.success || page.launches?.length !== 6 ||
-      !page.interceptor || JSON.stringify(content.workerReady?.values) !== '[2,3,4]') throw new Error('Firefox smoke checks failed');
+      !content.launches.every(r => r.success) || content.invalid.success || page.launches?.length !== 7 ||
+      page.launches[6].method !== 'navigateToDeepLink' ||
+      !page.interceptor || JSON.stringify(content.workerReady?.values) !== '[2,3,4]' ||
+      !content.pageFetchBlocked || content.publicSync?.setting?.value!=='they/them' ||
+      !content.publicSync.bearerReceived || content.publicSync.cookieReceived || content.blockedHost.ok) throw new Error('Firefox smoke checks failed');
   console.log('Firefox smoke checks passed. Authenticated Roblox features still require manual testing.');
 } finally {
   if (driver) await driver.quit();
