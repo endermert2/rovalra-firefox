@@ -1,0 +1,6 @@
+firefox-port/node_modules/
+firefox-port/build/
+firefox-port/downloads/
+*.log
+.env
+standalone-server-region/
