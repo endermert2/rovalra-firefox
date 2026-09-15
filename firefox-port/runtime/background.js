@@ -3,7 +3,7 @@
   const sessionMethods = new Set(["get", "set", "remove", "clear", "getBytesInUse"]);
   const launchMethods = new Set([
     "joinGameInstance", "joinPrivateGame", "joinMultiplayerGame",
-    "followPlayerIntoGame", "editGameInStudio", "openProtocolUrl",
+    "followPlayerIntoGame", "editGameInStudio", "openProtocolUrl", "navigateToDeepLink",
   ]);
   function isRobloxSender(sender) {
     try {
@@ -33,7 +33,8 @@
   });
   // This function is serialized by scripting.executeScript. It must be standalone.
   function launchInPage(method, args, fallbackUrl) {
-    const launcher = window.Roblox?.GameLauncher;
+    const launcher = method === "navigateToDeepLink"
+      ? window.Roblox?.DeepLinkService : window.Roblox?.GameLauncher;
     if (method === "joinMultiplayerGame") window.__rovalra_skipNextLaunch = true;
     if (launcher && typeof launcher[method] === "function") {
       launcher[method](...args);
@@ -46,6 +47,38 @@
     throw new Error("Roblox game launcher is not available on this page");
   }
   browser.runtime.onMessage.addListener((message, sender) => {
+    if(message.action==='rovalraFirefoxFetch') {
+      return (async()=>{
+        if(!isRobloxSender(sender))return {ok:false,error:'Invalid RoValra request sender'};
+        try {
+          const url=new URL(message.url);
+          if(url.protocol!=='https:' || url.username || url.password ||
+            !['apis.rovalra.com','www.rovalra.com'].includes(url.hostname) ||
+            !['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(message.method)) {
+            return {ok:false,error:'RoValra request destination or method is not allowed'};
+          }
+          const body=message.body;
+          if(body!==null && (!Array.isArray(body)||body.length>8*1024*1024||body.some(b=>!Number.isInteger(b)||b<0||b>255))) {
+            return {ok:false,error:'Invalid RoValra request body'};
+          }
+          const headers=new Headers();
+          const allowed=new Set(['accept','content-type','authorization','x-rovalra-user-agent','x-api-key','roblox-id','x-requested-with']);
+          for(const [key,value]of Object.entries(message.headers||{}))if(allowed.has(key.toLowerCase()))headers.set(key,value);
+          // Do not forward Roblox cookies or follow redirects with a bearer token.
+          const response=await fetch(url.href,{method:message.method,headers,
+            body:body===null?undefined:new Uint8Array(body),credentials:'omit',redirect:'error',
+            cache:message.cache==='no-store'?'no-store':'default',signal:AbortSignal.timeout(20000)});
+          const chunks=[];let size=0;
+          if(response.body)for await(const chunk of response.body){
+            size+=chunk.length;if(size>8*1024*1024)throw new Error('Response too large');chunks.push(chunk);
+          }
+          const bytes=new Uint8Array(size);let offset=0;
+          for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
+          return {ok:true,status:response.status,statusText:response.statusText,
+            headers:Object.fromEntries(response.headers),body:Array.from(bytes)};
+        }catch{return {ok:false,error:'RoValra background request failed (network, timeout, or redirect)'};}
+      })();
+    }
     if (message.action === "rovalraFirefoxMainScript") {
       if (!isRobloxSender(sender) || !sender.tab?.id ||
           message.path !== "public/Assets/data/globe_initializer.js") {
