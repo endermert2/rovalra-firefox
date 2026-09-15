@@ -7,20 +7,38 @@ function executeLaunchScript(method, args = [], fallbackUrl = null) {
   }).catch((error) => console.error("RoValra Launcher:", error));
 }
 function launchGame(placeId, jobId = null) {
-  return executeLaunchScript("joinGameInstance", jobId
+  return runLaunch(placeId, "joinGameInstance", jobId
     ? [Number(placeId), String(jobId)] : [Number(placeId)]);
 }
 function launchPrivateGame(placeId, accessCode, linkCode) {
-  return executeLaunchScript("joinPrivateGame", [Number(placeId), accessCode, linkCode]);
+  return runLaunch(placeId, "joinPrivateGame", [Number(placeId), accessCode, linkCode]);
 }
 function launchMultiplayerGame(placeId, launchData = {}) {
-  return executeLaunchScript("joinMultiplayerGame", [Number(placeId), false, false, null, null, { launchData }]);
+  window.__rovalra_skipNextLaunch = true;
+  return runLaunch(placeId, "joinMultiplayerGame", [Number(placeId), false, false, null, null, { launchData }]);
+}
+function runLaunch(placeId, method, args) {
+  if (!preLaunchHook) return executeLaunchScript(method, args);
+  return Promise.resolve().then(() => preLaunchHook(placeId)).catch((error) => {
+    console.error("RoValra Launcher: Pre launch hook failed", error);
+  }).then(() => executeLaunchScript(method, args));
 }
 function followUser(userId) {
   const id = Number.parseInt(userId, 10);
+  if (!id) return;
   const url = `https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestFollowUser&userId=${id}&is30=false`;
-  return executeLaunchScript("followPlayerIntoGame", [id],
+  const launch = () => executeLaunchScript("followPlayerIntoGame", [id],
     `roblox-player:1+launchmode:play+placelauncherurl:${encodeURIComponent(url)}`);
+  if (!followUserHook) return launch();
+  return resolveGameLaunchPlaceId({request: "RequestFollowUser", userId: String(id)})
+    .then((placeId) => followUserHook(placeId)).catch((error) => {
+      console.error("RoValra Launcher: Follow user hook failed", error);
+    }).then(launch);
+}
+function openWebChat(userId) {
+  const id = Number.parseInt(userId, 10);
+  if (!id) return;
+  return executeLaunchScript("navigateToDeepLink", [`roblox://navigation/chat?userId=${id}`]);
 }
 async function launchStudioForGame(placeId) {
   try {
