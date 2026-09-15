@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import {Builder} from 'selenium-webdriver';
 import firefox from 'selenium-webdriver/firefox.js';
 import {zipSync} from 'fflate';
-import {ROOT,filesIn} from '../adapter.mjs';
+import {ROOT,filesIn,readConfig,sha256} from '../adapter.mjs';
+import {updateManifest} from '../publish-manifest.mjs';
 
 // Explicitly isolated profile: never read or change the user's browser profile.
 const build=path.join(ROOT,'build');
@@ -13,7 +14,18 @@ const base=await fs.mkdtemp(path.join(build,'permanent-test-'));
 const profile=path.join(base,'profile');
 await fs.mkdir(profile);
 const reports=[];
+const requests=[];
+let updateIndex, updateBytes;
 const server=http.createServer(async(req,res)=>{
+  requests.push(req.url);
+  if(req.url==='/updates.json') {
+    res.setHeader('Content-Type','application/json');
+    res.end(JSON.stringify(updateIndex));return;
+  }
+  if(req.url==='/update.xpi') {
+    res.setHeader('Content-Type','application/x-xpinstall');
+    res.end(updateBytes);return;
+  }
   let body='';for await(const chunk of req)body+=chunk;
   if(req.url==='/report')reports.push(JSON.parse(body));
   res.end('ok');
@@ -35,8 +47,16 @@ const version1=manifest.version;
 const parts=version1.split('.').map(Number);parts[3]++;
 const version2=parts.join('.');
 for(const version of [version1,version2]) {
-  files['manifest.json']=Buffer.from(JSON.stringify({...manifest,version}));
-  await fs.writeFile(path.join(base,`${version}.xpi`),zipSync(files));
+  const fixtureManifest=structuredClone({...manifest,version});
+  fixtureManifest.browser_specific_settings.gecko.update_url=`${origin}/updates.json`;
+  files['manifest.json']=Buffer.from(JSON.stringify(fixtureManifest));
+  const bytes=zipSync(files);
+  await fs.writeFile(path.join(base,`${version}.xpi`),bytes);
+  if(version===version2) {
+    updateBytes=bytes;
+    updateIndex=updateManifest(await readConfig(),{...manifest,version},'update.xpi',sha256(bytes));
+    updateIndex.addons[id].updates[0].update_link=`${origin}/update.xpi`;
+  }
 }
 const names=await fs.readdir(path.join(build,'tools')).catch(()=>[]);
 const localDriver=names.find(n=>/^geckodriver-[\d.]+(?:\.exe)?$/.test(n));
@@ -46,6 +66,8 @@ async function start() {
   service.addArguments('--allow-system-access');
   const options=new firefox.Options().addArguments('-headless','-profile',profile)
     .setPreference('xpinstall.signatures.required',false)
+    // Loopback-only fixture. Production manifests and downloads remain HTTPS.
+    .setPreference('extensions.checkUpdateSecurity',false)
     .setPreference('extensions.update.enabled',false);
   if(process.env.FIREFOX_BINARY)options.setBinary(process.env.FIREFOX_BINARY);
   else if(process.platform==='win32')options.setBinary('C:/Program Files/Firefox Developer Edition/firefox.exe');
@@ -71,7 +93,26 @@ try {
   await driver.wait(()=>reports.length>=2,30000);
   assert.equal((await inspect()).version,version1);
   assert.equal(reports[1].previousSetting,'retained');
-  await driver.installAddon(path.join(base,`${version2}.xpi`),false);
+  await driver.setContext('chrome');
+  const delivery=await driver.executeAsyncScript(`const id=arguments[0],done=arguments[arguments.length-1];
+    const {AddonManager}=ChromeUtils.importESModule('resource://gre/modules/AddonManager.sys.mjs');
+    AddonManager.getAddonByID(id).then(addon=>addon.findUpdates({
+      onUpdateAvailable(_addon,install) {
+        install.addListener({
+          onInstallEnded:(_install,updated)=>done({version:updated.version}),
+          onDownloadFailed:i=>done({error:'Download failed: '+i.error}),
+          onInstallFailed:i=>done({error:'Install failed: '+i.error})
+        });
+        install.install();
+      },
+      onNoUpdateAvailable:()=>done({error:'No update offered'}),
+      onUpdateFinished:(_addon,error)=>{if(error)done({error:'Update check failed: '+error});}
+    },AddonManager.UPDATE_WHEN_USER_REQUESTED)).catch(error=>done({error:String(error)}));`,id);
+  await driver.setContext('content');
+  assert.equal(delivery.error,undefined,delivery.error);
+  assert.equal(delivery.version,version2);
+  assert(requests.includes('/updates.json'));
+  assert(requests.includes('/update.xpi'));
   await driver.wait(()=>reports.some(r=>r.version===version2),30000);
   assert.equal(reports.find(r=>r.version===version2).previousSetting,'retained');
   await driver.quit();driver=null;
@@ -82,8 +123,8 @@ try {
   assert.equal(upgraded.temporary,false);assert.equal(upgraded.signatureEnforced,false);
   assert(reports.slice(1).every(r=>r.previousSetting==='retained'));
   const result={firefox:(await driver.getCapabilities()).get('browserVersion'),installed,upgraded,reports,
-    survivedRestartWithoutReinstall:true,settingsSurvivedUpgrade:true,
-    note:'Real port with a storage probe. Upgrade installed from a local XPI; hosted update delivery is not tested here.'};
+    survivedRestartWithoutReinstall:true,settingsSurvivedUpgrade:true,updateManifestDownloaded:true,xpiDownloaded:true,
+    note:'Real port with a storage probe. Firefox fetched the generated update manifest and XPI from a loopback fixture. Public GitHub delivery is checked separately.'};
   await fs.writeFile(path.join(build,'permanent-install.json'),JSON.stringify(result,null,2));
   console.log(JSON.stringify(result,null,2));
 } finally {
