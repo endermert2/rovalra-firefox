@@ -21,6 +21,8 @@ test('MV3 adaptation preserves main-world order and static rules', () => {
   assert.equal(result.content_scripts[2].js[0], 'firefox/content.js');
   assert.deepEqual(result.declarative_net_request, original.declarative_net_request);
   assert(result.permissions.includes('contextMenus'));
+  assert(result.host_permissions.includes('https://apis.rovalra.com/*'));
+  assert(result.host_permissions.includes('https://www.rovalra.com/*'));
   assert(!result.optional_permissions.includes('contextMenus'));
   assert.equal(original.background.service_worker, 'background.js');
 });
@@ -68,17 +70,63 @@ test('unsigned update index pins identity, version, HTTPS artifact and checksum'
 test('launch adapters preserve all Roblox argument shapes without executable strings', async () => {
   const calls=[];
   const context=vm.createContext({browser:{runtime:{sendMessage:async message=>{calls.push(message);return {success:true};}}},console,
-    callRobloxApiJson:async()=>[{universeId:456}],URL,encodeURIComponent});
+    callRobloxApiJson:async()=>[{universeId:456}],URL,encodeURIComponent,window:{},preLaunchHook:null,followUserHook:null});
   vm.runInContext(await fs.readFile(path.join(ROOT,'patches/launcher.js'),'utf8'),context);
   for(const expression of ["launchGame(123)","launchGame(123,'job')","launchPrivateGame(123,'access','link')",
-    "launchMultiplayerGame(123,{test:'ok'})","followUser(789)","launchStudioForGame(123)","launchDeeplink('roblox://placeId=123')"])
+    "launchMultiplayerGame(123,{test:'ok'})","followUser(789)","launchStudioForGame(123)","launchDeeplink('roblox://placeId=123')","openWebChat(789)"])
     await vm.runInContext(expression,context);
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0].args)),[123]);
   assert.deepEqual(JSON.parse(JSON.stringify(calls[2].args)),[123,'access','link']);
   assert.deepEqual(JSON.parse(JSON.stringify(calls[3].args)),[123,false,false,null,null,{launchData:{test:'ok'}}]);
   assert.deepEqual(JSON.parse(JSON.stringify(calls[5].args)),[123,456]);
+  assert.equal(calls[7].method,'navigateToDeepLink');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[7].args)),['roblox://navigation/chat?userId=789']);
+  assert.equal(context.window.__rovalra_skipNextLaunch,true);
   assert(calls.every(call=>call.action==='rovalraFirefoxLaunch' && !('codeToInject' in call)));
   assert.throws(()=>vm.runInContext("launchDeeplink('javascript:alert(1)')",context),/Invalid/);
+});
+
+test('2.6.9 outfit hooks finish before joining and failed hooks still launch once', async () => {
+  const events=[];
+  const context=vm.createContext({window:{},console:{error:()=>{}},encodeURIComponent,
+    browser:{runtime:{sendMessage:async message=>{events.push(message.method);return {success:true};}}},
+    preLaunchHook:async id=>{await Promise.resolve();events.push(`outfit:${id}`);},
+    followUserHook:async id=>{events.push(`follow-outfit:${id}`);},
+    resolveGameLaunchPlaceId:async launch=>{assert.equal(launch.userId,'789');return 456;}});
+  vm.runInContext(await fs.readFile(path.join(ROOT,'patches/launcher.js'),'utf8'),context);
+  for (const expression of ["launchGame(123)","launchPrivateGame(123,'a','b')","launchMultiplayerGame(123)","followUser(789)"])
+    await vm.runInContext(expression,context);
+  assert.deepEqual(events,['outfit:123','joinGameInstance','outfit:123','joinPrivateGame',
+    'outfit:123','joinMultiplayerGame','follow-outfit:456','followPlayerIntoGame']);
+  events.length=0;
+  context.preLaunchHook=()=>{throw new Error('outfit failed');};
+  context.followUserHook=async()=>{throw new Error('outfit failed');};
+  await vm.runInContext('launchGame(123)',context);
+  await vm.runInContext('followUser(789)',context);
+  await vm.runInContext("followUser('invalid'); openWebChat('invalid')",context);
+  assert.deepEqual(events,['joinGameInstance','followPlayerIntoGame']);
+});
+
+test('storage listener removal stops both local and bridged session notifications', async () => {
+  let storageListener, messageListener;
+  const context=vm.createContext({console,window:{},CustomEvent:function(){},
+    chrome:{storage:{onChanged:{addListener:fn=>{storageListener=fn;}}}},
+    browser:{runtime:{onMessage:{addListener:fn=>{messageListener=fn;}}}}});
+  vm.runInContext(await fs.readFile(path.join(ROOT,'runtime/content.js'),'utf8'),context);
+  vm.runInContext('var seen=[]; var listener=(changes,area)=>seen.push(area); RoValraFirefoxStorage.onChanged.addListener(listener);',context);
+  storageListener({},'local');messageListener({action:'rovalraFirefoxSessionChanged',changes:{}});
+  vm.runInContext('RoValraFirefoxStorage.onChanged.removeListener(listener)',context);
+  storageListener({},'local');messageListener({action:'rovalraFirefoxSessionChanged',changes:{}});
+  assert.deepEqual(Array.from(context.seen),['local','session']);
+});
+
+test('reviewed upstream baseline adapts successfully and unknown APIs still stop updates', async () => {
+  const input=await filesIn(path.join(ROOT,'upstream'));
+  const result=await adaptFiles(input,config);
+  assert.equal(result.report.upstreamVersion,'2.6.9');
+  assert.equal(result.manifest.version,`2.6.9.${config.adapterRevision}`);
+  input['content.js']=Buffer.concat([input['content.js'],Buffer.from('\nchrome.unknownNewAPI();')]);
+  await assert.rejects(adaptFiles(input,config),/New upstream API chrome.unknownNewAPI/);
 });
 test('build contains required resources and the Firefox-compatible beta redirect', async () => {
   const files=await filesIn(path.join(ROOT,'build/extension'));
