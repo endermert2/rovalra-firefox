@@ -1,4 +1,21 @@
 /* RoValra Firefox compatibility layer, GPL-3.0-or-later. */
+// Firefox MV3 content fetches obey the Roblox page's CSP. Only the two
+// declared RoValra hosts use the privileged transport; Roblox stays on-page.
+async function RoValraFirefoxFetch(input,init) {
+  const url=new URL(input instanceof Request?input.url:String(input),location.href);
+  if(url.protocol!=='https:' || !['apis.rovalra.com','www.rovalra.com'].includes(url.hostname))return fetch(input,init);
+  const request=new Request(input,init);
+  if(request.signal.aborted)throw new DOMException('Request aborted','AbortError');
+  const body=['GET','HEAD'].includes(request.method)?null:Array.from(new Uint8Array(await request.arrayBuffer()));
+  if(body?.length>8*1024*1024)throw new Error('RoValra request exceeds the transport size limit');
+  const response=await browser.runtime.sendMessage({action:'rovalraFirefoxFetch',url:request.url,
+    method:request.method,headers:Object.fromEntries(request.headers),body,cache:request.cache});
+  if(request.signal.aborted)throw new DOMException('Request aborted','AbortError');
+  if(!response?.ok)throw new Error(response?.error||'RoValra background request failed');
+  return new Response([204,205,304].includes(response.status)||request.method==='HEAD'?null:new Uint8Array(response.body),
+    {status:response.status,statusText:response.statusText,headers:response.headers});
+}
+
 // Keep object event payloads readable by Roblox's MAIN-world scripts.
 function RoValraFirefoxCustomEvent(type, options = {}) {
   const detail = options.detail;
