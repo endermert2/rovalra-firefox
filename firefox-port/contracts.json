@@ -1,15 +1,17 @@
 {
-  "upstreamVersion": "2.6.8",
+  "upstreamVersion": "2.6.9",
   "functions": {
     "executeLaunchScript": "d8a60a6900d85d083d7e0e9e1cce059d1340f5382f367248452ce518bf341948",
-    "launchGame": "ba7af713b92af7220271e83c8c4a88cdd324d5d3ae4684826d0951ad36759839",
-    "launchPrivateGame": "84a81ca6dc5999a4cf412e3bd902a5f8e36c5f919bf4da780b417dacc754531e",
-    "launchMultiplayerGame": "f00d047e96ad864687e272d47d1d3d7048fe332de27fc2428dd00646265355c1",
-    "followUser": "fdb2391dea23067c53a4423a82d0695dc9f6569e72ce8a0a9d541ca929f5ab59",
+    "launchGame": "480cc031e5a4ac5fc9dcf9861fef3110ff6fc5c2bd1b794f4c95c4dbfb4e60df",
+    "launchPrivateGame": "2d1f6bb9db4184da88a44387ec685f46c5010d52d373dd9e1004392a72f6b556",
+    "launchMultiplayerGame": "963fdc0f1b6559b88f208cd8c45eee68e50353def184bf276303fcf5d8b6cbe2",
+    "followUser": "abdc3b0d37874b747023bd96eb697bee5c32ffed4e2c2c6d1daa4bc321fa7ddc",
     "launchStudioForGame": "f5db31b07067741639ca6560fba59f607e257636936ac5bbbbde040f1adddc0c",
     "launchDeeplink": "ce1b7866924769ada3b63e7d6c0093e7d594607363227f7f784a3dc92678682c",
     "injectScript": "eeefa21d147131a0c19e5d54cf91d063f13656223521892fdbb883257d6c295e",
-    "WorkerWrapper": "1406df4e45427459476a6f4e152ce2182753f5569d6a36cd1026370961295784"
+    "WorkerWrapper": "1406df4e45427459476a6f4e152ce2182753f5569d6a36cd1026370961295784",
+    "runLaunch": "fbbdcbc5b96e3d24b513c1e361b9fa8328bf8d869da3dc59eb9a4d8524630f10",
+    "openWebChat": "c43694ca2c708d58a416d6ab36084d19aa462893281f3bb2078e755e2e340daa"
   },
   "permissions": [
     "declarativeNetRequest",
@@ -50,6 +52,7 @@
     "chrome.storage.local.set",
     "chrome.storage.onChanged",
     "chrome.storage.onChanged.addListener",
+    "chrome.storage.onChanged.removeListener",
     "chrome.storage.session",
     "chrome.storage.session.setAccessLevel",
     "chrome.tabs.create",

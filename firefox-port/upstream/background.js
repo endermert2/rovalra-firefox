@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.8
+ * rovalra v2.6.9
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -159,6 +159,12 @@
               description: "Disables the 3D try-on preview when hovering over marketplace items.",
               type: "checkbox",
               default: !1
+            },
+            marketplace3DPostProcessing: {
+              label: "Post Processing",
+              description: "Post processing allows for advanced effects such as bloom and ambient occlusion, but requires a powerful device.",
+              type: "checkbox",
+              default: !1
             }
           }
         },
@@ -227,6 +233,26 @@
     Games: {
       title: "Experiences",
       settings: {
+        gameBookmarksEnabled: {
+          label: "Game Bookmarks",
+          description: [
+            "Save games to your own bookmark categories and find them later on Home."
+          ],
+          type: "checkbox",
+          default: !0,
+          storageKey: "rovalra_game_bookmarks",
+          contributors: ["476449201"],
+          childSettings: {
+            gameBookmarksCardButtonsEnabled: {
+              label: "Show Bookmark Buttons on Game Cards",
+              description: [
+                "Shows a Bookmark button when you hover over game cards."
+              ],
+              type: "checkbox",
+              default: !1
+            }
+          }
+        },
         PreferredRegionEnabled: {
           label: "Preferred Region Play Button",
           description: [
@@ -473,6 +499,15 @@
           default: !0,
           contributors: [546872490]
         },
+        badgeEarnedDateEnabled: {
+          label: "Badge Earned Date",
+          description: [
+            "Shows when you earned a badge on badge and experience pages."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: [476449201]
+        },
         updateHistoryEnabled: {
           label: "Update History",
           description: [
@@ -644,6 +679,17 @@
             }
           }
         },
+        HidePrivateServersEnabled: {
+          label: "Hide Private Servers",
+          description: [
+            "Adds an option to hide private servers from the server list."
+          ],
+          type: "checkbox",
+          default: !1,
+          storageKey: "hiddenFriendPrivateServers",
+          contributors: ["476449201"],
+          experimental: "Has a few quality of life issues."
+        },
         PrivateQuickLinkCopy: {
           label: "Quick Private Server Link Copy and Generation",
           description: [
@@ -695,9 +741,7 @@
         },
         displayAppThemeUserProfile: {
           label: "Display app theme user profiles",
-          description: [
-            "Displays users app theme on their profile!"
-          ],
+          description: ["Displays users app theme on their profile!"],
           type: "checkbox",
           default: !1,
           childSettings: {
@@ -883,6 +927,12 @@
               ],
               type: "checkbox",
               default: !1
+            },
+            profile3DRenderPostProcessing: {
+              label: "Post Processing",
+              description: "Post processing allows for advanced effects such as bloom and ambient occlusion, but requires a powerful device.",
+              type: "checkbox",
+              default: !1
             }
           }
         },
@@ -953,6 +1003,13 @@
           description: "This allows you to unfriend people from your friends list in bulk",
           type: "checkbox",
           default: !0
+        },
+        bulkBadgeRemoverEnabled: {
+          label: "Bulk Badge Removal",
+          description: "This allows you to delete your badges in bulk.",
+          type: "checkbox",
+          default: !0,
+          contributors: ["476449201"]
         },
         unfriendDetectorEnabled: {
           label: "Unfriend Detector",
@@ -1292,6 +1349,17 @@
             }
           }
         },
+        pinnedFriendsEnabled: {
+          label: "Pin Friends",
+          description: [
+            "Adds an entry to the friend menu on the Home page that keeps someone at the front of the friends row.",
+            "Pinned friends stay first whatever their status is, so the people you actually play with are not buried behind everyone who happens to be online."
+          ],
+          type: "checkbox",
+          default: !1,
+          storageKey: ["rovalra_pinned_friends"],
+          contributors: ["4489102289"]
+        },
         underratedGamesEnabled: {
           label: "Underrated Games",
           description: [
@@ -1320,6 +1388,15 @@
           type: "checkbox",
           default: !1,
           contributors: ["476449201"]
+        },
+        friendsCarouselRedesignEnabled: {
+          label: "App-Style Friends Carousel",
+          description: [
+            "Replaces the Home page friends carousel with the arrow-navigated carousel from the Roblox app."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["3050364170"]
         },
         friendLabelsEnabled: {
           label: "Friend Labels",
@@ -1535,6 +1612,18 @@
           type: "checkbox",
           default: !0,
           storageKey: ["rovalra_body_color_presets"],
+          contributors: ["4489102289"]
+        },
+        gameOutfitsEnabled: {
+          label: "Outfits Per Experience",
+          description: [
+            "Lets you set an outfit that gets equipped automatically when you play, one for R6 experiences and one for R15 experiences.",
+            "Experiences that let you choose your own avatar type use whichever of the two matches the type you are currently on.",
+            "Individual experiences can be given their own outfit from their page, which overrides both."
+          ],
+          type: "checkbox",
+          default: !0,
+          storageKey: ["rovalra_game_outfits"],
           contributors: ["4489102289"]
         },
         avatarRotatorEnabled: {
@@ -1758,6 +1847,13 @@
           type: "checkbox",
           default: !1,
           contributors: ["1960518316"]
+        },
+        sendTradeEnabled: {
+          label: "Send Trade",
+          description: "Allows you to send new trade offers to other users from the trade page.",
+          type: "checkbox",
+          default: !1,
+          contributors: ["1960518316"]
         }
       }
     },
@@ -1864,9 +1960,7 @@
             // Toggles to be in the menu
             privacyTogglesDropdownOnlineStatusEnabled: {
               label: "Online Status Toggle",
-              description: [
-                "Quickly manage your online status."
-              ],
+              description: ["Quickly manage your online status."],
               type: "checkbox",
               default: !0
             },
@@ -1981,123 +2075,6 @@
                 { label: "All digits", value: "all" }
               ],
               default: "1"
-            }
-          }
-        },
-        customRobloxBannerEnabled: {
-          label: "Roblox Logo Customization",
-          description: [
-            "Replaces the Roblox banner in the top-left navigation bar with an image loaded from a URL you provide.",
-            "Also supports GIFs!",
-            "Recommended image: square PNG or WebP with transparency, 256x256 pixels.",
-            'You can use this link "https://www.roblox.com/images/roblox_logo.png" to get back the old Roblox Logo!'
-          ],
-          type: "checkbox",
-          default: !1,
-          contributors: ["476449201"],
-          storageKey: [
-            "customRobloxBannerImageUrl",
-            "customRobloxBannerImage",
-            "customRobloxBannerPositionX",
-            "customRobloxBannerPositionY",
-            "customRobloxBannerZoom"
-          ],
-          childSettings: {
-            customRobloxBannerImageUrl: {
-              label: "Custom Roblox Banner URL",
-              description: [
-                "Enter a direct image URL to use as your Roblox banner."
-              ],
-              type: "input",
-              inputType: "url",
-              inputWidth: "280px",
-              placeholder: "https://example.com/banner.png",
-              trim: !0,
-              validateHttpUrl: !0,
-              imageUrlPreview: !0,
-              default: null
-            },
-            customRobloxBannerFitMode: {
-              label: "Display Mode",
-              description: [
-                "Contain keeps the whole image visible.",
-                "Cover fills the banner area while preserving aspect ratio.",
-                "Stretch fills the full default Roblox banner area and may distort the image."
-              ],
-              type: "select",
-              options: [
-                { label: "Contain", value: "contain" },
-                { label: "Cover", value: "cover" },
-                { label: "Stretch", value: "stretch" }
-              ],
-              default: "contain"
-            },
-            customRobloxBannerPositionControls: {
-              label: "Image Position",
-              description: [
-                "Moves the image inside the banner area. This is most useful in Cover mode."
-              ],
-              type: "buttonGroup",
-              buttons: [
-                {
-                  text: "\u2191",
-                  event: "rovalra:customRobloxBannerMoveUp"
-                },
-                {
-                  text: "\u2193",
-                  event: "rovalra:customRobloxBannerMoveDown"
-                },
-                {
-                  text: "\u2190",
-                  event: "rovalra:customRobloxBannerMoveLeft"
-                },
-                {
-                  text: "\u2192",
-                  event: "rovalra:customRobloxBannerMoveRight"
-                },
-                {
-                  text: "Center",
-                  event: "rovalra:customRobloxBannerCenter"
-                },
-                {
-                  text: "Zoom In",
-                  event: "rovalra:customRobloxBannerZoomIn"
-                },
-                {
-                  text: "Zoom Out",
-                  event: "rovalra:customRobloxBannerZoomOut"
-                }
-              ]
-            },
-            customRobloxBannerPositionX: {
-              label: "Image Position X",
-              description: "Horizontal image position from left to right. 50 is centered.",
-              type: "number",
-              min: 0,
-              max: 100,
-              step: 1,
-              default: 50,
-              hidden: !0
-            },
-            customRobloxBannerPositionY: {
-              label: "Image Position Y",
-              description: "Vertical image position from top to bottom. 50 is centered.",
-              type: "number",
-              min: 0,
-              max: 100,
-              step: 1,
-              default: 50,
-              hidden: !0
-            },
-            customRobloxBannerZoom: {
-              label: "Image Zoom",
-              description: "Image zoom percentage. 100 is the default size.",
-              type: "number",
-              min: 25,
-              max: 300,
-              step: 10,
-              default: 100,
-              hidden: !0
             }
           }
         },
@@ -2261,7 +2238,7 @@
               description: "Combines your Robux balance with your configured community funds in the navbar. Click the balance to see your Robux and each community separately.",
               type: "checkbox",
               default: !1,
-              contributors: ["278039610"]
+              contributors: ["278039610", "476449201"]
             },
             GroupFundsIds: {
               label: "Community IDs",
@@ -2272,6 +2249,15 @@
               placeholder: "Enter Community ID..."
             }
           }
+        },
+        incidentTrackingEnabled: {
+          label: "RoValra Status Banners",
+          description: [
+            "This feature shows when RoValra, or it's services are experiencing issues. We do not recommend turning this off."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: ["650766686"]
         }
       }
     },
@@ -2294,28 +2280,6 @@
           type: "checkbox",
           default: !1
         },
-        CustomThemeBackgroundEnabled: {
-          label: "Customizable Background Image",
-          description: "Allows you to add a custom background image to the Roblox website.",
-          type: "checkbox",
-          default: !1,
-          contributors: ["476449201"],
-          childSettings: {
-            customBackgroundImage: {
-              label: "Background Image Configuration",
-              type: "backgroundImage",
-              default: DEFAULT_BACKGROUND_IMAGE,
-              hidden: !0
-            },
-            openCustomThemeBackground: {
-              label: "Customize Image Settings",
-              description: "Adjust the image's opacity, blur, position, size, and more.",
-              type: "button",
-              buttonText: "Edit",
-              event: "rovalra:openCustomThemeBackground"
-            }
-          }
-        },
         ExplorerEnabled: {
           label: "Explorer",
           description: [
@@ -2324,27 +2288,6 @@
           type: "checkbox",
           default: !0,
           contributors: ["9502859424"]
-        },
-        Customfont: {
-          label: "Custom font",
-          description: [
-            "This allows you to set a custom font for the Roblox website."
-          ],
-          type: "checkbox",
-          default: !1,
-          contributors: [48255812],
-          childSettings: {
-            Customfontlink: {
-              label: "Google Fonts link",
-              description: [
-                "You can find Fonts at https://fonts.google.com/",
-                'The link should look like "https://fonts.google.com/specimen/Comic+Neue"'
-              ],
-              type: "input",
-              default: null,
-              placeholder: "Enter Font Link here..."
-            }
-          }
         },
         ServerdataEnabled: {
           label: "Send Server IDs and Place IDs to RoValra's API",
@@ -2357,15 +2300,6 @@
           ],
           type: "checkbox",
           default: !0
-        },
-        disableChannelTracking: {
-          label: "Disable Channel Tracking",
-          description: [
-            "Stops RoValra from sending your channel to the RoValra backends. We use this to improve RoValra, and the data is public. We have safety measures in place to prevent private channels from ever being stored.",
-            "After this feature has been disabled any data stored related to channels from you will be removed."
-          ],
-          type: "checkbox",
-          default: !1
         },
         loginBannerEnabled: {
           label: "Login Banner",
@@ -2528,7 +2462,7 @@
           type: "checkbox",
           default: !1,
           experimental: "This may cause some issues since it tricks Roblox into thinking your private info is something it isn't.",
-          contributors: ["447170745", "48255812"],
+          contributors: ["447170745", "48255812", "3050364170"],
           childSettings: {
             settingsPageInfo: {
               label: "Hide Private Information on the settings page",
@@ -2542,8 +2476,7 @@
             hideRobux: {
               label: "Hide Robux",
               description: [
-                "Simply hides your Robux by changing it to 'Hidden'.",
-                "This doesn't hide your Robux on purchase prompts."
+                "Simply hides your Robux by changing it to 'Hidden'."
               ],
               type: "checkbox",
               default: !1
@@ -2804,6 +2737,199 @@ Standards{linkEnd}.`,
             "- posting a comment on an asset (comments on assets have been removed)"
           ],
           default: null
+        }
+      }
+    },
+    WebsiteCustomization: {
+      title: "Website Customization",
+      settings: {
+        CustomThemeBackgroundEnabled: {
+          label: "Customizable Background Image",
+          description: "Allows you to add a custom background image to the Roblox website.",
+          type: "checkbox",
+          default: !1,
+          contributors: ["476449201"],
+          childSettings: {
+            customBackgroundImage: {
+              label: "Background Image Configuration",
+              type: "backgroundImage",
+              default: DEFAULT_BACKGROUND_IMAGE,
+              hidden: !0
+            },
+            openCustomThemeBackground: {
+              label: "Customize Image Settings",
+              description: "Adjust the image's opacity, blur, position, size, and more.",
+              type: "button",
+              buttonText: "Edit",
+              event: "rovalra:openCustomThemeBackground"
+            }
+          }
+        },
+        customRobloxBannerEnabled: {
+          label: "Roblox Logo Customization",
+          description: [
+            "Replaces the Roblox banner in the top-left navigation bar with an image loaded from a URL you provide.",
+            "Also supports GIFs!",
+            "Recommended image: square PNG or WebP with transparency, 256x256 pixels.",
+            'You can use this link "https://www.roblox.com/images/roblox_logo.png" to get back the old Roblox Logo!'
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["476449201"],
+          storageKey: [
+            "customRobloxBannerImageUrl",
+            "customRobloxBannerImage",
+            "customRobloxBannerPositionX",
+            "customRobloxBannerPositionY",
+            "customRobloxBannerZoom"
+          ],
+          childSettings: {
+            customRobloxBannerImageUrl: {
+              label: "Custom Roblox Banner URL",
+              description: [
+                "Enter a direct image URL to use as your Roblox banner."
+              ],
+              type: "input",
+              inputType: "url",
+              inputWidth: "280px",
+              placeholder: "https://example.com/banner.png",
+              trim: !0,
+              validateHttpUrl: !0,
+              imageUrlPreview: !0,
+              default: null
+            },
+            customRobloxBannerFitMode: {
+              label: "Display Mode",
+              description: [
+                "Contain keeps the whole image visible.",
+                "Cover fills the banner area while preserving aspect ratio.",
+                "Stretch fills the full default Roblox banner area and may distort the image."
+              ],
+              type: "select",
+              options: [
+                { label: "Contain", value: "contain" },
+                { label: "Cover", value: "cover" },
+                { label: "Stretch", value: "stretch" }
+              ],
+              default: "contain"
+            },
+            customRobloxBannerPositionControls: {
+              label: "Image Position",
+              description: [
+                "Moves the image inside the banner area. This is most useful in Cover mode."
+              ],
+              type: "buttonGroup",
+              buttons: [
+                {
+                  text: "\u2191",
+                  event: "rovalra:customRobloxBannerMoveUp"
+                },
+                {
+                  text: "\u2193",
+                  event: "rovalra:customRobloxBannerMoveDown"
+                },
+                {
+                  text: "\u2190",
+                  event: "rovalra:customRobloxBannerMoveLeft"
+                },
+                {
+                  text: "\u2192",
+                  event: "rovalra:customRobloxBannerMoveRight"
+                },
+                {
+                  text: "Center",
+                  event: "rovalra:customRobloxBannerCenter"
+                },
+                {
+                  text: "Zoom In",
+                  event: "rovalra:customRobloxBannerZoomIn"
+                },
+                {
+                  text: "Zoom Out",
+                  event: "rovalra:customRobloxBannerZoomOut"
+                }
+              ]
+            },
+            customRobloxBannerPositionX: {
+              label: "Image Position X",
+              description: "Horizontal image position from left to right. 50 is centered.",
+              type: "number",
+              min: 0,
+              max: 100,
+              step: 1,
+              default: 50,
+              hidden: !0
+            },
+            customRobloxBannerPositionY: {
+              label: "Image Position Y",
+              description: "Vertical image position from top to bottom. 50 is centered.",
+              type: "number",
+              min: 0,
+              max: 100,
+              step: 1,
+              default: 50,
+              hidden: !0
+            },
+            customRobloxBannerZoom: {
+              label: "Image Zoom",
+              description: "Image zoom percentage. 100 is the default size.",
+              type: "number",
+              min: 25,
+              max: 300,
+              step: 10,
+              default: 100,
+              hidden: !0
+            }
+          }
+        },
+        customFaviconEnabled: {
+          label: "Favicon Customization",
+          description: [
+            "Replaces the current favicon (the logo next to your tab) with an image loaded from a URL you provide.",
+            "Recommended image: square PNG or WebP, 256x256 pixels or SVG.",
+            'You can use this link "https://static.wikia.nocookie.net/logopedia/images/b/b7/ROBLOX_2006-2009.svg" to get back the old Roblox favicon!'
+            // The link is a wikipedia link
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["3050364170"],
+          childSettings: {
+            customFaviconUrl: {
+              label: "Custom Favicon URL",
+              description: [
+                "Enter a direct image URL to use as your favicon."
+              ],
+              type: "input",
+              inputType: "url",
+              inputWidth: "280px",
+              placeholder: "https://example.com/favicon.png",
+              trim: !0,
+              validateHttpUrl: !0,
+              imageUrlPreview: !0,
+              default: null
+            }
+          }
+        },
+        Customfont: {
+          label: "Custom font",
+          description: [
+            "This allows you to set a custom font for the Roblox website."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: [48255812],
+          childSettings: {
+            Customfontlink: {
+              label: "Google Fonts link",
+              description: [
+                "You can find Fonts at https://fonts.google.com/",
+                'The link should look like "https://fonts.google.com/specimen/Comic+Neue"'
+              ],
+              type: "input",
+              default: null,
+              placeholder: "Enter Font Link here..."
+            }
+          }
         }
       }
     },
@@ -3156,6 +3282,91 @@ Standards{linkEnd}.`,
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => (message.type === "settingsCompatGetRes" && (debugVerbose("Recieved signal settingsCompatGetRes.", { message, data: compatResults }), sendResponse(compatResults), compatResults = { replaced: [], deleted: [] }), !0));
   var settingsCompat_default = init2;
 
+  // src/shared/gameBookmarks.js
+  var BOOKMARKS_KEY = "rovalra_game_bookmarks", DEFAULT_CATEGORY_ID = "uncategorized";
+  function positiveId(value) {
+    let id = Number(value);
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
+  }
+  __name(positiveId, "positiveId");
+  function normalizeBookmarks(value) {
+    let categories = [{ id: DEFAULT_CATEGORY_ID, name: "Uncategorized" }], ids = /* @__PURE__ */ new Set([DEFAULT_CATEGORY_ID]);
+    for (let category of Array.isArray(value?.categories) ? value.categories : [])
+      typeof category?.id != "string" || ids.has(category.id) || typeof category.name != "string" || !category.name.trim() || (categories.push({
+        id: category.id,
+        name: category.name.trim().slice(0, 60)
+      }), ids.add(category.id));
+    let bookmarks = {};
+    for (let entry of Object.values(value?.bookmarks || {})) {
+      let universeId = positiveId(entry?.universeId), rootPlaceId = positiveId(entry?.rootPlaceId);
+      if (!universeId || !rootPlaceId) continue;
+      let categoryIds = Array.isArray(entry.categoryIds) ? entry.categoryIds : [entry.categoryId], validCategoryIds = [
+        ...new Set(categoryIds.filter((categoryId) => ids.has(categoryId)))
+      ];
+      bookmarks[universeId] = {
+        universeId,
+        rootPlaceId,
+        categoryIds: validCategoryIds.length ? validCategoryIds : [DEFAULT_CATEGORY_ID]
+      };
+    }
+    return { version: 1, categories, bookmarks };
+  }
+  __name(normalizeBookmarks, "normalizeBookmarks");
+  function applyBookmarkOperation(value, operation) {
+    let state2 = normalizeBookmarks(value);
+    if (!["save", "remove", "deleteCategory"].includes(operation?.type))
+      throw new Error("Invalid bookmark operation");
+    if (operation.type === "deleteCategory") {
+      if (typeof operation.categoryId != "string" || operation.categoryId === DEFAULT_CATEGORY_ID)
+        throw new Error("Invalid category");
+      if (!state2.categories.some((item) => item.id === operation.categoryId))
+        throw new Error("Category no longer exists");
+      state2.categories = state2.categories.filter(
+        (item) => item.id !== operation.categoryId
+      );
+      for (let bookmark of Object.values(state2.bookmarks))
+        bookmark.categoryIds = bookmark.categoryIds.filter(
+          (categoryId) => categoryId !== operation.categoryId
+        ), bookmark.categoryIds.length || (bookmark.categoryIds = [DEFAULT_CATEGORY_ID]);
+      return state2;
+    }
+    let universeId = positiveId(operation.universeId);
+    if (!universeId) throw new Error("Invalid universe");
+    if (operation.type === "remove")
+      return delete state2.bookmarks[universeId], state2;
+    let rootPlaceId = positiveId(operation.rootPlaceId);
+    if (!rootPlaceId) throw new Error("Invalid root place");
+    let categoryIds = Array.isArray(operation.categoryIds) ? operation.categoryIds : [operation.categoryId || DEFAULT_CATEGORY_ID];
+    if (typeof operation.newCategory == "string") {
+      let name = operation.newCategory.trim();
+      if (!name || name.length > 60)
+        throw new Error("Category must contain 1\u201360 characters");
+      let category = state2.categories.find(
+        (item) => item.name.toLowerCase() === name.toLowerCase()
+      );
+      category || (category = { id: crypto.randomUUID(), name }, state2.categories.push(category)), categoryIds = [.../* @__PURE__ */ new Set([...categoryIds, category.id])];
+    }
+    return categoryIds = [...new Set(categoryIds)].filter(
+      (categoryId) => state2.categories.some((item) => item.id === categoryId)
+    ), categoryIds.length || (categoryIds = [DEFAULT_CATEGORY_ID]), state2.bookmarks[universeId] = { universeId, rootPlaceId, categoryIds }, state2;
+  }
+  __name(applyBookmarkOperation, "applyBookmarkOperation");
+
+  // src/background/gameBookmarks.js
+  var writes = Promise.resolve();
+  function updateGameBookmarks(operation) {
+    let result = writes.then(async () => {
+      let data = await chrome.storage.local.get(BOOKMARKS_KEY);
+      if (data[BOOKMARKS_KEY]?.version > 1)
+        throw new Error("Unsupported bookmark version");
+      let state2 = applyBookmarkOperation(data[BOOKMARKS_KEY], operation);
+      return await chrome.storage.local.set({ [BOOKMARKS_KEY]: state2 }), state2;
+    });
+    return writes = result.catch(() => {
+    }), result;
+  }
+  __name(updateGameBookmarks, "updateGameBookmarks");
+
   // src/background/background.js
   var state = {
     isMemoryFixEnabled: !1,
@@ -3455,7 +3666,24 @@ Standards{linkEnd}.`,
         if (!detailsRes?.ok) return { ok: !1 };
         details = await detailsRes.json();
       }
-      let outfitModel = details.outfitModel || details, assets = [...outfitModel.assets || []], backgroundAsset = details.outfitConfigurations?.background?.backgroundAsset, promises = [];
+      let outfitModel = details.outfitModel || details, assets = [...outfitModel.assets || []], bodyColor3s = details.bodyColor3s || outfitModel.bodyColor3s;
+      !bodyColor3s && outfitModel.bodyColors && (bodyColor3s = Object.fromEntries(
+        Object.entries({
+          headColor: "headColor3",
+          torsoColor: "torsoColor3",
+          leftArmColor: "leftArmColor3",
+          rightArmColor: "rightArmColor3",
+          leftLegColor: "leftLegColor3",
+          rightLegColor: "rightLegColor3"
+        }).filter(([key]) => outfitModel.bodyColors[key]).map(([key, outputKey]) => {
+          let color = String(outfitModel.bodyColors[key]);
+          return [
+            outputKey,
+            color.startsWith("#") ? color : `#${color}`
+          ];
+        })
+      ));
+      let backgroundAsset = details.outfitConfigurations?.background?.backgroundAsset, promises = [];
       return backgroundAsset?.id && promises.push(
         callWithRetry({
           subdomain: "avatar",
@@ -3493,12 +3721,12 @@ Standards{linkEnd}.`,
           method: "POST",
           body: outfitModel.scale
         })
-      ), outfitModel.bodyColor3s && promises.push(
+      ), bodyColor3s && promises.push(
         callWithRetry({
           subdomain: "avatar",
           endpoint: "/v2/avatar/set-body-colors",
           method: "POST",
-          body: outfitModel.bodyColor3s
+          body: bodyColor3s
         })
       ), { ok: (await Promise.all(promises)).every((r) => r && r.ok) };
     } catch (e) {
@@ -4404,6 +4632,8 @@ Standards{linkEnd}.`,
   });
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
+      case "updateGameBookmarks":
+        return updateGameBookmarks(request.operation).then((state2) => sendResponse({ state: state2 })).catch((error) => sendResponse({ error: error.message })), !0;
       case "fetchJson":
         return fetch(request.url).then((res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);

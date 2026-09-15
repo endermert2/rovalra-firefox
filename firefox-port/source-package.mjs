@@ -9,7 +9,7 @@ const upstreamZip = await fs.readFile(path.join(ROOT,'downloads',`rovalra-v${sta
 const input = unpackRelease(upstreamZip);
 const source = {};
 for (const [name,bytes] of Object.entries(input)) source[`firefox-port/upstream/${name}`]=bytes;
-for (const name of ['adapter.mjs','update.mjs','verify.mjs','publish-manifest.mjs','source-package.mjs','Update-Firefox.ps1','config.json','contracts.json','package.json','package-lock.json','README.md','AUTOMATIC-UPDATES.md','LICENSE','NOTICE.md']) {
+for (const name of ['adapter.mjs','update.mjs','verify.mjs','publish-manifest.mjs','source-package.mjs','Update-Firefox.ps1','config.json','contracts.json','package.json','package-lock.json','README.md','AUTOMATIC-UPDATES.md','REPAIR-NOTES.md','LICENSE','NOTICE.md']) {
   source[`firefox-port/${name}`]=await fs.readFile(path.join(ROOT,name));
 }
 for (const folder of ['runtime','patches','test']) for (const name of await fs.readdir(path.join(ROOT,folder))) {

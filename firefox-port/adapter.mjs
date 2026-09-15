@@ -90,7 +90,8 @@ export function adaptManifest(original, config) {
   // Firefox accepts this permission at installation, not as an optional one.
   manifest.optional_permissions = manifest.optional_permissions.filter(permission => permission !== 'contextMenus');
   // Used by the upstream background downloader for Roblox client assets.
-  manifest.host_permissions = [...new Set([...manifest.host_permissions, 'https://setup.rbxcdn.com/*'])];
+  manifest.host_permissions = [...new Set([...manifest.host_permissions, 'https://setup.rbxcdn.com/*',
+    'https://apis.rovalra.com/*', 'https://www.rovalra.com/*'])];
   for (const script of manifest.content_scripts) {
     if (script.world !== 'MAIN') script.js.unshift('firefox/content.js');
   }
@@ -147,6 +148,11 @@ export async function adaptFiles(input, config) {
   output['firefox/mesh-worker.js'] = Buffer.from(worker);
   const changes = [];
   walk.simple(parseJS(content), {
+    CallExpression(node) {
+      if(node.callee.type==='Identifier' && node.callee.name==='fetch') {
+        changes.push({...node.callee,text:'RoValraFirefoxFetch'});
+      }
+    },
     NewExpression(node) {
       if (node.callee.type === 'Identifier' && node.callee.name === 'CustomEvent') {
         changes.push({ ...node.callee, text: 'RoValraFirefoxCustomEvent' });
@@ -159,6 +165,8 @@ export async function adaptFiles(input, config) {
     },
   });
   content = edits(content, changes);
+  // Callback URLs contain one-time authorization codes. Never log them.
+  content = content.replaceAll('RoValra API: Request to ${fullUrl}', 'RoValra API: Request');
   // Mozilla's validator will not parse an individual JS file over 5 MB. Keep
   // original readable inputs in upstream/ and use upstream's standard bundler.
   output['content.js'] = Buffer.from((await transform(content, {

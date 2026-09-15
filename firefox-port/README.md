@@ -2,13 +2,13 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.8.2: upstream 2.6.8 plus adapter revision 2.
+The current version is 2.6.9.4: upstream 2.6.9 plus adapter revision 4.
 
 ## Installation
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.8.2-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.9.4-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -33,7 +33,7 @@ See [the detailed update setup](AUTOMATIC-UPDATES.md). The supplied GitHub workf
 checks upstream twice daily, adapts a release, validates and tests it, and publishes
 an unsigned XPI plus `updates.json`. Firefox uses its normal add-on updater to
 retrieve it. No Mozilla signing service, local scheduled task, or PC launcher is
-involved. The hosted workflow has to be uploaded and run before delivery is live.
+involved. Upload the repaired source and run the hosted workflow to restore delivery.
 
 `config.json` keeps upstream and delivery separate:
 
@@ -69,7 +69,31 @@ SHA-256 build report. `source-package.mjs` packages corresponding upstream sourc
 and the adapter for distribution under the existing license. It requires a prior
 `npm run update` to establish the exact downloaded release.
 
+## September 2026 updater repair
+
+RoValra 2.6.9 added `chrome.storage.onChanged.removeListener` and changed
+launcher functions to run outfit preparation before joining. The old contracts
+rejected that release, so scheduled builds stopped before publishing. The public
+feed was still offering 2.6.8.2 when investigated on September 16.
+
+Version **2.6.9.4** reviews those contracts, preserves the new outfit hooks and
+ports the new web-chat launcher through packaged code. The original 2.6.9 release
+is now the reproducible `upstream/` baseline. Unknown APIs and changed patch targets
+still fail validation. The changelog is fetched independently from RoValra’s server
+and does not show which extension version is installed; use `about:addons` for that.
+
+See [REPAIR-NOTES.md](REPAIR-NOTES.md) for deployment and verification.
+
 ## Firefox compatibility changes
+
+Version 2.6.8.3 fixed API authentication/sync requests blocked by Roblox's page CSP
+in Firefox. Fetches to `apis.rovalra.com` and `www.rovalra.com` now use an extension
+background transport with explicit host permissions. Other fetches remain on-page.
+The transport restricts hosts and methods, omits cookies, rejects redirects, bounds
+message sizes, and retains bearer authorization. Callback URLs are omitted from
+the port's API error messages so one-time OAuth codes are not printed there.
+Firefox may require approval for the added RoValra host access when updating.
+Refresh Roblox after installing and save the pronouns again to retry authentication.
 
 - Kept Manifest V3 and document-start MAIN-world interceptors; replaced the
   Chromium service worker with Firefox background scripts.
@@ -89,7 +113,8 @@ functions are unrelated to the removed Firefox browser launcher.
 ## Verification
 
 `npm test` covers archive safety, patch contracts, manifest conversion, Roblox
-launcher argument preservation, and unsigned update-manifest construction.
+launcher argument preservation, unsigned update-manifest construction, outfit-hook ordering and failure fallback,
+storage-listener removal, and adaptation of the reviewed 2.6.9 input.
 `npm run verify` runs Mozilla's local linter; this does not contact its signing
 service. Known upstream dynamic HTML warnings remain in `build/lint.json`; other
 warning categories and all errors fail validation.
@@ -108,14 +133,22 @@ Set `FIREFOX_BINARY` to override this location. Tests use disposable profiles wi
 signature enforcement disabled; your real Firefox profile is never opened or edited.
 
 The compatibility fixture tests API promises/callbacks, rules, MAIN-world injection,
-object events, session storage, six Roblox launcher calls, and a real mesh-worker
+object events, session storage, seven Roblox launcher calls, and a real mesh-worker
 calculation. The permanent-install test loads the real port with a storage probe,
-restarts without reinstalling, upgrades its local unsigned XPI, and restarts again.
-It checks both continued installation and preserved settings. This does not exercise
-download delivery from your hosted GitHub release.
+restarts without reinstalling, asks Firefox to fetch an update manifest and XPI
+from a loopback server, and restarts again.
+It checks update download delivery, continued installation, and preserved settings.
+Only its disposable profile allows HTTP update manifests for the loopback fixture.
+Production update URLs remain HTTPS. Public GitHub hosting is checked separately.
+
+The CSP regression fixture blocks a direct request to a second host, then verifies
+a JSON settings POST through the background transport, its authorization header,
+absence of cookies, response cloning, and rejection of an unrelated destination.
+It does not submit real pronouns or perform account authentication on your behalf.
 
 Authenticated Roblox features still need checking with your account: server lists,
 joins, private servers, follow-player, Studio, avatars, outfits, and the features you
 use regularly. Tests do not prove third-party availability or every RoValra feature.
 
 See `NOTICE.md` and `LICENSE` for attribution and licensing.
+

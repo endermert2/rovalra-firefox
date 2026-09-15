@@ -6,7 +6,9 @@ Mozilla developer account, API keys, or signing service.
 
 You can install the local XPI immediately. Completing this guide lets Firefox
 receive future adapted releases automatically through its normal add-on updater.
-The workflow is prepared in this folder, but has not been uploaded or run for you.
+The existing hosted workflow stalled on upstream 2.6.9. This folder contains the
+repair; upload the updated source and run the workflow as described below.
+See [REPAIR-NOTES.md](REPAIR-NOTES.md) for the diagnosis and repair checklist.
 
 ## 1. How the pieces fit together
 
@@ -55,7 +57,7 @@ original extension comes from. Only `releaseRepository` names your own repositor
 Do not change the add-on ID after installation; Firefox uses it to associate updates
 and settings with this extension.
 
-The current adapter revision is 2, producing version **2.6.8.2**. This also avoids
+The current adapter revision is 4, producing version **2.6.9.4**. This also avoids
 reusing the earlier port release tag. Future upstream releases get their upstream
 version plus this revision. A compatibility fix for the same upstream version must
 increment `adapterRevision` before publishing a replacement.
@@ -85,6 +87,7 @@ Exclude these generated folders and private files:
 | `firefox-port/node_modules/` | Downloaded build tools; GitHub installs them itself. |
 | `firefox-port/build/` | Generated packages, test profiles, reports, source archives. |
 | `firefox-port/downloads/` | Cached original release ZIPs. |
+| `standalone-server-region/` | Separate userscript project; not part of the Firefox port. |
 | `.env`, logs, credentials, or any browser profile | Private or unnecessary data. |
 
 Keep both `.gitignore` files. GitHub Desktop respects them, but manually uploading
@@ -155,7 +158,7 @@ reach that branch.
 1. In **Firefox Developer Edition**, open `about:config` and set
    `xpinstall.signatures.required` to **false**.
 2. Download the unsigned XPI from your first release. Alternatively, use the local
-   `firefox-port/build/rovalra-firefox-2.6.8.2-unsigned.xpi` prepared here; it contains
+   `firefox-port/build/rovalra-firefox-2.6.9.4-unsigned.xpi` prepared here; it contains
    the same configured update address.
 3. Open `about:addons`, click the gear, choose **Install Add-on From File**, and
    select the XPI. Accept the installation and grant Roblox access if asked.
@@ -211,3 +214,4 @@ website change is compatible; some adapter maintenance may still be necessary.
 References: [Mozilla signing exceptions](https://support.mozilla.org/en-US/kb/add-on-signing-in-firefox),
 [Firefox update manifests](https://extensionworkshop.com/documentation/manage/updating-your-extension/),
 [GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+

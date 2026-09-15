@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.8
+ * rovalra v2.6.9
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -33,7 +33,9 @@ const AccessoryAssetTypes = [
     return;
   window.__ROVALRA_INTERCEPTOR_SETUP__ = !0;
   const CATALOG_API_URL = "https://catalog.roblox.com/v1/catalog/items/details", CLIENT_STATUS_API_URL = "https://apis.roblox.com/matchmaking-api/v1/client-status", GAME_LAUNCH_SUCCESS_URL = "https://metrics.roblox.com/v1/games/report-event", GAME_SERVERS_API_URL = "https://games.roblox.com/", GAMES_ROBLOX_API = "https://games.roblox.com/", TRADES_API_URL = "https://trades.roblox.com/v2/users/", TRADE_DETAILS_API_URL = "https://trades.roblox.com/v2/trades/", TRADES_LIST_API_URL = "https://trades.roblox.com/v1/trades/", GROUP_ROLES_API_HOST = "groups.roblox.com", GROUP_ROLES_API_PATH = /^\/v1\/users\/(\d+)\/groups\/roles$/, PROFILE_API_URL = "https://apis.roblox.com/profile-platform-api/v1/profiles/get", ACCOUNT_SETTINGS_UI_API_URL = "https://apis.roblox.com/guac-v2/v1/bundles/account-settings-ui", USER_SETTINGS_API_URL = "https://apis.roblox.com/user-settings-api/v1/user-settings", FREE_ROBLOX_PLUS_THEMES_SETTING = "FreeRobloxPlusThemesEnabled", ROBLOX_ADMIN_GROUP_ID = 1200769, OMNI_RECOMMENDATION_API_URL = "https://apis.roblox.com/discovery-api/omni-recommendation", FRIEND_CAROUSEL_TOPIC_ID = 6e8, FRIEND_CAROUSEL_TREATMENT_TYPE = "FriendCarousel", THUMBNAILS_API_HOST = "thumbnails.roblox.com", THUMBNAIL_BACKGROUND_SETTING = "disableThumbnailBackground", THUMBNAIL_PROFILE_FRAME_SETTING = "disableThumbnailProfileFrame";
-  let ASSET_TYPE_ACCESSORIES = [8, 41, 42, 43, 44, 45, 46, 47, 57, 58], ASSET_TYPE_LAYERED = [64, 65, 66, 67, 68, 69, 70, 71, 72], streamerModeEnabled = !1, settingsPageInfoEnabled = !0, accurateContinueEnabled = !0, accurateContinueGames = [], homeLayoutOrder = [], homeLayoutHidden = [], homeExtraSorts = [], homeLayoutReady = !1, homeLayoutReadyPromise = null, resolveHomeLayoutReady = null, robloxGroupFeaturesEnabled = !0, freeRobloxPlusThemesEnabled = !1, disableThumbnailBackground = !1, disableThumbnailProfileFrame = !1;
+  let ASSET_TYPE_ACCESSORIES = [8, 41, 42, 43, 44, 45, 46, 47, 57, 58], ASSET_TYPE_LAYERED = [64, 65, 66, 67, 68, 69, 70, 71, 72], streamerModeEnabled = !1, settingsPageInfoEnabled = !0, accurateContinueEnabled = !0, accurateContinueGames = [], homeLayoutOrder = [], homeLayoutHidden = [], homeExtraSorts = [];
+  const homeExtraSortSources = /* @__PURE__ */ new Map(), homeExtraSortKeys = /* @__PURE__ */ new Set();
+  let homeKnownSorts = [], homeLayoutReady = !1, homeLayoutReadyPromise = null, resolveHomeLayoutReady = null, robloxGroupFeaturesEnabled = !0, freeRobloxPlusThemesEnabled = !1, disableThumbnailBackground = !1, disableThumbnailProfileFrame = !1;
   function updateThumbnailBackgroundSetting(value) {
     disableThumbnailBackground = value === !0;
   }
@@ -157,8 +159,46 @@ const AccessoryAssetTypes = [
     } catch {
     }
   }), document.addEventListener("rovalra-home-extra-sorts", (e) => {
-    homeExtraSorts = Array.isArray(e.detail?.sorts) ? e.detail.sorts : [];
-  });
+    homeExtraSortSources.set(
+      e.detail?.source || "legacy",
+      Array.isArray(e.detail?.sorts) ? e.detail.sorts : []
+    ), homeExtraSorts = [...homeExtraSortSources.values()].flat(), homeExtraSortKeys.clear(), homeExtraSorts.forEach(
+      (sort) => homeExtraSortKeys.add(getHomeSortKey(sort))
+    ), refreshHomeExtraSorts();
+  }), document.addEventListener("rovalra-home-rendered", refreshHomeExtraSorts);
+  function refreshHomeExtraSorts() {
+    const card = document.querySelector("#HomeContainer a.game-card-link");
+    if (!card) return;
+    const fiberKey = Object.keys(card).find(
+      (key) => key.startsWith("__reactFiber$")
+    );
+    for (let fiber = card[fiberKey]; fiber; fiber = fiber.return)
+      for (let hook = fiber.memoizedState; hook; hook = hook.next)
+        if (!(hook.memoizedState?.pageType !== "Home" || !Array.isArray(hook.memoizedState.sorts) || typeof hook.queue?.dispatch != "function")) {
+          hook.queue.dispatch((current) => {
+            if (current?.pageType !== "Home" || !Array.isArray(current.sorts))
+              return current;
+            const data = {
+              ...current,
+              sorts: current.sorts.filter(
+                (sort) => !homeExtraSortKeys.has(getHomeSortKey(sort))
+              ),
+              games: [...current.games || []],
+              contentMetadata: {
+                ...current.contentMetadata,
+                Game: { ...current.contentMetadata?.Game }
+              }
+            }, currentKeys = new Set(data.sorts.map(getHomeSortKey));
+            for (const sort of homeKnownSorts) {
+              const key = getHomeSortKey(sort);
+              homeLayoutHidden.includes(key) && !currentKeys.has(key) && !homeExtraSortKeys.has(key) && data.sorts.push(sort);
+            }
+            return addHomeExtraSorts(data), reorderHomeSorts(data), dispatchHomeLayoutCategories(data), hideHomeSorts(data), data;
+          });
+          return;
+        }
+  }
+  __name(refreshHomeExtraSorts, "refreshHomeExtraSorts");
   function waitForHomeLayoutState() {
     return homeLayoutReady ? Promise.resolve() : (homeLayoutReadyPromise || (homeLayoutReadyPromise = new Promise((resolve) => {
       const timeout = setTimeout(resolve, 700);
@@ -276,12 +316,14 @@ const AccessoryAssetTypes = [
   }
   __name(getHomeSortGameCount, "getHomeSortGameCount");
   function canAdjustHomeSort(sort) {
+    if (sort?.rovalraKeepEmpty) return !0;
     const gameCount = getHomeSortGameCount(sort);
     return gameCount === null || gameCount > 0;
   }
   __name(canAdjustHomeSort, "canAdjustHomeSort");
   function dispatchHomeLayoutCategories(data) {
     if (data?.pageType !== "Home" || !Array.isArray(data.sorts)) return;
+    homeKnownSorts = data.sorts;
     const seenKeys = /* @__PURE__ */ new Set(), categories = data.sorts.filter(canAdjustHomeSort).map((sort) => ({
       key: getHomeSortKey(sort),
       topic: sort?.topic || "Untitled",
