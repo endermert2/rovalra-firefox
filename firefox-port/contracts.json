@@ -11,7 +11,8 @@
     "injectScript": "eeefa21d147131a0c19e5d54cf91d063f13656223521892fdbb883257d6c295e",
     "WorkerWrapper": "1406df4e45427459476a6f4e152ce2182753f5569d6a36cd1026370961295784",
     "runLaunch": "fbbdcbc5b96e3d24b513c1e361b9fa8328bf8d869da3dc59eb9a4d8524630f10",
-    "openWebChat": "c43694ca2c708d58a416d6ab36084d19aa462893281f3bb2078e755e2e340daa"
+    "openWebChat": "c43694ca2c708d58a416d6ab36084d19aa462893281f3bb2078e755e2e340daa",
+    "createDOMPurify": "3835326313bab51c67786fe9f100d25084e17f1a683e20ce330e2f4e5a5c3e12"
   },
   "permissions": [
     "declarativeNetRequest",
@@ -66,5 +67,6 @@
     "chrome.webRequest.onBeforeRedirect.addListener",
     "chrome.webRequest.onBeforeRedirect.hasListener",
     "chrome.webRequest.onBeforeRedirect.removeListener"
-  ]
+  ],
+  "sanitizerSha256": "f263b05369e050fa175d4ecb9c9358eb4253602d510297adfb31df48b2f1c4d5"
 }

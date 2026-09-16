@@ -18,7 +18,7 @@ test('MV3 adaptation preserves main-world order and static rules', () => {
   assert.equal(result.background.service_worker, undefined);
   assert.deepEqual(result.background.scripts, ['firefox/background.js','background.js']);
   assert.deepEqual(result.content_scripts.slice(0,2), original.content_scripts.slice(0,2));
-  assert.equal(result.content_scripts[2].js[0], 'firefox/content.js');
+  assert.deepEqual(result.content_scripts[2].js.slice(0,3), ['firefox/purify.js','firefox/content.js','firefox/fonts.js']);
   assert.deepEqual(result.declarative_net_request, original.declarative_net_request);
   assert(result.permissions.includes('contextMenus'));
   assert(result.host_permissions.includes('https://apis.rovalra.com/*'));

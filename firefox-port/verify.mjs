@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ROOT } from './adapter.mjs';
+import { ROOT, filesIn } from './adapter.mjs';
+import { inspectHtmlWarnings } from './lint-policy.mjs';
 
 const command = spawnSync(process.execPath, [path.join(ROOT, 'node_modules/web-ext/bin/web-ext.js'),
   'lint', '--self-hosted', '--source-dir', path.join(ROOT, 'build/extension'), '--output', 'json'], {
@@ -14,9 +15,11 @@ await fs.writeFile(path.join(ROOT, 'build/lint.json'), JSON.stringify(result, nu
 const counts = {};
 for (const warning of result.warnings) counts[warning.code] = (counts[warning.code] || 0) + 1;
 console.log(JSON.stringify({ summary: result.summary, warningsByCode: counts }, null, 2));
-// These are upstream DOM-rendering warnings, not a Firefox-specific regression.
-// Keep every location in lint.json for review; never describe these as resolved.
-const unexpected = result.warnings.filter(w => w.code !== 'UNSAFE_VAR_ASSIGNMENT');
+const contracts=JSON.parse(await fs.readFile(path.join(ROOT,'contracts.json')));
+const review=inspectHtmlWarnings(await filesIn(path.join(ROOT,'build/extension')),result.warnings,contracts.sanitizerSha256);
+await fs.writeFile(path.join(ROOT,'build/html-review.json'),JSON.stringify(review,null,2)+'\n');
+const unexpected = review.unexpected;
+console.log(`HTML warnings: ${review.reviewed.length} verified sanitizer uses, ${unexpected.length} unresolved.`);
 if (result.errors.length || unexpected.length) {
   console.error(JSON.stringify({ errors: result.errors, unexpectedWarnings: unexpected }, null, 2));
   process.exitCode = 1;

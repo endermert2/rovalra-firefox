@@ -2,13 +2,16 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.9.4: upstream 2.6.9 plus adapter revision 4.
+The current version is 2.6.9.5: upstream 2.6.9 plus adapter revision 5.
+
+See [maintenance release notes](MAINTENANCE-2.6.9.5.md) for the font, dependency,
+and HTML-sanitization fixes and upload instructions.
 
 ## Installation
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.9.4-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.9.5-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -76,13 +79,13 @@ launcher functions to run outfit preparation before joining. The old contracts
 rejected that release, so scheduled builds stopped before publishing. The public
 feed was still offering 2.6.8.2 when investigated on September 16.
 
-Version **2.6.9.4** reviews those contracts, preserves the new outfit hooks and
+Version **2.6.9.4** reviewed those contracts, preserved the new outfit hooks and
 ports the new web-chat launcher through packaged code. The original 2.6.9 release
 is now the reproducible `upstream/` baseline. Unknown APIs and changed patch targets
 still fail validation. The changelog is fetched independently from RoValra’s server
 and does not show which extension version is installed; use `about:addons` for that.
 
-See [REPAIR-NOTES.md](REPAIR-NOTES.md) for deployment and verification.
+See [MAINTENANCE-2.6.9.5.md](MAINTENANCE-2.6.9.5.md) for current deployment and verification.
 
 ## Firefox compatibility changes
 
@@ -116,8 +119,8 @@ functions are unrelated to the removed Firefox browser launcher.
 launcher argument preservation, unsigned update-manifest construction, outfit-hook ordering and failure fallback,
 storage-listener removal, and adaptation of the reviewed 2.6.9 input.
 `npm run verify` runs Mozilla's local linter; this does not contact its signing
-service. Known upstream dynamic HTML warnings remain in `build/lint.json`; other
-warning categories and all errors fail validation.
+service. Raw HTML warnings remain in `build/lint.json`. Each warning is now checked against
+sanitizer use in `build/html-review.json`; unguarded warnings and all errors fail.
 
 Browser tests require Developer Edition, OpenSSL (provided by Git for Windows),
 and geckodriver. Download the driver if needed, then run:

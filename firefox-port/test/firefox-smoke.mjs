@@ -15,7 +15,11 @@ const build = path.join(ROOT, 'build');
 const fixture = await fs.mkdtemp(path.join(build, 'smoke-extension-'));
 await fs.cp(path.join(build, 'extension'), fixture, { recursive: true });
 const results = [];
+const fontFixture=await fs.readFile(path.join(ROOT,'assets/fonts/MaterialIcons.woff2'));
 const handler = async (req, res) => {
+  if(req.url.startsWith('/fonts/')) {
+    res.setHeader('Content-Type','font/woff2');res.end(fontFixture);return;
+  }
   if(req.url==='/transport-fixture') {
     let body='';for await(const chunk of req)body+=chunk;
     res.setHeader('Content-Type','application/json');
@@ -56,6 +60,9 @@ await new Promise(resolve => secureServer.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
 const base = `https://www.roblox.com:${secureServer.address().port}`;
 const apiBase = `https://apis.rovalra.com:${secureServer.address().port}`;
+await fs.writeFile(path.join(fixture,'firefox/fonts.js'),
+  (await fs.readFile(path.join(fixture,'firefox/fonts.js'),'utf8'))
+    .replace('https://www.rovalra.com/static/fonts/',apiBase+'/fonts/'));
 const manifest = JSON.parse(await fs.readFile(path.join(fixture, 'manifest.json'), 'utf8'));
 manifest.host_permissions.push('http://127.0.0.1/*');
 manifest.background.scripts.push('smoke-background.js');
@@ -84,6 +91,21 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
 (async () => {
   const report = result => browser.runtime.sendMessage({action:'smokeReport',result});
   await new Promise(resolve => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',resolve,{once:true}) : resolve());
+  const fonts=await RoValraFirefoxFontsReady;
+  await document.fonts.load('24px "Material Icons Outlined"','bookmark_border');
+  await document.fonts.load('24px "Material Icons"','bookmark');
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+  ctx.font='24px "Material Icons Outlined"';
+  const bookmarkWidth=ctx.measureText('bookmark_border').width;
+  const bookmark=document.createElement('icon');
+  bookmark.setAttribute('material','');bookmark.setAttribute('size','large');bookmark.textContent='bookmark_border';
+  document.querySelector('main').append(bookmark);
+  const probe=document.createElement('div');
+  probe.innerHTML=DOMPurify.sanitize('<img src=x onerror="window.pwned=true"><a href="javascript:alert(1)">link</a><svg onload="alert(1)"><path d="M0 0h10v10z"/></svg><icon material filled size="large">bookmark</icon><input type="checkbox" checked>',
+    {ADD_TAGS:['icon'],ADD_ATTR:['material','filled','fill','rovalra','size']});
+  const htmlSafe=!probe.querySelector('[onerror],[onload],[href^="javascript:"]') &&
+    Boolean(probe.querySelector('svg path')) && Boolean(probe.querySelector('icon[material][filled]')) &&
+    probe.querySelector('input').checked;
   document.dispatchEvent(new RoValraFirefoxCustomEvent('rovalra-firefox-test-event',{detail:{nested:{value:'readable'}}}));
   const change = new Promise(resolve => {
     RoValraFirefoxStorage.onChanged.addListener((changes,area)=>{
@@ -117,7 +139,7 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   worker.terminate();
   await report({test:'content',event:document.documentElement.dataset.eventValue,session:session.firefoxSmokeKey,changed,
     response,launches,invalid,workerReady,pageFetchBlocked,publicSync,blockedHost,
-    contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
+    fonts,bookmarkWidth,htmlSafe,contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
 })().catch(error=>browser.runtime.sendMessage({action:'smokeReport',result:{error:String(error),stack:error.stack}}));
 `);
 
@@ -147,6 +169,7 @@ try {
   await driver.get(base + '/compatibility-fixture');
   await driver.wait(() => results.some(result => result.test === 'content') || results.some(result => result.error), 30000).catch(() => {});
   const page = await driver.executeScript('return {url:location.href,title:document.title,launches:window.launches,interceptor:window.__ROVALRA_INTERCEPTOR_SETUP__}');
+  await fs.writeFile(path.join(build,'bookmark-font-test.png'),Buffer.from(await driver.takeScreenshot(),'base64'));
   await driver.setContext('chrome');
   const consoleErrors = await driver.executeScript('return Services.console.getMessageArray().map(e=>e.message).filter(m=>/moz-extension|Worker|worker|RoValra/.test(m)).slice(-20)');
   await driver.setContext('content');
@@ -164,7 +187,9 @@ try {
       page.launches[6].method !== 'navigateToDeepLink' ||
       !page.interceptor || JSON.stringify(content.workerReady?.values) !== '[2,3,4]' ||
       !content.pageFetchBlocked || content.publicSync?.setting?.value!=='they/them' ||
-      !content.publicSync.bearerReceived || content.publicSync.cookieReceived || content.blockedHost.ok) throw new Error('Firefox smoke checks failed');
+      !content.publicSync.bearerReceived || content.publicSync.cookieReceived || content.blockedHost.ok ||
+      !content.fonts?.every(f=>f.loaded) || content.bookmarkWidth<20 || content.bookmarkWidth>28 || !content.htmlSafe ||
+      consoleErrors.some(message=>/Receiving end does not exist|font-src/.test(message))) throw new Error('Firefox smoke checks failed');
   console.log('Firefox smoke checks passed. Authenticated Roblox features still require manual testing.');
 } finally {
   if (driver) await driver.quit();

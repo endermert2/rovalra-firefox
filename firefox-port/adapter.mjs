@@ -6,6 +6,7 @@ import { parse } from 'acorn';
 import * as walk from 'acorn-walk';
 import { zipSync } from 'fflate';
 import { transform } from 'esbuild';
+import { hardenHTML } from './hardening.mjs';
 
 export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 export const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -93,10 +94,13 @@ export function adaptManifest(original, config) {
   manifest.host_permissions = [...new Set([...manifest.host_permissions, 'https://setup.rbxcdn.com/*',
     'https://apis.rovalra.com/*', 'https://www.rovalra.com/*'])];
   for (const script of manifest.content_scripts) {
-    if (script.world !== 'MAIN') script.js.unshift('firefox/content.js');
+    if (script.world !== 'MAIN') {
+      script.js.unshift('firefox/purify.js','firefox/content.js','firefox/fonts.js');
+      script.css = [...(script.css || []), 'firefox/fonts.css'];
+    }
   }
   manifest.web_accessible_resources.push({
-    resources: ['firefox/beta-programs.json'], matches: ['*://*.roblox.com/*'],
+    resources: ['firefox/beta-programs.json','firefox/fonts/*'], matches: ['*://*.roblox.com/*'],
   });
   return manifest;
 }
@@ -165,6 +169,20 @@ export async function adaptFiles(input, config) {
     },
   });
   content = edits(content, changes);
+  // Use the pinned, current sanitizer for the existing upstream sanitization too.
+  content = replaceFunction(content, 'createDOMPurify', 'function createDOMPurify() { return DOMPurify; }', contracts);
+  content = replaceOnce(content, 'purify = createDOMPurify();', 'purify = DOMPurify;');
+  const html = hardenHTML(content);
+  content = html.source;
+  // These preloads and the Google stylesheet depend on the page's CSP. The
+  // packaged stylesheet and byte-loaded FontFaces replace the whole block.
+  const fontStart = content.indexOf('builderIconsReg = document.createElement("link")');
+  const fontEnd = content.indexOf('document.body ? startFeatures()', fontStart);
+  if(fontStart<0 || fontEnd<0)throw new Error('Font initialization changed; review required');
+  const oldFontBlock=content.slice(fontStart,fontEnd);
+  if(!oldFontBlock.includes('fonts.googleapis.com') || !oldFontBlock.includes('RoValraIcons.woff2'))throw new Error('Font preload contract changed');
+  content=content.slice(0,fontStart)+'builderIconsReg = null; '+content.slice(fontEnd);
+  parseJS(content);
   // Callback URLs contain one-time authorization codes. Never log them.
   content = content.replaceAll('RoValra API: Request to ${fullUrl}', 'RoValra API: Request');
   // Mozilla's validator will not parse an individual JS file over 5 MB. Keep
@@ -186,6 +204,9 @@ export async function adaptFiles(input, config) {
   } });
   if (backgroundEdits.length !== 1) throw new Error('Settings compatibility listener changed; review required');
   background = edits(background, backgroundEdits);
+  background = replaceOnce(background,
+    'chrome.tabs.sendMessage(tabs[0].id, { type: "settingsCompatResultData", replaced, deleted }, () => {\n      })',
+    'chrome.tabs.sendMessage(tabs[0].id, { type: "settingsCompatResultData", replaced, deleted }, () => { void chrome.runtime.lastError; })');
   // The converted launcher no longer sends executable strings. Remove that path.
   const bgTree = parseJS(background);
   let injectionCase;
@@ -197,6 +218,15 @@ export async function adaptFiles(input, config) {
   for (const file of ['background.js', 'content.js']) {
     output[`firefox/${file}`] = await fs.readFile(path.join(ROOT, 'runtime', file));
   }
+  for(const file of ['fonts.js','fonts.css'])output[`firefox/${file}`]=await fs.readFile(path.join(ROOT,'runtime',file));
+  for(const [name,bytes]of Object.entries(await filesIn(path.join(ROOT,'assets/fonts'))))output[`firefox/fonts/${name}`]=bytes;
+  output['firefox/purify.js']=await fs.readFile(path.join(ROOT,'node_modules/dompurify/dist/purify.min.js'));
+  if(sha256(output['firefox/purify.js'])!==contracts.sanitizerSha256)throw new Error('Sanitizer version changed; review required');
+  output['firefox/LICENSE-DOMPurify.txt']=await fs.readFile(path.join(ROOT,'node_modules/dompurify/LICENSE'));
+  const css=output['css/rovalra.css'].toString();
+  let fontRules=0;
+  output['css/rovalra.css']=Buffer.from(css.replace(/@font-face\s*\{[^}]*https:\/\/www\.rovalra\.com\/static\/fonts\/[^}]*\}/g,()=>{fontRules++;return '';}));
+  if(fontRules!==3)throw new Error('Remote icon font CSS changed; review required');
   output['LICENSE'] = await fs.readFile(path.join(ROOT, 'LICENSE'));
   output['FIREFOX-PORT-NOTICE.md'] = await fs.readFile(path.join(ROOT, 'NOTICE.md'));
   const manifest = adaptManifest(original, config);
@@ -217,6 +247,7 @@ export async function adaptFiles(input, config) {
   return { files: output, manifest, report: {
     upstreamVersion: original.version, firefoxVersion: manifest.version,
     adapterRevision: config.adapterRevision,
+    sanitizedHtmlSinks: html.count,
     inputHashes: Object.fromEntries(Object.entries(input).map(([name, bytes]) => [name, sha256(bytes)])),
     changedFiles: Object.keys(output).filter(name => !input[name] || !output[name].equals(input[name])),
     compatibility: 'Automated checks cover known adapter contracts, not all Roblox features or future browser APIs.',
