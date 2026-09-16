@@ -2,16 +2,16 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.9.5: upstream 2.6.9 plus adapter revision 5.
+The current version is 2.6.9.6: upstream 2.6.9 plus adapter revision 6.
 
-See [maintenance release notes](MAINTENANCE-2.6.9.5.md) for the font, dependency,
-and HTML-sanitization fixes and upload instructions.
+See [subplace repair notes](SUBPLACE-FIX-2.6.9.6.md) for the server-list fixes and
+upload instructions. Earlier font and security repairs remain included.
 
 ## Installation
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.9.5-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.9.6-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -85,7 +85,7 @@ is now the reproducible `upstream/` baseline. Unknown APIs and changed patch tar
 still fail validation. The changelog is fetched independently from RoValra’s server
 and does not show which extension version is installed; use `about:addons` for that.
 
-See [MAINTENANCE-2.6.9.5.md](MAINTENANCE-2.6.9.5.md) for current deployment and verification.
+See [SUBPLACE-FIX-2.6.9.6.md](SUBPLACE-FIX-2.6.9.6.md) for current deployment and verification.
 
 ## Firefox compatibility changes
 

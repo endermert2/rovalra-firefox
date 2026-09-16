@@ -8,6 +8,7 @@ import firefox from 'selenium-webdriver/firefox.js';
 import { ROOT } from '../adapter.mjs';
 import {zipSync} from 'fflate';
 import {filesIn} from '../adapter.mjs';
+import {subplaceFixtureSource} from './subplace-fixture.mjs';
 
 // All browser state belongs to a new temporary WebDriver profile. The fixture
 // resolves a Roblox hostname to loopback in that profile only.
@@ -137,9 +138,11 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
     setTimeout(()=>resolve('timeout'),5000);
   });
   worker.terminate();
+  const subplacesBefore=await ${subplaceFixtureSource(false)};
+  const subplaces=await ${subplaceFixtureSource(true)};
   await report({test:'content',event:document.documentElement.dataset.eventValue,session:session.firefoxSmokeKey,changed,
     response,launches,invalid,workerReady,pageFetchBlocked,publicSync,blockedHost,
-    fonts,bookmarkWidth,htmlSafe,contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
+    fonts,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
 })().catch(error=>browser.runtime.sendMessage({action:'smokeReport',result:{error:String(error),stack:error.stack}}));
 `);
 
@@ -178,6 +181,18 @@ try {
   console.log(JSON.stringify(report, null, 2));
   const bg = results.find(r => r.test === 'background');
   const content = results.find(r => r.test === 'content');
+  const before=content?.subplacesBefore,after=content?.subplaces;
+  if(!before?.errors.some(error=>/is not a function/.test(error)) ||
+      before.cards.filter(card=>card.id.startsWith('sub')).some(card=>card.attached) ||
+      !after || after.errors.length || after.cards.length!==6 ||
+      after.cards.some(card=>!card.attached || card.full || card.avatars<1) ||
+      after.cards.filter(card=>card.id.startsWith('sub')).some(card=>card.place!=='85547073091480' || !card.unconfirmed || card.uptime!=='null') ||
+      after.cards.filter(card=>card.id.startsWith('root')).some(card=>card.uptime!=='3600' || card.version!=='42' || card.region!=='Test Region' || card.unconfirmed) ||
+      after.joins.length!==6 || after.joins.some(([place,id])=>place!==(id.startsWith('sub')?'85547073091480':'111')) ||
+      after.requests.filter(r=>r.kind==='details').length!==2 ||
+      after.requests.some(r=>r.place!==((r.id||r.ids[0]).startsWith('sub')?'85547073091480':'111'))) {
+    throw new Error('Subplace regression checks failed');
+  }
   if (consoleErrors.some(message => /Invalid rule|TypeError:|ReferenceError:|SyntaxError:|DataCloneError:/.test(message))) {
     throw new Error('Firefox reported a script or declarative rule failure');
   }

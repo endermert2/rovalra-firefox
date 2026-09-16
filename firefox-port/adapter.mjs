@@ -7,6 +7,7 @@ import * as walk from 'acorn-walk';
 import { zipSync } from 'fflate';
 import { transform } from 'esbuild';
 import { hardenHTML } from './hardening.mjs';
+import { repairServers } from './server-fixes.mjs';
 
 export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 export const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -124,7 +125,7 @@ export async function adaptFiles(input, config) {
     }
     parseJS(bytes.toString());
   }
-  let content = input['content.js'].toString();
+  let content = repairServers(input['content.js'].toString(),contracts);
   const launcher = await fs.readFile(path.join(ROOT, 'patches/launcher.js'), 'utf8');
   for (const [name, nodes] of functions(launcher)) {
     const replacement = launcher.slice(nodes[0].start, nodes[0].end);

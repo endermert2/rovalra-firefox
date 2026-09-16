@@ -1,10 +1,15 @@
 {
   "addonId": "rovalra-firefox@endermert2",
   "minimumFirefoxVersion": "142.0",
-  "adapterRevision": 5,
+  "adapterRevision": 6,
   "upstreamRepository": "NotValra/RoValra",
   "releaseRepository": "endermert2/rovalra-firefox",
   "dataCollectionPermissions": {
-    "required": ["authenticationInfo", "personallyIdentifyingInfo", "websiteContent", "websiteActivity"]
+    "required": [
+      "authenticationInfo",
+      "personallyIdentifyingInfo",
+      "websiteContent",
+      "websiteActivity"
+    ]
   }
 }

@@ -68,5 +68,16 @@
     "chrome.webRequest.onBeforeRedirect.hasListener",
     "chrome.webRequest.onBeforeRedirect.removeListener"
   ],
-  "sanitizerSha256": "f263b05369e050fa175d4ecb9c9358eb4253602d510297adfb31df48b2f1c4d5"
+  "sanitizerSha256": "f263b05369e050fa175d4ecb9c9358eb4253602d510297adfb31df48b2f1c4d5",
+  "serverFunctions": {
+    "enhanceServer": "a14dd00f668bed955c92f995f7c7d8dea328232a235b5614e4ce804f8f67a4f6",
+    "processUptimeBatch": "7657e86f71a6d0e183fcf37e7c237115720e5f90a33e97be231ca2f6a3fb55f9",
+    "getPlaceIdFromUrl6": "27fe233f2ccc0d7279dbe703b43421d4eafdf8523cdb799b6b7c9e6c3b2df585",
+    "createServerCardFromRobloxApi": "86e8f259b4b3b5170c70665be3b421e38568386646240f26561de0cdb4e081dd",
+    "createServerCardFromApi": "7ae7037d0c4d335f311bb02ce8eabd2babe329ade7ed63d1f013804b16a75611",
+    "createModernServerCard": "cc250f48dfad22bf3e97d15739705097706b1ad046724f7df031caac50cd945b",
+    "fetchServerUptime": "f8a3b1052a4fe32f4e97179ae2c04c14b3e6dd2845ba0c13c1465db6bcecc9f8",
+    "displayInactivePlaceStatus": "7168cab273b8d973d9e3176de644ef719034a9ca11a4e211ca964ef38e8bbf4b",
+    "fetchAndDisplayRegion": "46f3e1ae0c05721372f09ea7cfebdbf6ab81e06f2c74bc2ae0d834f922ff2b9f"
+  }
 }

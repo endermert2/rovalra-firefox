@@ -1,0 +1,90 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {extract,original,contracts} from './server-source.mjs';
+import {repairServers} from '../server-fixes.mjs';
+
+test('uptime batches use each card place, including mixed root and subplace lists',async()=>{
+  const calls=[],state={uptimeBatch:new Map([['root-a','111'],['sub-a','85547073091480'],['sub-b','85547073091480']]),
+    serverLocations:{},serverUptimes:{},serverStatuses:{}};
+  const context=vm.createContext({_state:state,fetchServerUptime:async(place,ids)=>calls.push([place,Array.from(ids)])});
+  vm.runInContext(extract(['processUptimeBatch']),context);
+  await context.processUptimeBatch();
+  assert.deepEqual(calls,[['111',['root-a']],['85547073091480',['sub-a','sub-b']]]);
+  assert.equal(state.uptimeBatch.size,0);
+  await context.processUptimeBatch();
+  assert.equal(calls.length,2);
+});
+
+test('observer-supplied context is used instead of unrelated global state',async()=>{
+  const calls=[],local={uptimeBatch:new Map([['local','222']]),serverLocations:{},serverUptimes:{},serverStatuses:{}};
+  const context=vm.createContext({_state:{uptimeBatch:new Map([['global','111']])},fetchServerUptime:async(place,ids,locations)=>calls.push([place,Array.from(ids),locations])});
+  vm.runInContext(extract(['processUptimeBatch']),context);
+  await context.processUptimeBatch(local);
+  assert.deepEqual(calls,[['222',['local'],local.serverLocations]]);
+  assert.equal(context._state.uptimeBatch.size,1);
+});
+
+test('server filtering respects subplace query overrides and localized URLs',()=>{
+  const context=vm.createContext({URL,window:{location:{href:''}}});
+  vm.runInContext(extract(['getPlaceIdFromUrl','getPlaceIdFromUrl6']),context);
+  for(const [url,expected] of [
+    ['https://www.roblox.com/games/111/Root?PlaceId=85547073091480','85547073091480'],
+    ['https://www.roblox.com/tr/games/85547073091480/Asylum#!/game-instances','85547073091480'],
+    ['https://www.roblox.com/games/111/Root','111']
+  ]) {context.window.location.href=url;assert.equal(context.getPlaceIdFromUrl6(),expected);}
+});
+
+function metadataContext(response) {
+  const errors=[],uptimes=[],full=[],card={};
+  const context=vm.createContext({
+    fetchServerDetails:async()=>response,console:{error:(...args)=>errors.push(args)},
+    document:{querySelectorAll:()=>[card]},getServerUptime:()=>null,getServerUptimeIsEstimate:()=>false,
+    getServerRegion:()=>null,displayUptime:(...args)=>uptimes.push(args),displayServerFullStatus:el=>full.push(el)
+  });
+  return {context,errors,uptimes,full};
+}
+
+test('empty metadata is valid and does not falsely mark a server full',async()=>{
+  const before=metadataContext({servers:[]});
+  vm.runInContext(extract(['fetchServerUptime'],original),before.context);
+  await before.context.fetchServerUptime('85547073091480',['sub-a'],{},{});
+  assert.match(String(before.errors[0][1]),/Invalid API Data/);
+  const after=metadataContext({servers:[]});
+  vm.runInContext(extract(['fetchServerUptime']),after.context);
+  await after.context.fetchServerUptime('85547073091480',['sub-a'],{},{});
+  assert.equal(after.errors.length,0);
+  assert.equal(after.full.length,0);
+  assert.equal(after.uptimes.length,1);
+  assert.equal(after.uptimes[0][1],null);
+});
+
+test('malformed metadata is still reported with a graceful display fallback',async()=>{
+  const {context,errors,uptimes}=metadataContext({servers:'bad'});
+  vm.runInContext(extract(['fetchServerUptime']),context);
+  await context.fetchServerUptime('111',['root-a'],{},{});
+  assert.match(String(errors[0][1]),/Invalid API Data/);
+  assert.equal(uptimes.length,1);
+});
+
+test('join checks preserve cards on unknown status or errors, while explicit full status still works',async()=>{
+  for(const outcome of [5,22,2,'network-error']) {
+    const marks=[],statuses={},server={dataset:{rovalraServerid:'sub-a',placeid:'85547073091480'},querySelector:()=>null};
+    const context=vm.createContext({
+      fetchServerRegion2:async(place,id)=>{
+        assert.equal(place,'85547073091480');assert.equal(id,'sub-a');
+        if(outcome==='network-error')throw Error('offline');
+        return {status:outcome};
+      },getPlaceIdFromUrl:()=> '111',isFullServerIndicatorsEnabled:true,
+      displayServerFullStatus:()=>marks.push('full'),displayInactivePlaceStatus:()=>marks.push('unconfirmed')
+    });
+    vm.runInContext(extract(['fetchAndDisplayRegion']),context);
+    await context.fetchAndDisplayRegion(server,'sub-a',{}, {},{serverStatuses:statuses});
+    assert.deepEqual(marks,outcome===22?['full']:outcome===2?[]:['unconfirmed']);
+    if(outcome===5)assert.equal(statuses['sub-a'],'unconfirmed');
+  }
+});
+
+test('changed upstream server functions stop publication pending review',()=>{
+  assert.throws(()=>repairServers(original.replace('server && server.remove();','server && server.remove(); console.log("changed");'),contracts),/Server function displayInactivePlaceStatus changed/);
+});
