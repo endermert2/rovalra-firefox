@@ -78,6 +78,9 @@
     "createModernServerCard": "cc250f48dfad22bf3e97d15739705097706b1ad046724f7df031caac50cd945b",
     "fetchServerUptime": "f8a3b1052a4fe32f4e97179ae2c04c14b3e6dd2845ba0c13c1465db6bcecc9f8",
     "displayInactivePlaceStatus": "7168cab273b8d973d9e3176de644ef719034a9ca11a4e211ca964ef38e8bbf4b",
-    "fetchAndDisplayRegion": "46f3e1ae0c05721372f09ea7cfebdbf6ab81e06f2c74bc2ae0d834f922ff2b9f"
+    "fetchAndDisplayRegion": "46f3e1ae0c05721372f09ea7cfebdbf6ab81e06f2c74bc2ae0d834f922ff2b9f",
+    "attachGlobalListeners2": "6eccc87dacacffddd3e192796ba5859c429db838c6660c9e81665b8ee22b1630",
+    "renderAndAppendServers": "e0b8899f206bf29102a9a3b681cb413140b231689cf6c71603b62cf6927f681d",
+    "fetchServerRegion2": "56d103874fc3be54e9adcedddbefebf7cd56839110229f0c2fdfeec909f77e87"
   }
 }

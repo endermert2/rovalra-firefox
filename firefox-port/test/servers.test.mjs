@@ -88,3 +88,55 @@ test('join checks preserve cards on unknown status or errors, while explicit ful
 test('changed upstream server functions stop publication pending review',()=>{
   assert.throws(()=>repairServers(original.replace('server && server.remove();','server && server.remove(); console.log("changed");'),contracts),/Server function displayInactivePlaceStatus changed/);
 });
+
+function probeContext(responses=[]) {
+  let now=10000;
+  const calls=[],errors=[];
+  class Clock extends Date { static now(){return now;} }
+  const context=vm.createContext({Date:Clock,Map,JSON,Promise,Number,Math,
+    setTimeout:fn=>{now+=250;queueMicrotask(fn);},serverDataCache:new Map(),serverUptimeIsEstimate:{},
+    createUUID:()=> 'fixture',console:{error:(...args)=>errors.push(args)},
+    callRobloxApi:async options=>{
+      calls.push({at:now,body:options.body});
+      return responses.shift() || new Response(JSON.stringify({status:5}));
+    }
+  });
+  vm.runInContext(extract(['fetchServerRegion2']),context);
+  return {probe:context.fetchServerRegion2,calls,errors,advance:ms=>{now+=ms;}};
+}
+
+test('region requests coalesce repeated enhancements and pace distinct servers',async()=>{
+  const {probe,calls,errors}=probeContext();
+  await Promise.all(Array.from({length:10},()=>probe('85547073091480','same')));
+  assert.equal(calls.length,1);
+  await probe('85547073091480','same');
+  assert.equal(calls.length,1);
+  await Promise.all(['a','b','c'].map(id=>probe('85547073091480',id)));
+  assert.equal(calls.length,4);
+  for(let i=1;i<calls.length;i++)assert(calls[i].at-calls[i-1].at>=250);
+  assert.equal(errors.length,0);
+});
+
+test('429 Retry-After pauses queued and new probes without retrying each card',async()=>{
+  const {probe,calls,errors,advance}=probeContext([new Response('{}',{status:429,headers:{'Retry-After':'5'}})]);
+  const results=await Promise.all(['a','b','c'].map(id=>probe('85547073091480',id)));
+  assert.equal(calls.length,1);
+  assert(results.every(result=>result.status===0));
+  await probe('85547073091480','d');
+  assert.equal(calls.length,1);
+  advance(5000);
+  await probe('85547073091480','e');
+  assert.equal(calls.length,2);
+  assert.equal(errors.length,0);
+});
+
+test('failed eligibility preflights cannot empty a received server page',async()=>{
+  const appended=[],context=vm.createContext({
+    isServerActive2:async()=>{throw Error('Unnecessary preflight');},
+    createServerCardFromRobloxApi:async(server,place)=>({id:server.id,place}),
+    createServerCardFromApi:async(server,place)=>({id:server.server_id,place}),equalizeCardHeights:()=>{}
+  });
+  vm.runInContext(extract(['renderAndAppendServers']),context);
+  await context.renderAndAppendServers([{id:'a',playerTokens:[]},{server_id:'b'},null,{}],{appendChild:card=>appended.push(card)},'85547073091480');
+  assert.deepEqual(appended,[{id:'a',place:'85547073091480'},{id:'b',place:'85547073091480'}]);
+});

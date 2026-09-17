@@ -9,6 +9,7 @@ import { ROOT } from '../adapter.mjs';
 import {zipSync} from 'fflate';
 import {filesIn} from '../adapter.mjs';
 import {subplaceFixtureSource} from './subplace-fixture.mjs';
+import {serverEventsFixtureSource} from './server-events-fixture.mjs';
 
 // All browser state belongs to a new temporary WebDriver profile. The fixture
 // resolves a Roblox hostname to loopback in that profile only.
@@ -140,9 +141,11 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   worker.terminate();
   const subplacesBefore=await ${subplaceFixtureSource(false)};
   const subplaces=await ${subplaceFixtureSource(true)};
+  const serverEventsBefore=await ${serverEventsFixtureSource(false)};
+  const serverEvents=await ${serverEventsFixtureSource(true)};
   await report({test:'content',event:document.documentElement.dataset.eventValue,session:session.firefoxSmokeKey,changed,
     response,launches,invalid,workerReady,pageFetchBlocked,publicSync,blockedHost,
-    fonts,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
+    fonts,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,serverEventsBefore,serverEvents,contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
 })().catch(error=>browser.runtime.sendMessage({action:'smokeReport',result:{error:String(error),stack:error.stack}}));
 `);
 
@@ -182,6 +185,17 @@ try {
   const bg = results.find(r => r.test === 'background');
   const content = results.find(r => r.test === 'content');
   const before=content?.subplacesBefore,after=content?.subplaces;
+  const eventsBefore=content?.serverEventsBefore,eventsAfter=content?.serverEvents;
+  if(!eventsBefore || eventsBefore.initialAttached || eventsBefore.errors.length || eventsBefore.ids.some(id=>id.startsWith('sub-')) ||
+      !eventsAfter || !eventsAfter.initialAttached || eventsAfter.errors.length || eventsAfter.ids.length!==5 ||
+      eventsAfter.unconfirmed.length!==3 || eventsAfter.loads.length!==2 ||
+      eventsAfter.events.length!==3 || eventsAfter.requests.length!==5 ||
+      eventsAfter.rateLimited?.attached!==3 || eventsAfter.rateLimited?.requests!==1 ||
+      eventsAfter.rateLimited.errors.length!==1 || !/429/.test(eventsAfter.rateLimited.errors[0]) ||
+      eventsAfter.requests.some(request=>String(request.placeId)!=='85547073091480') ||
+      eventsAfter.loads.some((request,index)=>!request.append || request.cursor!=='page-'+(index+1))) {
+    throw new Error('API event and Load More regression checks failed');
+  }
   if(!before?.errors.some(error=>/is not a function/.test(error)) ||
       before.cards.filter(card=>card.id.startsWith('sub')).some(card=>card.attached) ||
       !after || after.errors.length || after.cards.length!==6 ||
