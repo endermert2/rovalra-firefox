@@ -7,7 +7,7 @@ export function repairServers(source,contracts) {
     const matches=nodes.get(name);
     if(matches?.length!==1)throw new Error(`Server function ${name} changed; review required`);
     const node=matches[0],original=source.slice(node.start,node.end);
-    if(normalizedHash(original)!==contracts.serverFunctions[name])throw new Error(`Server function ${name} changed; review required`);
+    if(normalizedHash(original)!==contracts.serverFunctions[name])throw new Error(`Server function ${name} changed; review required (reviewed upstream: ${contracts.upstreamVersion}). Update the adapter and reviewed contracts together; do not bypass this check.`);
     changes.push({...node,text:transform(original)});
   }
   function once(text,before,after) {
@@ -31,10 +31,10 @@ export function repairServers(source,contracts) {
       placeId, ids, context.serverLocations, context.serverUptimes, context.serverStatuses
     ).catch(() => {})));
   }`);
-  replace('getPlaceIdFromUrl6',()=>`function getPlaceIdFromUrl6() { return getPlaceIdFromUrl() || ""; }`);
+  // Upstream 2.6.12 now uses the shared, subplace-aware URL helper itself.
   for(const name of ['createServerCardFromRobloxApi','createServerCardFromApi','createModernServerCard']) {
-    replace(name,text=>once(text,'serverItem.dataset.rovalraServerid = serverId;',
-      'serverItem.dataset.rovalraServerid = serverId; serverItem.dataset.placeid = String(placeId || getPlaceIdFromUrl() || "");'));
+    replace(name,text=>once(text,'serverItem.dataset.rovalraServerid = serverId,',
+      'serverItem.dataset.placeid = String(placeId || getPlaceIdFromUrl() || ""), serverItem.dataset.rovalraServerid = serverId,'));
   }
   replace('fetchServerUptime',text=>{
     text=once(text,'!response.servers || response.servers.length === 0','!Array.isArray(response?.servers)');
@@ -58,7 +58,7 @@ export function repairServers(source,contracts) {
   // callRobloxApi independently broadcasts status 5 before the region renderer
   // handles its response. Preserve the card in that event listener too.
   replace('attachGlobalListeners2',text=>once(text,
-    'serverElement && serverElement.remove();',
+    'serverElement?.dataset.rovalraAddedByFilter === "true" && serverElement.remove();',
     'serverElement && displayInactivePlaceStatus(serverElement);'));
   // Listing and join eligibility are separate. Do not discard listed servers
   // before rendering merely because a metadata join probe was unsuccessful.

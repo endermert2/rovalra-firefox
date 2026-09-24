@@ -16,6 +16,7 @@ for (const folder of ['runtime','patches','test','assets']) for (const [name,byt
   source[`firefox-port/${folder}/${name}`]=bytes;
 }
 source['firefox-port/config.json']=Buffer.from(JSON.stringify(await readConfig(),null,2));
+source['firefox-port/UPDATER-REPAIR-2.6.12.8.md']=await fs.readFile(path.join(ROOT,'UPDATER-REPAIR-2.6.12.8.md'));
 // Include the original project's corresponding source, pinned to this release.
 const response=await fetch(`https://codeload.github.com/NotValra/RoValra/zip/refs/tags/v${state.upstreamVersion}`,
   {signal:AbortSignal.timeout(120000)});

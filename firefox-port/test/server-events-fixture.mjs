@@ -2,7 +2,7 @@ import {extract,original,repaired} from './server-source.mjs';
 import {functions,edits} from '../adapter.mjs';
 import {hardenHTML} from '../hardening.mjs';
 
-// Reconstruct revision 6 at the call sites changed in revision 7.
+// Restore upstream behavior at the event, filtering and request call sites.
 const nodes=functions(repaired);
 const previous=edits(repaired,['attachGlobalListeners2','renderAndAppendServers','fetchServerRegion2'].map(name=>({
   ...nodes.get(name)[0],text:extract([name],original)
@@ -35,7 +35,7 @@ export function serverEventsFixtureSource(fixed) {
     const getServerUptime=()=>null,getServerUptimeIsEstimate=()=>false,getServerVersion=()=>null,getServerRegion=()=>null,
       getPlaceIdFromUrl=()=> '85547073091480',getPlaceIdFromUrl6=getPlaceIdFromUrl,normalizeRegionName=value=>value||'',
       getLocationFromDataCenterId=()=>null,findServerListContainer=()=>host;
-    const t2=async(key)=>key,ts2=key=>key,launchGame=noop;
+    const t2=async(key)=>key,ts2=key=>key,launchGame=noop,displayLanguageMatch=async()=>{};
     const displayUptime=noop,displayPlaceVersion=noop,displayRegion=noop,displayServerFullStatus=noop,displayPurchaseGameStatus=noop;
     const displayMessageInContainer=message=>{host.textContent=message;};
     const fetchServerDetails=async()=>({servers:[]});
@@ -61,7 +61,7 @@ export function serverEventsFixtureSource(fixed) {
       attachGlobalListeners2();
       document.addEventListener('rovalra-server-inactive',event=>events.push(event.detail.serverId));
       // Directly appended cards exercise the API's asynchronous event side effect.
-      const initial=await createServerCardFromRobloxApi(card('sub-event-initial'),'85547073091480');host.append(initial);
+      const initial=await createServerCardFromRobloxApi(card('sub-event-initial'),'85547073091480',{addedByRovalraFilter:true});host.append(initial);
       await settle();
       const initialAttached=initial.isConnected;
       // Exercise the real Load More button and event listener twice, including

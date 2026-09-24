@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.9
+ * rovalra v2.6.12
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -101,6 +101,35 @@
 
   // src/content/core/settings/settingConfig.js
   var SETTINGS_CONFIG = {
+    RoValra: {
+      title: "RoValra",
+      hidden: !0,
+      settings: {
+        rovalraLanguage: {
+          label: "RoValra Language",
+          contributors: [1564574922],
+          description: [
+            "Manually configure a language for RoValra. Some translations may be missing.",
+            // it works on the setting page only once it figures out the language from other pages' URLs
+            "Requires a refresh for changes to apply. Might not work immediately on the settings page."
+          ],
+          type: "select",
+          options: [
+            { label: "English", value: "en" },
+            { label: "Polish (Polski)", value: "pl" },
+            { label: "Romanian (Rom\xE2n\u0103)", value: "ro" },
+            { label: "Spanish (Espa\xF1ol)", value: "es" },
+            { label: "Automatic", value: "auto" }
+          ],
+          default: "en"
+        },
+        rovalraVersion: {
+          label: `RoValra Version: v${chrome.runtime.getManifest().version}`,
+          type: "yay",
+          hideContributors: !0
+        }
+      }
+    },
     Marketplace: {
       title: "Marketplace",
       settings: {
@@ -141,6 +170,12 @@
               type: "button",
               buttonText: "Open Setup",
               event: "rovalra:open40methodSetup"
+            },
+            useSoberSupportDeeplinks: {
+              label: "Use Roblox deeplinks for Sober support",
+              description: "This is less stable and should only be used if on sober",
+              type: "checkbox",
+              default: !1
             }
           }
         },
@@ -199,7 +234,9 @@
           label: "Show Price Floor",
           description: "This will show the price floor when viewing items, and shows if the item you're viewing is sold at or above the price floor.",
           type: "checkbox",
-          default: !0
+          default: !1,
+          locked: "Pain to maintain due to how Roblox updates the API this uses. They update it without any backwards compatibility in mind.",
+          isPermanent: !0
         },
         ParentItemsEnabled: {
           label: "Show what bundle an item is a part of.",
@@ -470,7 +507,18 @@
             "This adds a tab to an experience page that shows the subplaces of the experience."
           ],
           type: "checkbox",
-          default: !0
+          default: !0,
+          contributors: ["447170745", "3050364170"],
+          childSettings: {
+            subplacesSortEnabled: {
+              label: "Sorting",
+              description: [
+                "Adds sort and order controls to the Subplaces tab."
+              ],
+              type: "checkbox",
+              default: !0
+            }
+          }
         },
         hiddenBadgesEnabled: {
           label: "Hidden Badges",
@@ -602,6 +650,27 @@
           type: "checkbox",
           default: !0,
           childSettings: {
+            PrivateServerGridEnabled: {
+              label: "Private Server Grid",
+              description: [
+                "Displays private/VIP servers in a compact responsive grid.",
+                "Only changes the private server section."
+              ],
+              type: "checkbox",
+              default: !1,
+              contributors: ["4632962611"]
+            },
+            PinPrivateServersEnabled: {
+              label: "Pin Private Servers",
+              description: [
+                "Allows private/VIP servers to be pinned to the top of the list.",
+                "Pinned servers stay above normal private servers.",
+                "Missing a bit of quality of life."
+              ],
+              type: "checkbox",
+              default: !1,
+              contributors: ["4632962611"]
+            },
             enableShareLink: {
               label: "Share link button",
               description: [
@@ -632,6 +701,14 @@
               label: "Server Version",
               description: [
                 "This shows the version of the experience that a specific server is running."
+              ],
+              type: "checkbox",
+              default: !0
+            },
+            EnableServerLanguageMatch: {
+              label: "Server Language Match",
+              description: [
+                "Shows how many players in each server speak your language."
               ],
               type: "checkbox",
               default: !0
@@ -710,7 +787,7 @@
           ],
           type: "checkbox",
           default: !0,
-          contributors: ["8345351117", "447170745"]
+          contributors: ["8345351117", "447170745", "3050364170"]
         },
         avatarDownloadEnabled: {
           label: "Download Avatar",
@@ -1476,7 +1553,7 @@
           description: ["Shows a communities hidden experiences."],
           type: "checkbox",
           default: !0,
-          contributors: ["8345351117", "447170745"]
+          contributors: ["8345351117", "447170745", "3050364170"]
         },
         pendingRobuxEnabled: {
           label: "Unpending Robux",
@@ -1883,8 +1960,10 @@
             "Adds a tooltip showing the original cost of a private server if it is free due to Roblox Plus."
           ],
           type: "checkbox",
-          default: !0,
-          contributors: ["447170745", "546872490"]
+          default: !1,
+          contributors: ["447170745", "546872490"],
+          locked: "Roblox made their own version of this.",
+          isPermanent: !0
         },
         FreeRobloxPlusThemesEnabledv3: {
           label: "Free Roblox Plus Themes",
@@ -1940,6 +2019,13 @@
           description: "Shows how much Robux you have left before the daily and monthly Roblox Plus transfer limits on the [Plus](https://www.roblox.com/plus) page.",
           type: "checkbox",
           default: !0
+        },
+        plusReferralEnabled: {
+          label: "Show RoValra Plus Referral",
+          description: "Shows RoValra\u2019s referral offer on the [Plus](https://www.roblox.com/plus) page. Only new Roblox Plus users qualify for the reward.",
+          type: "checkbox",
+          default: !0,
+          contributors: ["231260921", "447170745"]
         }
       }
     },
@@ -1954,7 +2040,7 @@
           ],
           type: "checkbox",
           default: !0,
-          contributors: ["650766686"],
+          contributors: ["650766686", "48255812"],
           exclusiveWith: ["qolTogglesEnabled"],
           childSettings: {
             // Toggles to be in the menu
@@ -2053,7 +2139,9 @@
           storageKey: [
             "rovalra_topbar_layout_order",
             "rovalra_topbar_layout_hidden"
-          ]
+          ],
+          locked: "Too much work to up keep. Sorry :C",
+          isPermanent: !0
         },
         moreRobuxDigitsEnabled: {
           label: "More Robux Digits",
@@ -2176,6 +2264,7 @@
           description: "This allows you to toggle beta programs you're enrolled in easily.",
           type: "checkbox",
           default: !1,
+          contributors: ["447170745", "48255812"],
           childSettings: {
             previousBetaProgramsEnabled: {
               label: "Show Previous Beta Programs",
@@ -2301,6 +2390,16 @@
           type: "checkbox",
           default: !0
         },
+        playtimeEnabled: {
+          label: "Playtime Tracking",
+          description: [
+            "Allows RoValra to track and store how long you are playing a game for which allows you to view the total playtime on that game.",
+            "This is currently experimental and won't show up anywhere in the extension until a future update.",
+            "This information is stored server side."
+          ],
+          type: "checkbox",
+          default: !0
+        },
         loginBannerEnabled: {
           label: "Login Banner",
           description: [
@@ -2401,6 +2500,13 @@
           default: !0,
           storageKey: "rovalra_first_account_cache",
           contributors: ["4866259395", "447170745"]
+        },
+        trustedCreatorEnabled: {
+          label: "In Trusted Creator Program?",
+          description: "This adds a section in Roblox's settings showing whether Roblox considers your account part of the Trusted Creator Program.",
+          type: "checkbox",
+          default: !0,
+          storageKey: "rovalra_trusted_creator_cache"
         },
         revertLogo: {
           label: "Change the app launch icon",
@@ -2936,6 +3042,23 @@ Standards{linkEnd}.`,
     PublicDeveloper: {
       title: "Developer",
       settings: {
+        exportSettings: {
+          label: "Export Settings",
+          description: [
+            "Export or import your RoValra settings as a JSON file."
+          ],
+          type: "buttonGroup",
+          buttons: [
+            {
+              id: "export-rovalra-settings",
+              text: "Export Settings"
+            },
+            {
+              id: "import-rovalra-settings",
+              text: "Import Settings"
+            }
+          ]
+        },
         EnableRobloxApiDocsv2: {
           label: "Roblox API docs",
           description: [
@@ -2998,6 +3121,14 @@ Standards{linkEnd}.`,
             "These are features used mostly to develop RoValra. If you don't know what you're doing, don't touch them."
           ],
           type: "yay"
+        },
+        homePlaytimeEnabled: {
+          label: "Home Playtime Section",
+          description: [
+            "Adds the Playtime carousel and per-game playtime to the home page."
+          ],
+          type: "checkbox",
+          default: !1
         },
         alwaysShowDeveloperSettings: {
           label: ["Always show RoValra developer settings tab"],

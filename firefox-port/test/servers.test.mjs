@@ -27,12 +27,12 @@ test('observer-supplied context is used instead of unrelated global state',async
 
 test('server filtering respects subplace query overrides and localized URLs',()=>{
   const context=vm.createContext({URL,window:{location:{href:''}}});
-  vm.runInContext(extract(['getPlaceIdFromUrl','getPlaceIdFromUrl6']),context);
+  vm.runInContext(extract(['getPlaceIdFromUrl']),context);
   for(const [url,expected] of [
     ['https://www.roblox.com/games/111/Root?PlaceId=85547073091480','85547073091480'],
     ['https://www.roblox.com/tr/games/85547073091480/Asylum#!/game-instances','85547073091480'],
     ['https://www.roblox.com/games/111/Root','111']
-  ]) {context.window.location.href=url;assert.equal(context.getPlaceIdFromUrl6(),expected);}
+  ]) {context.window.location.href=url;assert.equal(context.getPlaceIdFromUrl(),expected);}
 });
 
 function metadataContext(response) {
@@ -86,7 +86,40 @@ test('join checks preserve cards on unknown status or errors, while explicit ful
 });
 
 test('changed upstream server functions stop publication pending review',()=>{
-  assert.throws(()=>repairServers(original.replace('server && server.remove();','server && server.remove(); console.log("changed");'),contracts),/Server function displayInactivePlaceStatus changed/);
+  assert.throws(()=>repairServers(original.replace('function displayInactivePlaceStatus(server) {','function displayInactivePlaceStatus(server) { console.log("changed");'),contracts),/Server function displayInactivePlaceStatus changed/);
+});
+
+test('enhancement preserves upstream language data and recycled-card uptime listeners',async()=>{
+  const language=[],uptimes=[],scheduled=[],listeners={};
+  const noop=()=>{},server={dataset:{rovalraServerid:'old',placeid:'222'},
+    getAttribute:()=>server.dataset.rovalraServerid,
+    classList:{contains:()=>false,add:noop},addEventListener:(name,fn)=>{listeners[name]=fn;}};
+  const state={serverLocations:{},serverUptimes:{},serverPerformanceCache:{},uptimeBatch:new Map(),
+    serverDataCache:new Map([['old',{id:'old',languageMatchCount:3}],['new',{id:'new',languageMatchCount:5}]])};
+  const calls=[],context=vm.createContext({
+    cacheReadyPromise:Promise.resolve(),isServerListModificationsEnabled:true,
+    isServerUptimeEnabled:true,isServerRegionEnabled:true,isPlaceVersionEnabled:true,isFullServerIDEnabled:false,
+    injectStyles3:noop,cleanupServerUI:noop,attachCleanupObserver:noop,getOrCreateDetailsContainer:noop,
+    displayPerformance:noop,displayPlaceVersion:noop,displayRegion:noop,displayIpAndDcId:noop,
+    addCopyJoinLinkButton:noop,enableAvatarLinks:noop,fetchAndDisplayRegion:noop,
+    displayLanguageMatch:async(el,value)=>language.push(value),displayUptime:(el,value)=>uptimes.push(value),
+    getServerUptime:()=>null,getServerUptimeIsEstimate:()=>false,getServerVersion:()=>null,
+    normalizeRegionName:()=>'',getPlaceIdFromUrl:()=> '111',
+    setTimeout:fn=>scheduled.push(fn),clearTimeout:noop,_state:{},
+    fetchServerUptime:async(place,ids)=>calls.push([place,Array.from(ids)])
+  });
+  vm.runInContext(extract(['enhanceServer','processUptimeBatch']),context);
+  await context.enhanceServer(server,state);
+  server.dataset.rovalraServerid='new';
+  await context.enhanceServer(server,state);
+  assert.deepEqual(language,[3,5]);
+  assert.equal(state.uptimeBatch.get('new'),'222');
+  uptimes.length=0;
+  listeners['rovalra-uptime-update']({detail:{serverId:'old',uptime:1}});
+  listeners['rovalra-uptime-update']({detail:{serverId:'new',uptime:42}});
+  assert.deepEqual(uptimes,[42]);
+  await scheduled.at(-1)();
+  assert.deepEqual(calls,[['222',['old','new']]]);
 });
 
 function probeContext(responses=[]) {
@@ -133,10 +166,10 @@ test('429 Retry-After pauses queued and new probes without retrying each card',a
 test('failed eligibility preflights cannot empty a received server page',async()=>{
   const appended=[],context=vm.createContext({
     isServerActive2:async()=>{throw Error('Unnecessary preflight');},
-    createServerCardFromRobloxApi:async(server,place)=>({id:server.id,place}),
-    createServerCardFromApi:async(server,place)=>({id:server.server_id,place}),equalizeCardHeights:()=>{}
+    createServerCardFromRobloxApi:async(server,place,options)=>({id:server.id,place,...options}),
+    createServerCardFromApi:async(server,place,options)=>({id:server.server_id,place,...options}),equalizeCardHeights:()=>{}
   });
   vm.runInContext(extract(['renderAndAppendServers']),context);
   await context.renderAndAppendServers([{id:'a',playerTokens:[]},{server_id:'b'},null,{}],{appendChild:card=>appended.push(card)},'85547073091480');
-  assert.deepEqual(appended,[{id:'a',place:'85547073091480'},{id:'b',place:'85547073091480'}]);
+  assert.deepEqual(appended,[{id:'a',place:'85547073091480',addedByRovalraFilter:true},{id:'b',place:'85547073091480',addedByRovalraFilter:true}]);
 });

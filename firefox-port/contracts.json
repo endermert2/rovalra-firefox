@@ -1,5 +1,5 @@
 {
-  "upstreamVersion": "2.6.9",
+  "upstreamVersion": "2.6.12",
   "functions": {
     "executeLaunchScript": "d8a60a6900d85d083d7e0e9e1cce059d1340f5382f367248452ce518bf341948",
     "launchGame": "480cc031e5a4ac5fc9dcf9861fef3110ff6fc5c2bd1b794f4c95c4dbfb4e60df",
@@ -12,7 +12,7 @@
     "WorkerWrapper": "1406df4e45427459476a6f4e152ce2182753f5569d6a36cd1026370961295784",
     "runLaunch": "fbbdcbc5b96e3d24b513c1e361b9fa8328bf8d869da3dc59eb9a4d8524630f10",
     "openWebChat": "c43694ca2c708d58a416d6ab36084d19aa462893281f3bb2078e755e2e340daa",
-    "createDOMPurify": "3835326313bab51c67786fe9f100d25084e17f1a683e20ce330e2f4e5a5c3e12"
+    "createDOMPurify": "662cd4b617fe8c84ca14d83244c79a2f24160e19df625bc57a014beb3cfedcfa"
   },
   "permissions": [
     "declarativeNetRequest",
@@ -70,17 +70,16 @@
   ],
   "sanitizerSha256": "f263b05369e050fa175d4ecb9c9358eb4253602d510297adfb31df48b2f1c4d5",
   "serverFunctions": {
-    "enhanceServer": "a14dd00f668bed955c92f995f7c7d8dea328232a235b5614e4ce804f8f67a4f6",
-    "processUptimeBatch": "7657e86f71a6d0e183fcf37e7c237115720e5f90a33e97be231ca2f6a3fb55f9",
-    "getPlaceIdFromUrl6": "27fe233f2ccc0d7279dbe703b43421d4eafdf8523cdb799b6b7c9e6c3b2df585",
-    "createServerCardFromRobloxApi": "86e8f259b4b3b5170c70665be3b421e38568386646240f26561de0cdb4e081dd",
-    "createServerCardFromApi": "7ae7037d0c4d335f311bb02ce8eabd2babe329ade7ed63d1f013804b16a75611",
-    "createModernServerCard": "cc250f48dfad22bf3e97d15739705097706b1ad046724f7df031caac50cd945b",
+    "enhanceServer": "7432dda671283d6d5dd363a5a660b24dd83e785df9891c65babdab31811ee33a",
+    "processUptimeBatch": "ab003e580e552478e9d4c9012ee06258554fe33af5df444dd3e56fbc3db12e63",
+    "createServerCardFromRobloxApi": "b1593c0f935a83e1026abfca221565cc06c39368d5852f5e3ca3fd8b653be86c",
+    "createServerCardFromApi": "bf4fee794e4905e9aba7f7018d3b6a069171580a5ebeae4ff01c76458ab758d7",
+    "createModernServerCard": "c398515b13a53d39b749c6d37bcf57025d869c380debe634933deef608e60ab0",
     "fetchServerUptime": "f8a3b1052a4fe32f4e97179ae2c04c14b3e6dd2845ba0c13c1465db6bcecc9f8",
-    "displayInactivePlaceStatus": "7168cab273b8d973d9e3176de644ef719034a9ca11a4e211ca964ef38e8bbf4b",
-    "fetchAndDisplayRegion": "46f3e1ae0c05721372f09ea7cfebdbf6ab81e06f2c74bc2ae0d834f922ff2b9f",
-    "attachGlobalListeners2": "6eccc87dacacffddd3e192796ba5859c429db838c6660c9e81665b8ee22b1630",
-    "renderAndAppendServers": "e0b8899f206bf29102a9a3b681cb413140b231689cf6c71603b62cf6927f681d",
+    "displayInactivePlaceStatus": "fa528ac3133a146037b53ab5c0630251e0e41ec25f48f1fe52d1b9fdb7c9d234",
+    "fetchAndDisplayRegion": "664f223ae1af924d5ef43b8ba1f7fe9bf0b68557e4d259d55899fdc8cd8a969c",
+    "attachGlobalListeners2": "403c415afd18fe28b712eb511945550b686a4f87f335fee0e18e6942718a8f18",
+    "renderAndAppendServers": "8066b32ec02c0bae02f4f80006bdb382ea59f75eaad36b9b7b65dd85812bb695",
     "fetchServerRegion2": "56d103874fc3be54e9adcedddbefebf7cd56839110229f0c2fdfeec909f77e87"
   }
 }

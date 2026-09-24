@@ -23,7 +23,7 @@ export function subplaceFixtureSource(fixed) {
     const getServerUptime=()=>null,getServerUptimeIsEstimate=()=>false,getServerVersion=()=>null,
       getServerRegion=()=>null,getPlaceIdFromUrl=()=> '111',normalizeRegionName=value=>value||'',
       getLocationFromDataCenterId=()=>null;
-    const t2=async(key)=>key,ts2=key=>key;
+    const t2=async(key)=>key,ts2=key=>key,displayLanguageMatch=async()=>{};
     const launchGame=(place,id)=>joins.push([String(place),id]);
     const fetchThumbnails=async(items)=>new Map(items.map(item=>[item.id,{imageUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='}]));
     const displayUptime=(el,value)=>{el.dataset.testUptime=String(value);},
@@ -43,7 +43,7 @@ export function subplaceFixtureSource(fixed) {
     try {
       for(const [i,create] of [createServerCardFromRobloxApi,createServerCardFromApi,createModernServerCard].entries()) {
         for(const [prefix,place] of [['root','111'],['sub','85547073091480']]) {
-          const card=await create({id:prefix+'-'+i,playing:1,maxPlayers:10,playerTokens:['fixture-token']},place);
+          const card=await create({id:prefix+'-'+i,playing:1,maxPlayers:10,playerTokens:['fixture-token']},place,{addedByRovalraFilter:true});
           if(!card)throw Error('Card creation failed: '+prefix+'-'+i);
           host.append(card);cards.push(card);
         }

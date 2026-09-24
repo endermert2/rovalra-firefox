@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.9
+ * rovalra v2.6.12
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.

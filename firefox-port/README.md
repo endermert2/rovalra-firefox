@@ -2,16 +2,16 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.9.7: upstream 2.6.9 plus adapter revision 7.
+The current version is 2.6.12.8: upstream 2.6.12 plus adapter revision 8.
 
-See [subplace repair notes](SUBPLACE-FOLLOWUP-2.6.9.7.md) for the server-list fixes and
-upload instructions. Earlier font and security repairs remain included.
+See [updater repair notes](UPDATER-REPAIR-2.6.12.8.md) for the latest compatibility
+fix and upload instructions. Earlier subplace, font and security repairs remain included.
 
 ## Installation
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.9.7-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.12.8-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -81,11 +81,16 @@ feed was still offering 2.6.8.2 when investigated on September 16.
 
 Version **2.6.9.4** reviewed those contracts, preserved the new outfit hooks and
 ports the new web-chat launcher through packaged code. The original 2.6.9 release
-is now the reproducible `upstream/` baseline. Unknown APIs and changed patch targets
+was the reproducible baseline for that repair. Unknown APIs and changed patch targets
 still fail validation. The changelog is fetched independently from RoValra’s server
 and does not show which extension version is installed; use `about:addons` for that.
 
-See [SUBPLACE-FOLLOWUP-2.6.9.7.md](SUBPLACE-FOLLOWUP-2.6.9.7.md) for current deployment and verification.
+On September 24, the public upstream release was 2.6.12 while the Firefox feed
+still served 2.6.9.7. Changed server function contracts stopped conversion before
+publication. Revision 8 reviews the 2.6.12 changes, preserves language-match and
+recycled-card improvements, adjusts card patches, and removes the obsolete
+`getPlaceIdFromUrl6` patch. The exact 2.6.12 release is now the `upstream/` baseline.
+See [UPDATER-REPAIR-2.6.12.8.md](UPDATER-REPAIR-2.6.12.8.md) for deployment and verification.
 
 ## Firefox compatibility changes
 
@@ -117,7 +122,7 @@ functions are unrelated to the removed Firefox browser launcher.
 
 `npm test` covers archive safety, patch contracts, manifest conversion, Roblox
 launcher argument preservation, unsigned update-manifest construction, outfit-hook ordering and failure fallback,
-storage-listener removal, and adaptation of the reviewed 2.6.9 input.
+storage-listener removal, and adaptation of the reviewed 2.6.12 input.
 `npm run verify` runs Mozilla's local linter; this does not contact its signing
 service. Raw HTML warnings remain in `build/lint.json`. Each warning is now checked against
 sanitizer use in `build/html-review.json`; unguarded warnings and all errors fail.
