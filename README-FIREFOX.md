@@ -1,14 +1,17 @@
 # RoValra for Firefox Developer Edition
 
 This workspace contains the unofficial RoValra Firefox port, its original release
-input, and a repeatable update adapter. The current package is **2.6.9.4**.
+input, and a repeatable update adapter. The current package is **2.6.12.8**.
+
+For the September 24 updater repair and exact GitHub upload steps, see
+[UPDATER-REPAIR-2.6.12.8.md](firefox-port/UPDATER-REPAIR-2.6.12.8.md).
 
 ## Install once
 
 1. In Firefox Developer Edition, open `about:config`.
 2. Set `xpinstall.signatures.required` to **false**.
 3. Open `about:addons`, click the gear, and choose **Install Add-on From File**.
-4. Select `firefox-port/build/rovalra-firefox-2.6.9.4-unsigned.xpi` from this folder.
+4. Select `firefox-port/build/rovalra-firefox-2.6.12.8-unsigned.xpi` from this folder.
 5. Accept the installation and allow RoValra access to Roblox if asked. Refresh
    existing Roblox tabs.
 
