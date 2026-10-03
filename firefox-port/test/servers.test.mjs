@@ -89,8 +89,8 @@ test('changed upstream server functions stop publication pending review',()=>{
   assert.throws(()=>repairServers(original.replace('function displayInactivePlaceStatus(server) {','function displayInactivePlaceStatus(server) { console.log("changed");'),contracts),/Server function displayInactivePlaceStatus changed/);
 });
 
-test('enhancement preserves upstream language data and recycled-card uptime listeners',async()=>{
-  const language=[],uptimes=[],scheduled=[],listeners={};
+test('enhancement preserves cached server data and recycled-card uptime listeners',async()=>{
+  const uptimes=[],scheduled=[],listeners={};
   const noop=()=>{},server={dataset:{rovalraServerid:'old',placeid:'222'},
     getAttribute:()=>server.dataset.rovalraServerid,
     classList:{contains:()=>false,add:noop},addEventListener:(name,fn)=>{listeners[name]=fn;}};
@@ -102,7 +102,7 @@ test('enhancement preserves upstream language data and recycled-card uptime list
     injectStyles3:noop,cleanupServerUI:noop,attachCleanupObserver:noop,getOrCreateDetailsContainer:noop,
     displayPerformance:noop,displayPlaceVersion:noop,displayRegion:noop,displayIpAndDcId:noop,
     addCopyJoinLinkButton:noop,enableAvatarLinks:noop,fetchAndDisplayRegion:noop,
-    displayLanguageMatch:async(el,value)=>language.push(value),displayUptime:(el,value)=>uptimes.push(value),
+    displayUptime:(el,value)=>uptimes.push(value),
     getServerUptime:()=>null,getServerUptimeIsEstimate:()=>false,getServerVersion:()=>null,
     normalizeRegionName:()=>'',getPlaceIdFromUrl:()=> '111',
     setTimeout:fn=>scheduled.push(fn),clearTimeout:noop,_state:{},
@@ -112,7 +112,7 @@ test('enhancement preserves upstream language data and recycled-card uptime list
   await context.enhanceServer(server,state);
   server.dataset.rovalraServerid='new';
   await context.enhanceServer(server,state);
-  assert.deepEqual(language,[3,5]);
+  assert.equal(server._rovalraApiData.id,'new');
   assert.equal(state.uptimeBatch.get('new'),'222');
   uptimes.length=0;
   listeners['rovalra-uptime-update']({detail:{serverId:'old',uptime:1}});

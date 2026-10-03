@@ -1,33 +1,24 @@
 # RoValra for Firefox Developer Edition
 
-This workspace contains the unofficial RoValra Firefox port, its original release
-input, and a repeatable update adapter. The current package is **2.6.12.8**.
+The current port is **2.6.14.109**, based on upstream release **2.6.14.1** and
+adapter revision 9. The GitHub updater audit and current upstream compatibility
+have been repaired locally.
 
-For the September 24 updater repair and exact GitHub upload steps, see
-[UPDATER-REPAIR-2.6.12.8.md](firefox-port/UPDATER-REPAIR-2.6.12.8.md).
+See [the repair and upload checklist](firefox-port/UPDATER-REPAIR-2026-10-04.md).
+Extract `firefox-port/build/rovalra-firefox-upload-2.6.14.109.zip`, copy its contents
+to the top of your GitHub clone, commit, push, and start a new workflow run.
 
-## Install once
+For local installation, open **about:addons → gear → Install Add-on From File**
+and select `firefox-port/build/rovalra-firefox-2.6.14.109-unsigned.xpi` over the
+existing add-on. This requires Developer Edition with
+`xpinstall.signatures.required=false`. Refresh Roblox tabs after updating.
+The add-on ID and update URL are unchanged, so normal upgrades preserve settings.
 
-1. In Firefox Developer Edition, open `about:config`.
-2. Set `xpinstall.signatures.required` to **false**.
-3. Open `about:addons`, click the gear, and choose **Install Add-on From File**.
-4. Select `firefox-port/build/rovalra-firefox-2.6.12.8-unsigned.xpi` from this folder.
-5. Accept the installation and allow RoValra access to Roblox if asked. Refresh
-   existing Roblox tabs.
+[Automatic update setup](firefox-port/AUTOMATIC-UPDATES.md) and
+[the technical guide](firefox-port/README.md) explain building and browser tests.
 
-RoValra remains installed when you close Firefox. Open Firefox normally from now
-on. There is no launcher, additional browsing profile, or listening debugging
-connection. Signature enforcement is disabled for all extensions in this profile,
-not just RoValra. This method requires Developer Edition or another Firefox edition
-that honors that preference; standard Firefox does not.
-
-For browser-managed automatic updates, follow the revised
-[step-by-step update guide](firefox-port/AUTOMATIC-UPDATES.md). The GitHub workflow
-now publishes unsigned releases and requires no Mozilla account or signing secrets.
-The repair is prepared locally; upload the repaired source and run the workflow
-to restore hosted updates. Installing the local XPI already works without hosting.
-
-The [technical guide](firefox-port/README.md) covers building, tests, compatibility
-changes, and limitations. Keep `firefox-port/upstream/`: it is the original release
-used for reproducible builds and tests.
-
+The obsolete top-level 2.6.8.3 extension snapshot has been removed. Source now
+lives in `firefox-port`; keep its `upstream` input and `upstream-release.json`
+metadata for reproducible builds. Generated packages are in `firefox-port/build`.
+A recovery ZIP of the baseline before this repair is retained there.
+The separate `standalone-server-region` source is preserved.

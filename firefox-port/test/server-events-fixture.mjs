@@ -9,7 +9,8 @@ const previous=edits(repaired,['attachGlobalListeners2','renderAndAppendServers'
 })));
 
 export function serverEventsFixtureSource(fixed) {
-  const source=extract(['callRobloxApi','normalizeGameJoinEndpoint','fetchServerRegion2','attachGlobalListeners2','renderAndAppendServers',
+  const source=extract(['callRobloxApi','getRetryAfterDelay','getRateLimitKey','waitForRateLimitCooldown','recordRateLimitCooldown',
+    'normalizeGameJoinEndpoint','fetchServerRegion2','attachGlobalListeners2','renderAndAppendServers',
     'manageLoadMoreButton','createServerCardFromRobloxApi','createServerCardFromApi','createModernServerCard',
     'enhanceServer','processUptimeBatch','fetchServerUptime','fetchAndDisplayRegion','isServerActive2',
     'displayInactivePlaceStatus','getOrCreateDetailsContainer','updateInfoElement','createInfoElement'],fixed?repaired:previous);
@@ -41,6 +42,7 @@ export function serverEventsFixtureSource(fixed) {
     const fetchServerDetails=async()=>({servers:[]});
     const serverDataCache=new Map(),serverUptimeIsEstimate={},createUUID=()=>crypto.randomUUID();
     let lastGameJoinRequestTime=0,gameJoinErrorCount=0;
+    const rateLimitCooldowns=new Map(),RETRY_AFTER_BUFFER_MS=1000;
     const activeRequests=new Map(),responseCache=new Map(),refreshGameJoinVersionPreference=async()=>false,
       getRequestKey=JSON.stringify,getResponseCacheTtl=()=>0,
       isRovalraAuthEndpoint=()=>false,checkSimulatedJoinHttpError=async()=>false,checkSimulatedJoinError=async()=>false,

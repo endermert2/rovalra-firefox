@@ -2,16 +2,16 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.12.8: upstream 2.6.12 plus adapter revision 8.
+The current version is 2.6.14.109: upstream release 2.6.14.1 plus adapter revision 9.
 
-See [updater repair notes](UPDATER-REPAIR-2.6.12.8.md) for the latest compatibility
-fix and upload instructions. Earlier subplace, font and security repairs remain included.
+See [the October updater repair](UPDATER-REPAIR-2026-10-04.md) for the audit fix,
+upstream hotfix support and upload instructions. Earlier subplace, font and security repairs remain included.
 
 ## Installation
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.12.8-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.14.109-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -64,13 +64,21 @@ npm.cmd run verify
 `Update-Firefox.ps1` also downloads, adapts, and validates the latest stable release.
 To rebuild the included release offline after installing tools: `npm.cmd run build`.
 The resulting XPI is under `build/`; install it through `about:addons` over the
-existing extension. Keep the same add-on ID to preserve settings. The top-level
-workspace files are a snapshot; future generated packages are in `build/`.
+existing extension. Keep the same add-on ID to preserve settings. Generated
+packages are in `build/`; the obsolete top-level snapshot has been removed.
+Keep `upstream-release.json` alongside the exact `upstream/` input for offline builds.
 
 `node publish-manifest.mjs` creates `build/updates.json` from the exact XPI and its
 SHA-256 build report. `source-package.mjs` packages corresponding upstream source
 and the adapter for distribution under the existing license. It requires a prior
 `npm run update` to establish the exact downloaded release.
+
+## October 2026 updater repair
+
+The dependency audit now passes with zero vulnerabilities. The port uses Mozilla's
+standalone validator and DOMPurify 3.4.16. Upstream hotfix tags retain their full
+identity even when the packaged manifest omits the hotfix. See
+[the current repair checklist](UPDATER-REPAIR-2026-10-04.md).
 
 ## September 2026 updater repair
 
@@ -122,8 +130,8 @@ functions are unrelated to the removed Firefox browser launcher.
 
 `npm test` covers archive safety, patch contracts, manifest conversion, Roblox
 launcher argument preservation, unsigned update-manifest construction, outfit-hook ordering and failure fallback,
-storage-listener removal, and adaptation of the reviewed 2.6.12 input.
-`npm run verify` runs Mozilla's local linter; this does not contact its signing
+storage-listener removal, adaptation of the reviewed 2.6.14.1 input, and hotfix version ordering.
+`npm run verify` runs Mozilla's standalone addons-linter; this does not contact its signing
 service. Raw HTML warnings remain in `build/lint.json`. Each warning is now checked against
 sanitizer use in `build/html-review.json`; unguarded warnings and all errors fail.
 

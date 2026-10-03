@@ -4,13 +4,18 @@ import { spawnSync } from 'node:child_process';
 import { ROOT, filesIn } from './adapter.mjs';
 import { inspectHtmlWarnings } from './lint-policy.mjs';
 
-const command = spawnSync(process.execPath, [path.join(ROOT, 'node_modules/web-ext/bin/web-ext.js'),
-  'lint', '--self-hosted', '--source-dir', path.join(ROOT, 'build/extension'), '--output', 'json'], {
+const command = spawnSync(process.execPath, [path.join(ROOT, 'node_modules/addons-linter/bin/addons-linter'),
+  path.join(ROOT, 'build/extension'), '--self-hosted', '--output', 'json'], {
   encoding: 'utf8', env: { ...process.env, NO_UPDATE_NOTIFIER: '1' }, maxBuffer: 10 * 1024 * 1024,
 });
 if (command.error) throw command.error;
 let result;
-try { result = JSON.parse(command.stdout); } catch { throw new Error(`Mozilla validator failed: ${command.stderr}`); }
+try {
+  const raw = JSON.parse(command.stdout);
+  result = { ...raw, errors: raw.errors ?? raw.error, warnings: raw.warnings ?? raw.warning,
+    notices: raw.notices ?? raw.notice };
+  if (!Array.isArray(result.errors) || !Array.isArray(result.warnings)) throw new Error('Invalid validator report');
+} catch { throw new Error(`Mozilla validator failed: ${command.stderr || command.stdout}`); }
 await fs.writeFile(path.join(ROOT, 'build/lint.json'), JSON.stringify(result, null, 2) + '\n');
 const counts = {};
 for (const warning of result.warnings) counts[warning.code] = (counts[warning.code] || 0) + 1;
@@ -20,7 +25,7 @@ const review=inspectHtmlWarnings(await filesIn(path.join(ROOT,'build/extension')
 await fs.writeFile(path.join(ROOT,'build/html-review.json'),JSON.stringify(review,null,2)+'\n');
 const unexpected = review.unexpected;
 console.log(`HTML warnings: ${review.reviewed.length} verified sanitizer uses, ${unexpected.length} unresolved.`);
-if (result.errors.length || unexpected.length) {
+if (command.status !== 0 || result.errors.length || unexpected.length) {
   console.error(JSON.stringify({ errors: result.errors, unexpectedWarnings: unexpected }, null, 2));
   process.exitCode = 1;
 }

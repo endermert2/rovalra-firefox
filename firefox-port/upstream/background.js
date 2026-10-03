@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.12
+ * rovalra v2.6.14
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -99,7 +99,40 @@
     overrideTopbarSidebar: !1
   });
 
+  // src/content/core/locale/translationProgress.js
+  var localeResources = /* @__PURE__ */ new Map();
+  function flattenTranslationKeys(value, prefix = "", keys = []) {
+    return value && typeof value == "object" && !Array.isArray(value) ? Object.entries(value).forEach(([key, child]) => {
+      flattenTranslationKeys(
+        child,
+        prefix ? `${prefix}.${key}` : key,
+        keys
+      );
+    }) : prefix && keys.push(prefix), keys;
+  }
+  __name(flattenTranslationKeys, "flattenTranslationKeys");
+  function getValueAtPath(value, path) {
+    return path.split(".").reduce((current, key) => current?.[key], value);
+  }
+  __name(getValueAtPath, "getValueAtPath");
+  function getTranslationProgress(language) {
+    let locale = localeResources.get(language), english = localeResources.get("en");
+    if (!locale || !english) return null;
+    if (language === "en") return 100;
+    let englishKeys = flattenTranslationKeys(english), translatedKeys = englishKeys.filter((key) => {
+      let value = getValueAtPath(locale, key);
+      return typeof value == "string" && value.trim().length > 0;
+    }).length;
+    return Math.round(translatedKeys / englishKeys.length * 1e3) / 10;
+  }
+  __name(getTranslationProgress, "getTranslationProgress");
+
   // src/content/core/settings/settingConfig.js
+  function languageLabel(label, language) {
+    let progress = getTranslationProgress(language);
+    return progress === null ? label : `${label} (${progress}%)`;
+  }
+  __name(languageLabel, "languageLabel");
   var SETTINGS_CONFIG = {
     RoValra: {
       title: "RoValra",
@@ -111,14 +144,57 @@
           description: [
             "Manually configure a language for RoValra. Some translations may be missing.",
             // it works on the setting page only once it figures out the language from other pages' URLs
-            "Requires a refresh for changes to apply. Might not work immediately on the settings page."
+            "The page will reload to apply changes. Might not work immediately on the settings page.",
+            "We do not promise up to date translations. These translations are translated by the community, we cannot promise 100% accuracy "
           ],
           type: "select",
           options: [
-            { label: "English", value: "en" },
-            { label: "Polish (Polski)", value: "pl" },
-            { label: "Romanian (Rom\xE2n\u0103)", value: "ro" },
-            { label: "Spanish (Espa\xF1ol)", value: "es" },
+            {
+              label: languageLabel("English", "en"),
+              value: "en"
+            },
+            {
+              label: languageLabel("French (Fran\xE7ais)", "fr"),
+              value: "fr"
+            },
+            {
+              label: languageLabel("Polish (Polski)", "pl"),
+              value: "pl"
+            },
+            {
+              label: languageLabel("Romanian (Rom\xE2n\u0103)", "ro"),
+              value: "ro"
+            },
+            {
+              label: languageLabel("Indonesian (Bahasa Indonesia)", "id"),
+              value: "id"
+            },
+            {
+              label: languageLabel("Russian (\u0420\u0443\u0441\u0441\u043A\u0438\u0439)", "ru"),
+              value: "ru"
+            },
+            {
+              label: languageLabel("Spanish (Espa\xF1ol)", "es"),
+              value: "es"
+            },
+            {
+              label: languageLabel(
+                "Traditional Chinese (\u7E41\u9AD4\u4E2D\u6587)",
+                "zh-CHT"
+              ),
+              value: "zh-CHT"
+            },
+            {
+              label: languageLabel(
+                "Simplified Chinese (\u7B80\u4F53\u4E2D\u6587)",
+                "zh-CHS"
+              ),
+              value: "zh-CHS"
+            },
+            {
+              label: languageLabel("Arabic (\u0639\u0631\u0628\u064A)", "ar"),
+              value: "ar"
+            },
             { label: "Automatic", value: "auto" }
           ],
           default: "en"
@@ -208,6 +284,25 @@
           description: "This feature restores the 'Your balance after this transaction will be X' text to the new Roblox purchase UI after it was removed.",
           type: "checkbox",
           default: !0
+        },
+        recentlyViewedEnabled: {
+          label: "Recently Viewed Items",
+          description: [
+            "Adds a Recently Viewed row to the top of the Marketplace with the last items and bundles you opened.",
+            "Items can be removed one by one or all at once. Your history is only stored on this device."
+          ],
+          type: "checkbox",
+          default: !0,
+          storageKey: "rovalra_recently_viewed",
+          contributors: ["2239549101"],
+          childSettings: {
+            recentlyViewedPriceChanges: {
+              label: "Show Price Changes",
+              description: "Shows if an item got cheaper, more expensive, went off sale or came back on sale since you viewed it.",
+              type: "checkbox",
+              default: !0
+            }
+          }
         },
         bonusItemEnabled: {
           label: "Robux Purchase Bonus Item Selector",
@@ -705,14 +800,6 @@
               type: "checkbox",
               default: !0
             },
-            EnableServerLanguageMatch: {
-              label: "Server Language Match",
-              description: [
-                "Shows how many players in each server speak your language."
-              ],
-              type: "checkbox",
-              default: !0
-            },
             EnableFullServerID: {
               label: "Show the entire ServerID",
               description: [
@@ -1048,6 +1135,16 @@
           description: "This feature shows how long you have been friends with someone on their profile and in your friends list.",
           type: "checkbox",
           default: !0
+        },
+        mutualFriendsEnabled: {
+          label: "Mutual Friends",
+          description: [
+            "Shows how many friends you have in common with a user on their profile.",
+            "Click it to see them in a Mutuals tab on their friends page."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: ["2020751790"]
         },
         groupRoleEnabled: {
           label: "Show Community Roles",
@@ -2041,7 +2138,6 @@
           type: "checkbox",
           default: !0,
           contributors: ["650766686", "48255812"],
-          exclusiveWith: ["qolTogglesEnabled"],
           childSettings: {
             // Toggles to be in the menu
             privacyTogglesDropdownOnlineStatusEnabled: {
@@ -2073,6 +2169,15 @@
               ],
               type: "checkbox",
               default: !0
+            },
+            // Keep this one last please
+            privacyTogglesOldIconEnabled: {
+              label: "Old QOL Toggles Icon",
+              description: [
+                "Enable the old QOL Toggles icon (<icon>three-bars-horizontal</icon>). <b>Needs a refresh</b>"
+              ],
+              type: "checkbox",
+              default: !1
             }
           }
         },
@@ -2085,7 +2190,8 @@
           exclusiveWith: ["privacyTogglesEnabled"],
           isPermanent: !0,
           locked: "Replaced by Privacy Toggles in Navigation",
-          deprecated: "Replaced by Privacy Toggles in Navigation."
+          deprecated: "Replaced by Privacy Toggles in Navigation.",
+          hidden: !0
         },
         sidebarCollapseEnabled: {
           label: "Collapsible Sidebar",
@@ -3342,23 +3448,42 @@ Standards{linkEnd}.`,
   }
   __name(init, "init");
   init();
-  var toFlush = "";
   function debugVerbose(fmt, ...args) {
-    toFlush.length >= 500 && flush(), verbose ? console.debug(fmt, ...args) : (toFlush += fmt, toFlush += (args?.length || 0) >= 1 ? ` (${args.length} suppressed Objects)` : "", toFlush += `
-`);
+    verbose && console.debug(fmt, ...args);
   }
   __name(debugVerbose, "debugVerbose");
-  function flush() {
-    console.debug(toFlush), toFlush = "";
-  }
-  __name(flush, "flush");
 
   // src/background/settingsCompat.ts
   var settingDeprecations = {
     EnableGameTrailer: void 0,
     trustedConnectionsEnabled: void 0,
     currencyTransferEnabled: void 0
-  }, compatResults = null, getStoredSettingValue = /* @__PURE__ */ __name(async (setting) => {
+  }, CONFIG = Object.freeze({
+    COUNT_REPLACED_IF_INACTIVE: !0,
+    // havent tested with this off
+    COUNT_DEPRECATED_REMOVED_IF_INACTIVE: !0,
+    // havent tested with this off
+    SEEN_TRACK_STORAGE_KEY: "rovalra:settingsCompat:seenLocked"
+  });
+  function _getSeenStorageKey(name) {
+    return `${CONFIG.SEEN_TRACK_STORAGE_KEY}:${name}`;
+  }
+  __name(_getSeenStorageKey, "_getSeenStorageKey");
+  async function alreadySeenLockedSetting(name) {
+    return !!(await chrome.storage.local.get({ [_getSeenStorageKey(name)]: !1 }))[_getSeenStorageKey(name)];
+  }
+  __name(alreadySeenLockedSetting, "alreadySeenLockedSetting");
+  function markSeenLockedSettings(names) {
+    return chrome.storage.local.set(Object.fromEntries(
+      names.map((n) => [_getSeenStorageKey(n), !0])
+    ));
+  }
+  __name(markSeenLockedSettings, "markSeenLockedSettings");
+  function markLockedSettingAsUnseen(name) {
+    return chrome.storage.local.remove(_getSeenStorageKey(name));
+  }
+  __name(markLockedSettingAsUnseen, "markLockedSettingAsUnseen");
+  var compatResults = null, getStoredSettingValue = /* @__PURE__ */ __name(async (setting) => {
     let individual = await chrome.storage.local.get({
       [setting]: void 0
     });
@@ -3371,14 +3496,15 @@ Standards{linkEnd}.`,
       FLAT_SETTINGS_CONFIG[key] = value;
   var cleanup = /* @__PURE__ */ __name((async () => {
   }), "cleanup"), init2 = /* @__PURE__ */ __name((async () => {
+    let toAwait = [];
     console.debug("RoValra: Verifying settings compat.");
-    let deleted = [], replaced = [];
+    let deleted = [], replaced = [], deletedOrReplacedKeys = [];
     for (let [setting, replaceFn] of Object.entries(settingDeprecations))
       try {
         let v;
-        if ((v = await getStoredSettingValue(setting)) === !0)
+        if ((v = await getStoredSettingValue(setting)) === !0 || CONFIG.COUNT_REPLACED_IF_INACTIVE)
           if (debugVerbose(`Replaced setting ${setting}.`, { replacement: String(replaceFn) }), replaceFn === void 0)
-            deleted.push(FLAT_SETTINGS_CONFIG[setting].label);
+            await alreadySeenLockedSetting(setting) || (deleted.push(FLAT_SETTINGS_CONFIG[setting].label), deletedOrReplacedKeys.push(setting));
           else
             try {
               let replacements = {};
@@ -3388,27 +3514,31 @@ Standards{linkEnd}.`,
                 (key, newValue) => {
                   replacements[key] = newValue;
                 }
-              ), await chrome.storage.local.set(replacements), replaced.push(setting);
+              ), await chrome.storage.local.set(replacements), await alreadySeenLockedSetting(setting) || (replaced.push(setting), deletedOrReplacedKeys.push(setting));
             } catch (e) {
               console.error(`Failed to update setting ${setting} \u2014 unexpected error: `, e);
             }
       } catch (e) {
         console.error(`Failed to retrieve setting ${setting} for compat checks \u2014 unexpected error: `, e);
       }
-    let forEachLockedSetting = /* @__PURE__ */ __name((key, data) => {
+    let forEachLockedSetting = /* @__PURE__ */ __name(async (key, data) => {
       let name = data.label;
-      deleted.push(name);
+      await alreadySeenLockedSetting(key) || (deleted.push(name), deletedOrReplacedKeys.push(key));
     }, "forEachLockedSetting");
     for (let [category, settings] of Object.entries(SETTINGS_CONFIG))
       for (let [setting, data] of Object.entries(settings.settings))
         if (data.locked !== void 0 || data.deprecated !== void 0) {
           let value = await getStoredSettingValue(setting);
-          value !== void 0 && value !== !1 && (debugVerbose(`Locked/deprecated setting: ${setting}`, data), forEachLockedSetting(setting, data), await chrome.storage.local.set({ [setting]: !1 }));
-        }
-    compatResults = { replaced, deleted }, chrome.tabs.query({ active: !0, currentWindow: !0 }, (tabs) => {
-      tabs[0]?.id && chrome.tabs.sendMessage(tabs[0].id, { type: "settingsCompatResultData", replaced, deleted }, () => {
-      });
-    }), await cleanup(), flush(), console.debug("Setting compat checks finished.");
+          (value !== void 0 && value !== !1 || CONFIG.COUNT_DEPRECATED_REMOVED_IF_INACTIVE) && (debugVerbose(`Locked/deprecated setting: ${setting}`, data), await forEachLockedSetting(setting, data), await chrome.storage.local.set({ [setting]: !1 }));
+        } else
+          await alreadySeenLockedSetting(setting) && (debugVerbose(`Marking setting ${setting} as unseen.`, {
+            key: setting,
+            label: data.label,
+            seen: await alreadySeenLockedSetting(setting),
+            locked: data.deprecated,
+            deprecated: data.deprecated
+          }), toAwait.push(markLockedSettingAsUnseen(setting)));
+    await Promise.all(toAwait), debugVerbose(`Marking ${deletedOrReplacedKeys.length} as seen.`, { values: deletedOrReplacedKeys }), await markSeenLockedSettings(deletedOrReplacedKeys), compatResults = { replaced, deleted }, await cleanup(), console.debug("Setting compat checks finished.");
   }), "init");
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => (message.type === "settingsCompatGetRes" && (debugVerbose("Recieved signal settingsCompatGetRes.", { message, data: compatResults }), sendResponse(compatResults), compatResults = { replaced: [], deleted: [] }), !0));
   var settingsCompat_default = init2;
@@ -3517,7 +3647,7 @@ Standards{linkEnd}.`,
     badgeInterval: null,
     badgeFullScanInterval: null,
     avatarInventoryInterval: null
-  };
+  }, rateLimitCooldowns = /* @__PURE__ */ new Map();
   chrome.storage.session && chrome.storage.session.setAccessLevel && chrome.storage.session.setAccessLevel({
     accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS"
   }).catch(
@@ -3756,7 +3886,19 @@ Standards{linkEnd}.`,
     endpoint?.includes("/player-hydration-service/v1/players/signed") || (url += `${separator}_RoValraRequest=`);
     let fetchOptions = { method, headers: { ...headers } };
     body && (typeof body == "object" ? (fetchOptions.headers["Content-Type"] = "application/json", fetchOptions.body = JSON.stringify(body)) : fetchOptions.body = body), method !== "GET" && method !== "HEAD" && state.csrfTokenCache && (fetchOptions.headers["X-CSRF-TOKEN"] = state.csrfTokenCache);
+    let rateLimitKey = new URL(url).origin, cooldownUntil = rateLimitCooldowns.get(rateLimitKey) || 0;
+    cooldownUntil > Date.now() ? await sleep(cooldownUntil - Date.now()) : rateLimitCooldowns.delete(rateLimitKey);
     let response = await fetch(url, fetchOptions);
+    if (response.status === 429) {
+      let cooldown = getRateLimitDelay(response);
+      cooldown > 0 && rateLimitCooldowns.set(
+        rateLimitKey,
+        Math.max(
+          rateLimitCooldowns.get(rateLimitKey) || 0,
+          Date.now() + cooldown
+        )
+      );
+    }
     if (response.status === 403 && method !== "GET" && method !== "HEAD") {
       let newCsrf = response.headers.get("x-csrf-token");
       newCsrf && (state.csrfTokenCache = newCsrf, fetchOptions.headers["X-CSRF-TOKEN"] = newCsrf, response = await fetch(url, fetchOptions));
@@ -3963,9 +4105,15 @@ Standards{linkEnd}.`,
   }
   __name(sleep, "sleep");
   function getRateLimitDelay(response) {
-    let retryAfterSeconds = Number(response.headers.get("retry-after"));
-    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0)
-      return retryAfterSeconds * 1e3 + 1e3;
+    let retryAfter = response.headers.get("retry-after");
+    if (retryAfter) {
+      let retryAfterSeconds = Number(retryAfter);
+      if (Number.isFinite(retryAfterSeconds))
+        return Math.max(0, retryAfterSeconds * 1e3) + 1e3;
+      let retryAt = Date.parse(retryAfter);
+      if (Number.isFinite(retryAt))
+        return Math.max(0, retryAt - Date.now()) + 1e3;
+    }
     let remaining = Number(response.headers.get("x-ratelimit-remaining")), resetValue = Number(response.headers.get("x-ratelimit-reset"));
     return Number.isFinite(remaining) && remaining <= 1 && Number.isFinite(resetValue) && resetValue > 0 ? (resetValue > 1e9 ? Math.max(0, resetValue * 1e3 - Date.now()) : resetValue * 1e3) + 1e3 : 0;
   }

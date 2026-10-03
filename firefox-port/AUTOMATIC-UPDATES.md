@@ -6,9 +6,9 @@ Mozilla developer account, API keys, or signing service.
 
 You can install the local XPI immediately. Completing this guide lets Firefox
 receive future adapted releases automatically through its normal add-on updater.
-The existing hosted workflow stalled after port 2.6.9.7. This folder contains the
+The existing hosted workflow stalled after port 2.6.13.8 at its dependency audit. This folder contains the
 repair; upload the updated source and run the workflow as described below.
-See [UPDATER-REPAIR-2.6.12.8.md](UPDATER-REPAIR-2.6.12.8.md) for the current upload checklist.
+See [the October repair checklist](UPDATER-REPAIR-2026-10-04.md) for the current upload steps.
 [REPAIR-NOTES.md](REPAIR-NOTES.md) records the earlier updater diagnosis.
 
 ## 1. How the pieces fit together
@@ -58,9 +58,10 @@ original extension comes from. Only `releaseRepository` names your own repositor
 Do not change the add-on ID after installation; Firefox uses it to associate updates
 and settings with this extension.
 
-The current adapter revision is 8, producing version **2.6.12.8**. This also avoids
-reusing the earlier port release tag. Future upstream releases get their upstream
-version plus this revision. A compatibility fix for the same upstream version must
+The current adapter revision is 9, producing version **2.6.14.109** from upstream
+2.6.14.1. Three-part releases append the revision as before; hotfix releases use
+`hotfix × 100 + revision` as their fourth component. Revisions must be 1–99.
+A compatibility fix for the same upstream version must
 increment `adapterRevision` before publishing a replacement.
 
 ## 3. Exactly what to upload
@@ -71,15 +72,13 @@ The project folder on your PC is:
 C:\Users\Ender.DESKTOP-MB0NR2F\Desktop\Scripts\rovalra-v2.6.8
 ```
 
-Upload this folder's **contents**, preserving their layout. Do not put them inside
-an extra `rovalra-v2.6.8` folder within the repository. At GitHub's top level, you
-should see `.github`, `.gitignore`, `firefox-port`, `firefox`, `assets`, `css`,
-`public`, `manifest.json`, the JavaScript files, license, and README.
+Extract the new GitHub upload ZIP and copy its **contents**, preserving the layout.
+At the repository's top level, include `.github`, `.gitignore`, `README-FIREFOX.md`,
+`LICENSE`, and `firefox-port`. Do not add an extra project folder.
 
-Include all source files in `firefox-port`, particularly `upstream`, `runtime`,
-`patches`, `test`, `package.json`, and `package-lock.json`. These are needed to
-reproduce and check the build. The two folders `firefox` and `firefox-port` are
-different; include both.
+Include all packaged source files in `firefox-port`, particularly `upstream`,
+`upstream-release.json`, `runtime`, `patches`, `test`, `package.json`, and
+`package-lock.json`. The obsolete top-level extension snapshot is no longer needed.
 
 Exclude these generated folders and private files:
 
@@ -159,7 +158,7 @@ reach that branch.
 1. In **Firefox Developer Edition**, open `about:config` and set
    `xpinstall.signatures.required` to **false**.
 2. Download the unsigned XPI from your first release. Alternatively, use the local
-   `firefox-port/build/rovalra-firefox-2.6.12.8-unsigned.xpi` prepared here; it contains
+   `firefox-port/build/rovalra-firefox-2.6.14.109-unsigned.xpi` prepared here; it contains
    the same configured update address.
 3. Open `about:addons`, click the gear, choose **Install Add-on From File**, and
    select the XPI. Accept the installation and grant Roblox access if asked.
@@ -195,6 +194,7 @@ change it. Keep releases containing older XPI download links available.
 
 For a failed workflow, open its red step and read the error:
 
+- **Dependency audit failed:** review and update affected dependencies; keep the audit enabled.
 - **Changed upstream function / new API:** the adapter needs maintenance. Nothing
   new is published; keep using the existing version.
 - **Permission denied / release creation failed:** check repository workflow

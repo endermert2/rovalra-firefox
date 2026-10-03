@@ -99,7 +99,8 @@
         "versionUnknown": "Version Unknown",
         "version": "Version {{version}}",
         "versionLabel": "Version",
-        "languageMatchCount": "~{{count}} {{language}} speakers",
+        "regionTooltip": "Server region: {{region}}",
+        "performanceTooltip": "Server performance",
         "latest": " (Latest)",
         "oldest": " (Oldest)",
         "serverFull": "Server is Full",
@@ -445,6 +446,14 @@
         "allTime": "All time",
         "hours": "{{value}} hours",
         "minutes": "{{value}} minutes"
+    },
+    "mutualFriends": {
+        "pill_one": "{{count}} Mutual Friend",
+        "pill_other": "{{count}} Mutual Friends",
+        "tooltip": "Friends you have in common with this user",
+        "tab": "Mutuals",
+        "title": "Mutual Friends ({{count}})",
+        "empty": "You have no mutual friends with this user."
     },
     "trustedFriends": {
         "pendingConnection": "Pending Trusted Friend",
@@ -820,6 +829,7 @@
         },
         "credits": {
             "contributorsTitle": "Contributors",
+            "translatorsTitle": "Translators",
             "featureCount_one": "{{count}} feature",
             "featureCount_other": "{{count}} features",
             "contributorTooltips": {
@@ -875,7 +885,10 @@
                 },
                 "locales": {
                     "madeRo": "Helped make the Romanian locale",
-                    "madeEs": "Helped make the Spanish locale"
+                    "madeEs": "Helped make the Spanish locale",
+                    "madeRu": "Helped make the Russian locale",
+                    "madeFr": "Helped make the French locale",
+                    "madeZh": "Helped make the Chinese locale"
                 }
             },
             "ui": {
@@ -1007,6 +1020,7 @@
                 "github": "GitHub",
                 "chrome": "Chrome",
                 "untitledRelease": "Untitled release",
+                "current": "Your Version",
                 "noNotes": "No changelog notes were provided for this release.",
                 "loading": "Loading changelogs...",
                 "empty": "No changelogs are available right now.",
@@ -1052,7 +1066,7 @@
                 "getUsd": "Get ($5 USD)",
                 "getRobux": "Get (4,000 Robux)",
                 "purchaseIntro": "This purchase is for people who really want to support RoValra.",
-                "createTicket": "After buying this item, go into the RoValra Discord and create a ticket.",
+                "createTicket": "After buying this item, go into the RoValra Discord and create a ticket. YOUR DISCORD ACCOUNT MUST BE AT LEAST 30 DAYS OLD TO CLAIM",
                 "provideDetails": "Give staff the image and name you want your custom profile badge to have.",
                 "countsTowardTier": "Buying this item will count towards RoValra donator tiers.",
                 "visibility": "These custom badges are only visible to RoValra users.",
@@ -1185,18 +1199,6 @@
                 "name": "Inventory Privacy"
             }
         }
-    },
-    "qolToggles": {
-        "onlineStatus": "Online Status",
-        "joinStatus": "Experience Status",
-        "privateServerPrivacy": "Private Server Privacy",
-        "inventoryVisibility": "Inventory Visibility",
-        "everyone": "Everyone",
-        "friendsFollowingAndFollowers": "Friends, Followers, & Following",
-        "friendsAndFollowing": "Friends & Following",
-        "friends": "Friends",
-        "trustedFriends": "Trusted Friends",
-        "noOne": "No one"
     },
     "groupFunds": {
         "loading": "Loading...",
@@ -1671,6 +1673,15 @@
     "purchasePrompt": {
         "balanceAfter": "Your balance after this transaction will be"
     },
+    "recentlyViewed": {
+        "title": "Recently Viewed",
+        "clear": "Clear",
+        "remove": "Remove",
+        "cheaper": "{{value}} Robux cheaper than when you viewed it",
+        "pricier": "{{value}} Robux more than when you viewed it",
+        "offSale": "Went off sale",
+        "backOnSale": "Back on sale"
+    },
     "time": {
         "justNow": "just now",
         "secondsAgo": "{{count}}s ago",
@@ -2128,6 +2139,15 @@
                     "okBtnSilly": "awww darn okay :c"
                 }
             }
+        }
+    },
+    "settingsCompat-settingChangeNote": {
+        "ui": {
+            "popup": {
+                "title": "Some settings were removed/replaced"
+            },
+            "deleted": "The following settings have been recently deleted, locked or deprecated:",
+            "replaced": "The following settings have been recently replaced or changed:"
         }
     },
     "avatar": {

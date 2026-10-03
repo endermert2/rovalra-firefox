@@ -63,16 +63,33 @@ function replaceOnce(source, before, after) {
   if (source.split(before).length !== 2) throw new Error(`Upstream patch no longer matches: ${before.slice(0, 70)}`);
   return source.replace(before, after);
 }
-export function adaptManifest(original, config) {
+export function releaseVersion(tag, manifestVersion) {
+  const version = tag.replace(/^v/, '');
+  if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(version) ||
+      (version !== manifestVersion && !(/^\d+\.\d+\.\d+$/.test(manifestVersion) &&
+        version.startsWith(`${manifestVersion}.`) && Number(version.split('.')[3]) > 0))) {
+    throw new Error('Release tag and manifest version disagree');
+  }
+  return version;
+}
+export function firefoxVersion(upstreamVersion, revision) {
+  if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(upstreamVersion) ||
+      !Number.isInteger(revision) || revision < 1 || revision > 99) {
+    throw new Error('Expected a three- or four-part upstream version and adapter revision 1–99');
+  }
+  const parts = upstreamVersion.split('.').map(Number);
+  // Reserve 100 revisions for each upstream hotfix while keeping four components.
+  const result = [...parts.slice(0, 3), (parts[3] || 0) * 100 + revision];
+  if (result.some(part => !Number.isSafeInteger(part) || part > 65535)) throw new Error('Version component exceeds Firefox package limits');
+  return result.join('.');
+}
+export function adaptManifest(original, config, upstreamVersion = original.version) {
   const manifest = structuredClone(original);
   if (manifest.manifest_version !== 3 || !manifest.background?.service_worker || manifest.background.type === 'module') {
     throw new Error('This adapter requires a bundled MV3 classic service worker; review the new release');
   }
-  if (!/^\d+\.\d+\.\d+$/.test(manifest.version) || !Number.isInteger(config.adapterRevision) || config.adapterRevision < 1) {
-    throw new Error('Expected a three-part upstream version and positive adapter revision');
-  }
   if (!/^[^\s@]+@[^\s@]+$/.test(config.addonId)) throw new Error('Configure a stable Firefox add-on ID');
-  manifest.version += `.${config.adapterRevision}`;
+  manifest.version = firefoxVersion(releaseVersion(upstreamVersion, original.version), config.adapterRevision);
   manifest.name = 'RoValra (Unofficial Firefox Port)';
   manifest.background = { scripts: ['firefox/background.js', manifest.background.service_worker], persistent: false };
   delete manifest.update_url;
@@ -105,7 +122,7 @@ export function adaptManifest(original, config) {
   });
   return manifest;
 }
-export async function adaptFiles(input, config) {
+export async function adaptFiles(input, config, upstreamVersion) {
   const output = { ...input };
   const original = JSON.parse(input['manifest.json']);
   const contracts = JSON.parse(await fs.readFile(path.join(ROOT, 'contracts.json'), 'utf8'));
@@ -205,9 +222,8 @@ export async function adaptFiles(input, config) {
   } });
   if (backgroundEdits.length !== 1) throw new Error('Settings compatibility listener changed; review required');
   background = edits(background, backgroundEdits);
-  background = replaceOnce(background,
-    'chrome.tabs.sendMessage(tabs[0].id, { type: "settingsCompatResultData", replaced, deleted }, () => {\n      })',
-    'chrome.tabs.sendMessage(tabs[0].id, { type: "settingsCompatResultData", replaced, deleted }, () => { void chrome.runtime.lastError; })');
+  // Upstream 2.6.14 removed the unsolicited settingsCompatResultData tab message;
+  // the remaining request listener above serves compatibility results on demand.
   // The converted launcher no longer sends executable strings. Remove that path.
   const bgTree = parseJS(background);
   let injectionCase;
@@ -230,7 +246,7 @@ export async function adaptFiles(input, config) {
   if(fontRules!==3)throw new Error('Remote icon font CSS changed; review required');
   output['LICENSE'] = await fs.readFile(path.join(ROOT, 'LICENSE'));
   output['FIREFOX-PORT-NOTICE.md'] = await fs.readFile(path.join(ROOT, 'NOTICE.md'));
-  const manifest = adaptManifest(original, config);
+  const manifest = adaptManifest(original, config, upstreamVersion);
   // Firefox rejects data: redirect targets. Serve the same static JSON as a
   // packaged, web-accessible resource and retain the user's ruleset toggle.
   const betaPath = 'public/Assets/Rules/beta-rules.json';
@@ -246,7 +262,7 @@ export async function adaptFiles(input, config) {
   output['manifest.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
   validateFiles(output);
   return { files: output, manifest, report: {
-    upstreamVersion: original.version, firefoxVersion: manifest.version,
+    upstreamVersion: upstreamVersion ?? original.version, upstreamManifestVersion: original.version, firefoxVersion: manifest.version,
     adapterRevision: config.adapterRevision,
     sanitizedHtmlSinks: html.count,
     inputHashes: Object.fromEntries(Object.entries(input).map(([name, bytes]) => [name, sha256(bytes)])),
@@ -296,6 +312,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   try {
     const index = process.argv.indexOf('--source');
     const source = path.resolve(ROOT, index === -1 ? 'upstream' : process.argv[index + 1]);
-    await writeBuild(await adaptFiles(await filesIn(source), await readConfig()));
+    const baseline = source === path.join(ROOT, 'upstream')
+      ? JSON.parse(await fs.readFile(path.join(ROOT, 'upstream-release.json'))) : null;
+    await writeBuild(await adaptFiles(await filesIn(source), await readConfig(), baseline?.version));
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

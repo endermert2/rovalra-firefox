@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.12
+ * rovalra v2.6.14
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -130,6 +130,16 @@ else if (typeof exports === 'object')
           listener && listener(mutation);
           continue;
         }
+        if (mutation.type === "characterData") {
+          let node = mutation.target.parentNode;
+          for (; node; ) {
+            let listeners3 = characterDataListeners.get(node);
+            if (listeners3)
+              for (let listener of listeners3) listener(mutation);
+            node = node.parentNode;
+          }
+          continue;
+        }
         if (mutation.type === "childList") {
           let listeners3 = childListListeners.get(mutation.target);
           if (listeners3)
@@ -149,6 +159,18 @@ else if (typeof exports === 'object')
       disconnect: /* @__PURE__ */ __name(() => {
         let activeListeners = childListListeners.get(element);
         activeListeners && (activeListeners.delete(callback), activeListeners.size === 0 && childListListeners.delete(element));
+      }, "disconnect")
+    };
+  }
+  function observeText(element, callback) {
+    observerInitialized || initializeObserver();
+    let listeners3 = characterDataListeners.get(element);
+    return listeners3 || (listeners3 = /* @__PURE__ */ new Set(), characterDataListeners.set(element, listeners3), globalObserver.observe(element, {
+      characterData: !0,
+      subtree: !0
+    })), listeners3.add(callback), {
+      disconnect: /* @__PURE__ */ __name(() => {
+        characterDataListeners.get(element)?.delete(callback);
       }, "disconnect")
     };
   }
@@ -214,9 +236,9 @@ else if (typeof exports === 'object')
       observeBody() && obs.disconnect();
     }).observe(document.documentElement, { childList: !0 }), "waiting-for-body");
   }
-  var observerInitialized, observationRequests, globalObserver, attributeListeners, childListListeners, trackedRequestsByElement, OBSERVER_IGNORE_ATTRIBUTE, viewportObservers, customRootObservers, intersectionCallbacks, resizeObservers, resizeCallbacks, observeElement, observeAttributes, init_observer = __esm({
+  var observerInitialized, observationRequests, globalObserver, attributeListeners, childListListeners, characterDataListeners, trackedRequestsByElement, OBSERVER_IGNORE_ATTRIBUTE, viewportObservers, customRootObservers, intersectionCallbacks, resizeObservers, resizeCallbacks, observeElement, observeAttributes, init_observer = __esm({
     "src/content/core/observer.js"() {
-      observerInitialized = !1, observationRequests = /* @__PURE__ */ new Set(), globalObserver = null, attributeListeners = /* @__PURE__ */ new Map(), childListListeners = /* @__PURE__ */ new Map(), trackedRequestsByElement = /* @__PURE__ */ new WeakMap(), OBSERVER_IGNORE_ATTRIBUTE = "data-rovalra-observer-ignore", viewportObservers = /* @__PURE__ */ new Map(), customRootObservers = /* @__PURE__ */ new WeakMap(), intersectionCallbacks = /* @__PURE__ */ new WeakMap(), resizeObservers = /* @__PURE__ */ new Map(), resizeCallbacks = /* @__PURE__ */ new WeakMap();
+      observerInitialized = !1, observationRequests = /* @__PURE__ */ new Set(), globalObserver = null, attributeListeners = /* @__PURE__ */ new Map(), childListListeners = /* @__PURE__ */ new Map(), characterDataListeners = /* @__PURE__ */ new WeakMap(), trackedRequestsByElement = /* @__PURE__ */ new WeakMap(), OBSERVER_IGNORE_ATTRIBUTE = "data-rovalra-observer-ignore", viewportObservers = /* @__PURE__ */ new Map(), customRootObservers = /* @__PURE__ */ new WeakMap(), intersectionCallbacks = /* @__PURE__ */ new WeakMap(), resizeObservers = /* @__PURE__ */ new Map(), resizeCallbacks = /* @__PURE__ */ new WeakMap();
       __name(isIgnoredElement, "isIgnoredElement");
       __name(trackRequestElement, "trackRequestElement");
       __name(untrackRequestElement, "untrackRequestElement");
@@ -265,6 +287,7 @@ else if (typeof exports === 'object')
         }, "disconnect")
       }), "observeAttributes");
       __name(observeChildren, "observeChildren");
+      __name(observeText, "observeText");
       __name(observeIntersection, "observeIntersection");
       __name(observeResize, "observeResize");
       __name(startObserving, "startObserving");
@@ -690,11 +713,11 @@ else if (typeof exports === 'object')
               headers.set(key, value2);
           }
           this.cookie && headers.set("cookie", this.cookie);
-          let init173 = {
+          let init174 = {
             ...params,
             headers
           };
-          return this.onSite && (init173.credentials = "include"), (this._fetchFn ?? fetch)(url, init173);
+          return this.onSite && (init174.credentials = "include"), (this._fetchFn ?? fetch)(url, init174);
         }
         /**
          * Generate the base headers required given unsigned BAT data, it may empty if the keys could not be retrieved, or only include `x-bound-auth-token`.
@@ -1187,6 +1210,53 @@ Never used outside your local device.`;
   });
 
   // src/content/core/api.js
+  function getRetryAfterDelay(response) {
+    let retryAfter = response.headers.get("retry-after");
+    if (retryAfter) {
+      let seconds = Number(retryAfter);
+      if (Number.isFinite(seconds))
+        return Math.max(0, seconds * 1e3) + RETRY_AFTER_BUFFER_MS;
+      let retryAt = Date.parse(retryAfter);
+      if (Number.isFinite(retryAt))
+        return Math.max(0, retryAt - Date.now()) + RETRY_AFTER_BUFFER_MS;
+    }
+    return 0;
+  }
+  function getRateLimitKey(url) {
+    try {
+      return new URL(url).origin;
+    } catch {
+      return url;
+    }
+  }
+  async function waitForRateLimitCooldown(key, signal) {
+    let delay = (rateLimitCooldowns.get(key) || 0) - Date.now();
+    if (delay <= 0) {
+      rateLimitCooldowns.delete(key);
+      return;
+    }
+    await new Promise((resolve, reject) => {
+      let timeoutId = setTimeout(resolve, delay);
+      if (!signal) return;
+      let onAbort = /* @__PURE__ */ __name(() => {
+        clearTimeout(timeoutId), reject(new DOMException("The operation was aborted.", "AbortError"));
+      }, "onAbort");
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      signal.addEventListener("abort", onAbort, { once: !0 });
+    });
+  }
+  function recordRateLimitCooldown(key, response) {
+    let delay = getRetryAfterDelay(response);
+    if (delay <= 0) return;
+    let cooldownUntil = Date.now() + delay;
+    rateLimitCooldowns.set(
+      key,
+      Math.max(rateLimitCooldowns.get(key) || 0, cooldownUntil)
+    );
+  }
   function getRovalraUserAgent() {
     if (cachedRovalraUserAgent) return cachedRovalraUserAgent;
     let originalUA = navigator.userAgent, browser2 = "Unknown", engine = "Unknown";
@@ -1210,7 +1280,7 @@ Never used outside your local device.`;
     return options.isRovalraApi === !0 && options.subdomain === "apis" && typeof options.endpoint == "string" && options.endpoint.startsWith("/v1/auth/");
   }
   function getResponseCacheTtl(options) {
-    return !options.isRovalraApi || options.subdomain !== "apis" || (options.method || "GET").toUpperCase() !== "GET" ? 0 : /^\/v1\/users\/[^/]+\/badges(?:\?|$)/.test(options.endpoint) ? USER_BADGES_CACHE_TTL_MS : 0;
+    return !options.isRovalraApi || options.subdomain !== "apis" || (options.method || "GET").toUpperCase() !== "GET" ? 0 : /^\/v1\/users\/[^/]+\/badges(?:\?|$)/.test(options.endpoint) ? USER_BADGES_CACHE_TTL_MS : /^\/v1\/github\/sponsors\/[^/]+\/avatar(?:\?|$)/.test(options.endpoint) ? GITHUB_SPONSOR_AVATAR_CACHE_TTL_MS : 0;
   }
   function normalizeGameJoinEndpoint(endpoint) {
     return typeof endpoint != "string" ? endpoint : endpoint.replace(/^\/v[12]\//, "/v1/");
@@ -1390,8 +1460,8 @@ Never used outside your local device.`;
                 return;
               }
               useApiKey && response2.status === 401 && invalidateApiKey();
-              let { body: body2, ...init173 } = response2;
-              resolve(new Response(body2, init173));
+              let { body: body2, ...init174 } = response2;
+              resolve(new Response(body2, init174));
             }
           );
         });
@@ -1477,7 +1547,8 @@ Never used outside your local device.`;
       if (isRovalraApi) {
         let lastResponse;
         try {
-          lastResponse = await fetch(fullUrl, fetchOptions);
+          let rateLimitKey2 = getRateLimitKey(fullUrl);
+          await waitForRateLimitCooldown(rateLimitKey2, signal), lastResponse = await fetch(fullUrl, fetchOptions), lastResponse.status === 429 && recordRateLimitCooldown(rateLimitKey2, lastResponse);
           let newAccessToken = null;
           try {
             let bodyClone = await lastResponse.clone().json();
@@ -1550,9 +1621,9 @@ Never used outside your local device.`;
       }
       let cleanupGameJoinTimeout = /* @__PURE__ */ __name(() => {
         timeoutId && (clearTimeout(timeoutId), timeoutId = null), signal && abortSignalCleanup && (signal.removeEventListener("abort", abortSignalCleanup), abortSignalCleanup = null);
-      }, "cleanupGameJoinTimeout"), response;
+      }, "cleanupGameJoinTimeout"), response, rateLimitKey = getRateLimitKey(fullUrl);
       try {
-        response = await fetch(fullUrl, fetchOptions);
+        await waitForRateLimitCooldown(rateLimitKey, signal), response = await fetch(fullUrl, fetchOptions);
       } catch (error3) {
         if (cleanupGameJoinTimeout(), didGameJoinTimeout)
           return createGameJoinFullResponse();
@@ -1590,7 +1661,7 @@ Never used outside your local device.`;
       } finally {
         cleanupGameJoinTimeout();
       }
-      return response.ok || (console.error(
+      return response.ok || (response.status === 429 && recordRateLimitCooldown(rateLimitKey, response), console.error(
         `RoValra API: Request to ${fullUrl} failed with status ${response.status}.`
       ), useApiKey && response.status === 401 && await invalidateApiKey()), responseCacheTtl && response.ok && responseCache.set(requestKey, {
         timestamp: Date.now(),
@@ -1686,7 +1757,7 @@ Never used outside your local device.`;
     }
     return await response.json();
   }
-  var activeRequests, responseCache, USER_BADGES_CACHE_TTL_MS, gameJoinErrorCount, lastGameJoinRequestTime, GAMEJOIN_TIMEOUT_MS, TEMPORARILY_LIMITED_MESSAGE, OAUTH_STORAGE_KEY, cachedRovalraUserAgent, hbaClient, init_api = __esm({
+  var activeRequests, responseCache, USER_BADGES_CACHE_TTL_MS, GITHUB_SPONSOR_AVATAR_CACHE_TTL_MS, gameJoinErrorCount, lastGameJoinRequestTime, GAMEJOIN_TIMEOUT_MS, rateLimitCooldowns, RETRY_AFTER_BUFFER_MS, TEMPORARILY_LIMITED_MESSAGE, OAUTH_STORAGE_KEY, cachedRovalraUserAgent, hbaClient, init_api = __esm({
     "src/content/core/api.js"() {
       init_utils();
       init_user();
@@ -1695,9 +1766,13 @@ Never used outside your local device.`;
       init_apiKey();
       init_alert();
       init_location();
-      activeRequests = /* @__PURE__ */ new Map(), responseCache = /* @__PURE__ */ new Map(), USER_BADGES_CACHE_TTL_MS = 300 * 1e3, gameJoinErrorCount = 0, lastGameJoinRequestTime = 0, GAMEJOIN_TIMEOUT_MS = 2e3, TEMPORARILY_LIMITED_MESSAGE = "Your account has been temporarily limited for violating terms of service.", OAUTH_STORAGE_KEY = "rovalra_oauth_verification", cachedRovalraUserAgent = null, hbaClient = new HBAClient({
+      activeRequests = /* @__PURE__ */ new Map(), responseCache = /* @__PURE__ */ new Map(), USER_BADGES_CACHE_TTL_MS = 300 * 1e3, GITHUB_SPONSOR_AVATAR_CACHE_TTL_MS = 1440 * 60 * 1e3, gameJoinErrorCount = 0, lastGameJoinRequestTime = 0, GAMEJOIN_TIMEOUT_MS = 2e3, rateLimitCooldowns = /* @__PURE__ */ new Map(), RETRY_AFTER_BUFFER_MS = 1e3, TEMPORARILY_LIMITED_MESSAGE = "Your account has been temporarily limited for violating terms of service.", OAUTH_STORAGE_KEY = "rovalra_oauth_verification", cachedRovalraUserAgent = null, hbaClient = new HBAClient({
         onSite: !0
       });
+      __name(getRetryAfterDelay, "getRetryAfterDelay");
+      __name(getRateLimitKey, "getRateLimitKey");
+      __name(waitForRateLimitCooldown, "waitForRateLimitCooldown");
+      __name(recordRateLimitCooldown, "recordRateLimitCooldown");
       __name(getRovalraUserAgent, "getRovalraUserAgent");
       __name(getRequestKey, "getRequestKey");
       __name(isRovalraAuthEndpoint, "isRovalraAuthEndpoint");
@@ -2206,15 +2281,79 @@ Never used outside your local device.`;
     }
   });
 
+  // src/content/core/locale/translationProgress.js
+  function flattenTranslationKeys(value2, prefix = "", keys = []) {
+    return value2 && typeof value2 == "object" && !Array.isArray(value2) ? Object.entries(value2).forEach(([key, child]) => {
+      flattenTranslationKeys(
+        child,
+        prefix ? `${prefix}.${key}` : key,
+        keys
+      );
+    }) : prefix && keys.push(prefix), keys;
+  }
+  function getValueAtPath(value2, path) {
+    return path.split(".").reduce((current, key) => current?.[key], value2);
+  }
+  function loadTranslationProgress() {
+    return translationProgressPromise || (translationProgressPromise = fetch(
+      chrome.runtime.getURL("public/Assets/locales/index.json")
+    ).then((response) => response.json()).then(
+      (localeCodes) => Promise.all(
+        localeCodes.map(async (language) => {
+          let response = await fetch(
+            chrome.runtime.getURL(
+              `public/Assets/locales/${language}.json`
+            )
+          );
+          if (!response.ok)
+            throw new Error(
+              `HTTP ${response.status} loading "${language}"`
+            );
+          localeResources.set(language, await response.json());
+        })
+      )
+    ).catch((error3) => {
+      console.warn(
+        "RoValra: Failed to load translation progress",
+        error3
+      );
+    })), translationProgressPromise;
+  }
+  function getTranslationProgress(language) {
+    let locale4 = localeResources.get(language), english = localeResources.get("en");
+    if (!locale4 || !english) return null;
+    if (language === "en") return 100;
+    let englishKeys = flattenTranslationKeys(english), translatedKeys = englishKeys.filter((key) => {
+      let value2 = getValueAtPath(locale4, key);
+      return typeof value2 == "string" && value2.trim().length > 0;
+    }).length;
+    return Math.round(translatedKeys / englishKeys.length * 1e3) / 10;
+  }
+  var localeResources, translationProgressPromise, init_translationProgress = __esm({
+    "src/content/core/locale/translationProgress.js"() {
+      localeResources = /* @__PURE__ */ new Map();
+      __name(flattenTranslationKeys, "flattenTranslationKeys");
+      __name(getValueAtPath, "getValueAtPath");
+      __name(loadTranslationProgress, "loadTranslationProgress");
+      __name(getTranslationProgress, "getTranslationProgress");
+    }
+  });
+
   // src/content/core/settings/settingConfig.js
   var settingConfig_exports = {};
   __export(settingConfig_exports, {
     SETTINGS_CONFIG: () => SETTINGS_CONFIG
   });
+  function languageLabel(label, language) {
+    let progress = getTranslationProgress(language);
+    return progress === null ? label : `${label} (${progress}%)`;
+  }
   var SETTINGS_CONFIG, init_settingConfig = __esm({
     "src/content/core/settings/settingConfig.js"() {
       init_fiatConfig();
       init_backgroundImage();
+      init_translationProgress();
+      __name(languageLabel, "languageLabel");
       SETTINGS_CONFIG = {
         RoValra: {
           title: "RoValra",
@@ -2226,14 +2365,57 @@ Never used outside your local device.`;
               description: [
                 "Manually configure a language for RoValra. Some translations may be missing.",
                 // it works on the setting page only once it figures out the language from other pages' URLs
-                "Requires a refresh for changes to apply. Might not work immediately on the settings page."
+                "The page will reload to apply changes. Might not work immediately on the settings page.",
+                "We do not promise up to date translations. These translations are translated by the community, we cannot promise 100% accuracy "
               ],
               type: "select",
               options: [
-                { label: "English", value: "en" },
-                { label: "Polish (Polski)", value: "pl" },
-                { label: "Romanian (Rom\xE2n\u0103)", value: "ro" },
-                { label: "Spanish (Espa\xF1ol)", value: "es" },
+                {
+                  label: languageLabel("English", "en"),
+                  value: "en"
+                },
+                {
+                  label: languageLabel("French (Fran\xE7ais)", "fr"),
+                  value: "fr"
+                },
+                {
+                  label: languageLabel("Polish (Polski)", "pl"),
+                  value: "pl"
+                },
+                {
+                  label: languageLabel("Romanian (Rom\xE2n\u0103)", "ro"),
+                  value: "ro"
+                },
+                {
+                  label: languageLabel("Indonesian (Bahasa Indonesia)", "id"),
+                  value: "id"
+                },
+                {
+                  label: languageLabel("Russian (\u0420\u0443\u0441\u0441\u043A\u0438\u0439)", "ru"),
+                  value: "ru"
+                },
+                {
+                  label: languageLabel("Spanish (Espa\xF1ol)", "es"),
+                  value: "es"
+                },
+                {
+                  label: languageLabel(
+                    "Traditional Chinese (\u7E41\u9AD4\u4E2D\u6587)",
+                    "zh-CHT"
+                  ),
+                  value: "zh-CHT"
+                },
+                {
+                  label: languageLabel(
+                    "Simplified Chinese (\u7B80\u4F53\u4E2D\u6587)",
+                    "zh-CHS"
+                  ),
+                  value: "zh-CHS"
+                },
+                {
+                  label: languageLabel("Arabic (\u0639\u0631\u0628\u064A)", "ar"),
+                  value: "ar"
+                },
                 { label: "Automatic", value: "auto" }
               ],
               default: "en"
@@ -2323,6 +2505,25 @@ Never used outside your local device.`;
               description: "This feature restores the 'Your balance after this transaction will be X' text to the new Roblox purchase UI after it was removed.",
               type: "checkbox",
               default: !0
+            },
+            recentlyViewedEnabled: {
+              label: "Recently Viewed Items",
+              description: [
+                "Adds a Recently Viewed row to the top of the Marketplace with the last items and bundles you opened.",
+                "Items can be removed one by one or all at once. Your history is only stored on this device."
+              ],
+              type: "checkbox",
+              default: !0,
+              storageKey: "rovalra_recently_viewed",
+              contributors: ["2239549101"],
+              childSettings: {
+                recentlyViewedPriceChanges: {
+                  label: "Show Price Changes",
+                  description: "Shows if an item got cheaper, more expensive, went off sale or came back on sale since you viewed it.",
+                  type: "checkbox",
+                  default: !0
+                }
+              }
             },
             bonusItemEnabled: {
               label: "Robux Purchase Bonus Item Selector",
@@ -2820,14 +3021,6 @@ Never used outside your local device.`;
                   type: "checkbox",
                   default: !0
                 },
-                EnableServerLanguageMatch: {
-                  label: "Server Language Match",
-                  description: [
-                    "Shows how many players in each server speak your language."
-                  ],
-                  type: "checkbox",
-                  default: !0
-                },
                 EnableFullServerID: {
                   label: "Show the entire ServerID",
                   description: [
@@ -3163,6 +3356,16 @@ Never used outside your local device.`;
               description: "This feature shows how long you have been friends with someone on their profile and in your friends list.",
               type: "checkbox",
               default: !0
+            },
+            mutualFriendsEnabled: {
+              label: "Mutual Friends",
+              description: [
+                "Shows how many friends you have in common with a user on their profile.",
+                "Click it to see them in a Mutuals tab on their friends page."
+              ],
+              type: "checkbox",
+              default: !0,
+              contributors: ["2020751790"]
             },
             groupRoleEnabled: {
               label: "Show Community Roles",
@@ -4156,7 +4359,6 @@ Never used outside your local device.`;
               type: "checkbox",
               default: !0,
               contributors: ["650766686", "48255812"],
-              exclusiveWith: ["qolTogglesEnabled"],
               childSettings: {
                 // Toggles to be in the menu
                 privacyTogglesDropdownOnlineStatusEnabled: {
@@ -4188,6 +4390,15 @@ Never used outside your local device.`;
                   ],
                   type: "checkbox",
                   default: !0
+                },
+                // Keep this one last please
+                privacyTogglesOldIconEnabled: {
+                  label: "Old QOL Toggles Icon",
+                  description: [
+                    "Enable the old QOL Toggles icon (<icon>three-bars-horizontal</icon>). <b>Needs a refresh</b>"
+                  ],
+                  type: "checkbox",
+                  default: !1
                 }
               }
             },
@@ -4200,7 +4411,8 @@ Never used outside your local device.`;
               exclusiveWith: ["privacyTogglesEnabled"],
               isPermanent: !0,
               locked: "Replaced by Privacy Toggles in Navigation",
-              deprecated: "Replaced by Privacy Toggles in Navigation."
+              deprecated: "Replaced by Privacy Toggles in Navigation.",
+              hidden: !0
             },
             sidebarCollapseEnabled: {
               label: "Collapsible Sidebar",
@@ -9893,7 +10105,8 @@ Donating helps us keep the servers running so features like this can stay free f
           versionUnknown: "Version Unknown",
           version: "Version {{version}}",
           versionLabel: "Version",
-          languageMatchCount: "~{{count}} {{language}} speakers",
+          regionTooltip: "Server region: {{region}}",
+          performanceTooltip: "Server performance",
           latest: " (Latest)",
           oldest: " (Oldest)",
           serverFull: "Server is Full",
@@ -10249,6 +10462,14 @@ If the issue keeps happening, please report it in the RoValra Discord server.
           allTime: "All time",
           hours: "{{value}} hours",
           minutes: "{{value}} minutes"
+        },
+        mutualFriends: {
+          pill_one: "{{count}} Mutual Friend",
+          pill_other: "{{count}} Mutual Friends",
+          tooltip: "Friends you have in common with this user",
+          tab: "Mutuals",
+          title: "Mutual Friends ({{count}})",
+          empty: "You have no mutual friends with this user."
         },
         trustedFriends: {
           pendingConnection: "Pending Trusted Friend",
@@ -10628,6 +10849,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           },
           credits: {
             contributorsTitle: "Contributors",
+            translatorsTitle: "Translators",
             featureCount_one: "{{count}} feature",
             featureCount_other: "{{count}} features",
             contributorTooltips: {
@@ -10683,7 +10905,10 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
               },
               locales: {
                 madeRo: "Helped make the Romanian locale",
-                madeEs: "Helped make the Spanish locale"
+                madeEs: "Helped make the Spanish locale",
+                madeRu: "Helped make the Russian locale",
+                madeFr: "Helped make the French locale",
+                madeZh: "Helped make the Chinese locale"
               }
             },
             ui: {
@@ -10819,6 +11044,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
               github: "GitHub",
               chrome: "Chrome",
               untitledRelease: "Untitled release",
+              current: "Your Version",
               noNotes: "No changelog notes were provided for this release.",
               loading: "Loading changelogs...",
               empty: "No changelogs are available right now.",
@@ -10864,7 +11090,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
               getUsd: "Get ($5 USD)",
               getRobux: "Get (4,000 Robux)",
               purchaseIntro: "This purchase is for people who really want to support RoValra.",
-              createTicket: "After buying this item, go into the RoValra Discord and create a ticket.",
+              createTicket: "After buying this item, go into the RoValra Discord and create a ticket. YOUR DISCORD ACCOUNT MUST BE AT LEAST 30 DAYS OLD TO CLAIM",
               provideDetails: "Give staff the image and name you want your custom profile badge to have.",
               countsTowardTier: "Buying this item will count towards RoValra donator tiers.",
               visibility: "These custom badges are only visible to RoValra users.",
@@ -10997,18 +11223,6 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
               name: "Inventory Privacy"
             }
           }
-        },
-        qolToggles: {
-          onlineStatus: "Online Status",
-          joinStatus: "Experience Status",
-          privateServerPrivacy: "Private Server Privacy",
-          inventoryVisibility: "Inventory Visibility",
-          everyone: "Everyone",
-          friendsFollowingAndFollowers: "Friends, Followers, & Following",
-          friendsAndFollowing: "Friends & Following",
-          friends: "Friends",
-          trustedFriends: "Trusted Friends",
-          noOne: "No one"
         },
         groupFunds: {
           loading: "Loading...",
@@ -11483,6 +11697,15 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         purchasePrompt: {
           balanceAfter: "Your balance after this transaction will be"
         },
+        recentlyViewed: {
+          title: "Recently Viewed",
+          clear: "Clear",
+          remove: "Remove",
+          cheaper: "{{value}} Robux cheaper than when you viewed it",
+          pricier: "{{value}} Robux more than when you viewed it",
+          offSale: "Went off sale",
+          backOnSale: "Back on sale"
+        },
         time: {
           justNow: "just now",
           secondsAgo: "{{count}}s ago",
@@ -11942,6 +12165,15 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             }
           }
         },
+        "settingsCompat-settingChangeNote": {
+          ui: {
+            popup: {
+              title: "Some settings were removed/replaced"
+            },
+            deleted: "The following settings have been recently deleted, locked or deprecated:",
+            replaced: "The following settings have been recently replaced or changed:"
+          }
+        },
         avatar: {
           gameOutfits: {
             button: "Game Outfits",
@@ -12088,6 +12320,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     return neutralPrefixes.has(code) ? null : supportedLanguages.has(code) ? code : defaultLanguage;
   }
   async function getLanguage() {
+    await supportedLanguagesReady;
     let lang = await settings.rovalraLanguage;
     if (!lang) return defaultLanguage;
     if (lang !== "auto") return lang;
@@ -12126,12 +12359,18 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
   function ts2(key, options) {
     return instance.t(key, options);
   }
-  var defaultLanguage, supportedLanguages, neutralPrefixes, pendingLoads, i18nPromise, init_i18n = __esm({
+  var defaultLanguage, supportedLanguages, neutralPrefixes, supportedLanguagesReady, pendingLoads, i18nPromise, init_i18n = __esm({
     "src/content/core/locale/i18n.js"() {
       init_i18next();
       init_en();
       init_getSettings();
-      defaultLanguage = "en", supportedLanguages = /* @__PURE__ */ new Set(["en", "es", "ro", "pl"]), neutralPrefixes = /* @__PURE__ */ new Set(["my"]);
+      defaultLanguage = "en", supportedLanguages = /* @__PURE__ */ new Set(), neutralPrefixes = /* @__PURE__ */ new Set(["my"]), supportedLanguagesReady = fetch(
+        chrome.runtime.getURL("public/Assets/locales/index.json")
+      ).then((response) => response.json()).then((languages) => {
+        supportedLanguages = new Set(languages);
+      }).catch((error3) => {
+        console.warn("RoValra: Failed to load supported locales", error3), supportedLanguages = /* @__PURE__ */ new Set([defaultLanguage]);
+      });
       __name(getLanguageFromUrl, "getLanguageFromUrl");
       __name(getLanguage, "getLanguage");
       pendingLoads = /* @__PURE__ */ new Map();
@@ -12732,7 +12971,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     let button = document.createElement("button");
     button.textContent = text3;
     let baseClass = "btn-control-md";
-    return type === "primary" ? baseClass = "btn-primary-md" : (type === "alert" || type === "primary-destructive") && (baseClass = "btn-alert-md"), button.className = `${baseClass} rovalra-ui-btn rovalra-btn-${type}`, options.id && (button.id = options.id), typeof options.onClick == "function" && button.addEventListener("click", options.onClick), options.disabled && (button.disabled = !0), button;
+    return type === "primary" ? baseClass = "btn-primary-md" : (type === "alert" || type === "primary-destructive") && (baseClass = "btn-alert-md"), button.className = `${baseClass} rovalra-ui-btn rovalra-btn-${type}`, options.id && (button.id = options.id), typeof options.onClick == "function" && button.addEventListener("click", options.onClick), options.classList && Array.isArray(options.classList) && button.classList.add(...options.classList), options.disabled && (button.disabled = !0), button;
   }
   var init_buttons = __esm({
     "src/content/core/ui/buttons.js"() {
@@ -13736,6 +13975,17 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       return null;
     }
   }
+  async function getUserInsights(userId, rankingStrategy = RANKING_STRATEGIES.TC_INFO_BOOST) {
+    return (await getMultiProfileInsights([userId], rankingStrategy))?.userInsights?.[0]?.profileInsights || [];
+  }
+  async function getMutualFriends(userId) {
+    return (await getUserInsights(
+      userId,
+      RANKING_STRATEGIES.TC_INFO_BOOST
+    )).find(
+      (i2) => i2.insightCase === INSIGHT_CASES.MUTUAL_FRIENDS
+    )?.mutualFriendInsight?.mutualFriends || {};
+  }
   async function getUserProfileData(userIds) {
     try {
       return await callRobloxApiJson({
@@ -13800,6 +14050,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         PLAYED_TOGETHER: 8
       };
       __name(getMultiProfileInsights, "getMultiProfileInsights");
+      __name(getUserInsights, "getUserInsights");
+      __name(getMutualFriends, "getMutualFriends");
       __name(getUserProfileData, "getUserProfileData");
       __name(getUserFullData, "getUserFullData");
       __name(getUserDisplayName, "getUserDisplayName");
@@ -15776,6 +16028,19 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     }).catch(() => {
     }));
   }
+  async function batchFetchPresence(userIds) {
+    try {
+      let res = await callRobloxApiJson({
+        subdomain: "presence",
+        endpoint: "/v1/presence/users",
+        method: "POST",
+        body: { userIds }
+      }).catch(() => null);
+      return new Map((res?.userPresences || []).map((p2) => [p2.userId, p2]));
+    } catch {
+      return /* @__PURE__ */ new Map();
+    }
+  }
   function createUserCard({
     displayName,
     username,
@@ -15791,10 +16056,10 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     hidePresence = !1,
     presenceData = null
   }) {
-    let presence = PRESENCE_MAP[presenceInfo] || PRESENCE_MAP[0], showSublabel = showUsername && gameName ? !0 : showUsername, sublabelText = showUsername && gameName ? safeHtml`${gameName}` : safeHtml`${username}`, sublabelFontSize = gameName ? "9.6px" : "12px", presenceTitle = presenceInfo === 2 && gameName ? safeHtml`${gameName}` : presence.title, assets7 = getAssets(), verifiedBadge = isVerified ? `<span class="relative flex items-center justify-center">
+    let presence = PRESENCE_MAP[presenceInfo] || PRESENCE_MAP[0], showSublabel = showUsername && gameName ? !0 : showUsername, sublabelText = showUsername && gameName ? safeHtml`${gameName}` : safeHtml`${username}`, sublabelFontSize = gameName ? "9.6px" : "12px", presenceTitle = presenceInfo === 2 && gameName ? safeHtml`${gameName}` : presence.title, assets7 = getAssets(), nameLabel = `<span class="rovalra-user-card-display-name" style="display: block; flex: 0 1 auto; min-width: 0; width: auto !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis; white-space: nowrap;">${displayName}</span>`, verifiedBadge = isVerified ? `<span class="relative flex items-center justify-center" style="flex-shrink: 0;">
             <icon filled size="x-small" class="grow-0 shrink-0 basis-auto content-system-emphasis">verified-backplate</icon>
             <icon filled size="x-small" class="grow-0 shrink-0 basis-auto absolute" style="color: white;">verified-check</icon>
-        </span>` : "", plusBadge = isSubscribed ? `<icon class="grow-0 shrink-0 basis-auto content-system-contrast" size-xsmall aria-label="${ts2("common.robloxPlusSubscriber")}">roblox-plus</icon>` : "", tileContainer = document.createElement("div");
+        </span>` : "", plusBadge = isSubscribed ? `<icon class="grow-0 shrink-0 basis-auto content-system-contrast" style="flex-shrink: 0;" size-xsmall aria-label="${ts2("common.robloxPlusSubscriber")}">roblox-plus</icon>` : "", tileContainer = document.createElement("div");
     tileContainer.className = "friends-carousel-tile";
     let innerHtml = `
         <div class="user-card user-card-content rovalra-user-card" style="width: 90px; ${isOpaque ? "background: var(--rovalra-container-background-color) !important; opacity: 1 !important; border-radius: 50%;" : ""}" ${Number(userId) > 0 ? `data-rovalra-card-user-id="${userId}"` : ""}>
@@ -15807,14 +16072,14 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             ${showSublabel ? `
             <div class="user-card-labels" style="display: block; margin-top: 8px; width: 90px;">
                 <div class="user-card-name" style="line-height: 1.2;">
-                    <span style="white-space: nowrap; font-weight: 400; font-size: 12.8px; color: var(--rovalra-main-text-color);transition: text-decoration 0.2s ease; display: flex;" class="flex flex-row items-center gap-xsmall justify-center">${displayName}${verifiedBadge}${plusBadge}</span>
+                    <span style="white-space: nowrap; font-weight: 400; font-size: 12.8px; color: var(--rovalra-main-text-color);transition: text-decoration 0.2s ease; display: flex; gap: 2px; max-width: 100%; min-width: 0;" class="flex flex-row items-center justify-center">${nameLabel}${verifiedBadge}${plusBadge}</span>
                 </div>
                 <div class="user-card-subname" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: ${sublabelFontSize}; color: var(--rovalra-secondary-text-color); max-width: 90px; display: block; text-align: center; transition: text-decoration 0.2s ease;">${sublabelText}</div>
             </div>
             ` : `
             <div class="user-card-labels-no-username" style="margin-top: 8px; width: 90px; text-align: center;">
                 <div class="user-card-name" style="line-height: 1.2;">
-                    <span style="white-space: nowrap; font-weight: 400; font-size: 12.8px; color: var(--rovalra-main-text-color);transition: text-decoration 0.2s ease; display: flex;" class="flex flex-row items-center gap-xsmall justify-center">${displayName}${verifiedBadge}${plusBadge}</span>
+                    <span style="white-space: nowrap; font-weight: 400; font-size: 12.8px; color: var(--rovalra-main-text-color);transition: text-decoration 0.2s ease; display: flex; gap: 2px; max-width: 100%; min-width: 0;" class="flex flex-row items-center justify-center">${nameLabel}${verifiedBadge}${plusBadge}</span>
                 </div>
             </div>
             `}
@@ -15875,14 +16140,10 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       method: "GET"
     }).then((user) => {
       if (user && user.name) {
-        let nameSpan = card.querySelector(".user-card-name span"), subname = card.querySelector(".user-card-subname");
-        if (nameSpan) {
-          let textNode = Array.from(nameSpan.childNodes).find(
-            (n) => n.nodeType === Node.TEXT_NODE
-          );
-          textNode && (textNode.textContent = user.displayName);
-        }
-        subname && (subname.textContent = `@${user.name}`);
+        let nameSpan = card.querySelector(
+          ".rovalra-user-card-display-name"
+        ), subname = card.querySelector(".user-card-subname");
+        nameSpan && (nameSpan.textContent = user.displayName), subname && (subname.textContent = `@${user.name}`);
       }
     }).catch(() => {
     }), !isHidden && !hasProvidedPresence && fetchPresenceBatched(item.id).then((presence) => {
@@ -15918,6 +16179,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         3: { class: "studio icon-studio", title: ts2("common.studio") }
       };
       __name(updateUserCardPresence, "updateUserCardPresence");
+      __name(batchFetchPresence, "batchFetchPresence");
       __name(createUserCard, "createUserCard");
       __name(createFriendTile, "createFriendTile");
     }
@@ -16069,8 +16331,12 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         // Eli_Cauver :3
         "315646839",
         // imderlord :3
-        "231260921"
+        "231260921",
         // textuired
+        "2020751790",
+        // Orellius
+        "200565345"
+        // krampuszc
       ], TESTER_USER_IDS = [
         "1163412141"
         //Tino
@@ -16083,8 +16349,18 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         // AuroxNova
         "48255812",
         //aliceenight
-        "315646839"
+        "315646839",
         // imderlord
+        "9502859424",
+        // moowi1337
+        "2239549101",
+        // TimorousShadow
+        "519742979",
+        // BBasilio2001
+        "3733653415 ",
+        // kurdo3660
+        "16147087"
+        // Edward667
       ], ARTIST_USER_IDS = [
         "1337447242",
         "48255812",
@@ -16345,12 +16621,12 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         "RoValra: Cannot fetch user settings without a valid user ID."
       );
   }
-  async function saveToCache(cacheKey, settings2, { memoryOnly = !1 } = {}) {
+  async function saveToCache(cacheKey, settings2) {
     let cacheData = {
       data: settings2,
       timestamp: Date.now()
     };
-    memoryCache.set(cacheKey, cacheData), memoryOnly || await set("user_settings", cacheKey, cacheData, "local");
+    memoryCache.set(cacheKey, cacheData), await set("user_settings", cacheKey, cacheData, "local");
   }
   async function invalidateAuthenticatedUserSettingsCache() {
     let authenticatedUserId = await getAuthenticatedUserId();
@@ -16443,9 +16719,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
                 apiSettings,
                 item.options
               );
-              await saveToCache(cacheKey, settings2, {
-                memoryOnly: cacheKey === authenticatedUserId
-              }), processedKeys.add(cacheKey);
+              await saveToCache(cacheKey, settings2), processedKeys.add(cacheKey);
               let resolvers = pendingResolvers.get(cacheKey);
               resolvers && (resolvers.forEach((r) => r.resolve(settings2)), pendingResolvers.delete(cacheKey));
             }
@@ -16458,30 +16732,19 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             batchItem.userId,
             batchItem.options
           );
-          await saveToCache(cacheKey, settings2, {
-            memoryOnly: cacheKey === authenticatedUserId
-          }), processedKeys.add(cacheKey);
+          await saveToCache(cacheKey, settings2), processedKeys.add(cacheKey);
           let resolvers = pendingResolvers.get(cacheKey);
           resolvers && (resolvers.forEach((r) => r.resolve(settings2)), pendingResolvers.delete(cacheKey));
         }
       }
     } catch (error3) {
       console.warn(
-        "RoValra: Batch settings fetch failed, falling back to individual requests.",
+        "RoValra: Batch settings fetch failed without retrying.",
         error3
       );
       for (let batchItem of currentBatch) {
-        let cacheKey = String(batchItem.userId);
-        try {
-          let settings2 = await fetchAndProcessSettings(
-            batchItem.userId,
-            batchItem.options
-          ), resolvers = pendingResolvers.get(cacheKey);
-          resolvers && (resolvers.forEach((r) => r.resolve(settings2)), pendingResolvers.delete(cacheKey));
-        } catch (e) {
-          let resolvers = pendingResolvers.get(cacheKey);
-          resolvers && (resolvers.forEach((r) => r.reject(e)), pendingResolvers.delete(cacheKey));
-        }
+        let cacheKey = String(batchItem.userId), resolvers = pendingResolvers.get(cacheKey);
+        resolvers && (resolvers.forEach((r) => r.reject(error3)), pendingResolvers.delete(cacheKey));
       }
     } finally {
       batchInProgress = !1, batchQueue.length > 0 && (batchTimeout = setTimeout(processBatchQueue, BATCH_DELAY_MS));
@@ -16525,11 +16788,9 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     if (!options.noCache) {
       let memCached = memoryCache.get(cacheKey);
       if (memCached) {
-        let staleThreshold = isOwnProfile ? 6e4 : 3e5;
+        let staleThreshold = isOwnProfile ? OWN_SETTINGS_STALE_MS : OTHER_SETTINGS_STALE_MS;
         return Date.now() - (memCached.timestamp || 0) > staleThreshold && !pendingResolvers.has(cacheKey) && (options.disableBatch ? fetchAndProcessSettings(userId, options).then(
-          (settings2) => saveToCache(cacheKey, settings2, {
-            memoryOnly: !0
-          })
+          (settings2) => saveToCache(cacheKey, settings2)
         ) : (batchQueue.push({ userId, options }), pendingResolvers.set(cacheKey, [
           {
             resolve: /* @__PURE__ */ __name(() => {
@@ -16542,14 +16803,12 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           BATCH_DELAY_MS
         )))), memCached.data;
       }
-      let cached = isOwnProfile ? null : await get("user_settings", cacheKey, "local");
+      let cached = await get("user_settings", cacheKey, "local");
       if (cached) {
         memoryCache.set(cacheKey, cached);
-        let staleThreshold = isOwnProfile ? 6e4 : 3e5;
+        let staleThreshold = isOwnProfile ? OWN_SETTINGS_STALE_MS : OTHER_SETTINGS_STALE_MS;
         return Date.now() - (cached.timestamp || 0) > staleThreshold && !pendingResolvers.has(cacheKey) && (options.disableBatch ? fetchAndProcessSettings(userId, options).then(
-          (settings2) => saveToCache(cacheKey, settings2, {
-            memoryOnly: !1
-          })
+          (settings2) => saveToCache(cacheKey, settings2)
         ) : (batchQueue.push({ userId, options }), pendingResolvers.set(cacheKey, [
           {
             resolve: /* @__PURE__ */ __name(() => {
@@ -16569,9 +16828,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       });
     if (options.disableBatch) {
       let settings2 = await fetchAndProcessSettings(userId, options);
-      return await saveToCache(cacheKey, settings2, {
-        memoryOnly: isOwnProfile
-      }), settings2;
+      return await saveToCache(cacheKey, settings2), settings2;
     }
     return new Promise((resolve, reject) => {
       batchQueue.push({ userId, options }), pendingResolvers.set(cacheKey, [{ resolve, reject }]), batchTimeout || (batchTimeout = setTimeout(processBatchQueue, BATCH_DELAY_MS));
@@ -16601,7 +16858,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       return !1;
     }
   }
-  var GRADIENT_NAME_API_KEY, BATCH_MAX_SIZE, BATCH_DELAY_MS, batchQueue, batchTimeout, batchInProgress, memoryCache, pendingResolvers, init_settingHandler = __esm({
+  var GRADIENT_NAME_API_KEY, BATCH_MAX_SIZE, BATCH_DELAY_MS, batchQueue, batchTimeout, batchInProgress, memoryCache, pendingResolvers, OWN_SETTINGS_STALE_MS, OTHER_SETTINGS_STALE_MS, init_settingHandler = __esm({
     "src/content/core/donators/settingHandler.js"() {
       init_api();
       init_oauth();
@@ -16617,6 +16874,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       __name(normalizeBertLink, "normalizeBertLink");
       BATCH_MAX_SIZE = 50, BATCH_DELAY_MS = 10, batchQueue = [], batchTimeout = null, batchInProgress = !1, memoryCache = /* @__PURE__ */ new Map(), pendingResolvers = /* @__PURE__ */ new Map();
       __name(assertValidUserId, "assertValidUserId");
+      OWN_SETTINGS_STALE_MS = 3e5, OTHER_SETTINGS_STALE_MS = 3e5;
       __name(saveToCache, "saveToCache");
       __name(invalidateAuthenticatedUserSettingsCache, "invalidateAuthenticatedUserSettingsCache");
       __name(fetchAndProcessSettings, "fetchAndProcessSettings");
@@ -16695,7 +16953,13 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       context.displayName ? context.displayName.textContent || context.displayName.className : ""
     ].join("|");
   }
+  function isElementOnScreen(element) {
+    if (!element.isConnected || !element.getClientRects().length) return !1;
+    let rect = element.getBoundingClientRect();
+    return rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+  }
   function notifySubscribers(element, context) {
+    if (!isElementOnScreen(element)) return;
     let currentContext = context || getUserCardContext(element);
     if (currentContext.userId)
       for (let sub of subscriptions)
@@ -16710,6 +16974,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         }
   }
   function refreshElement(element) {
+    if (!isElementOnScreen(element)) return;
     let context = getUserCardContext(element), contextKey = getContextKey(context);
     !context.userId || element.dataset.rovalraUserCardContextKey === contextKey || (element.dataset.rovalraUserCardContextKey = contextKey, notifySubscribers(element, context));
   }
@@ -16722,8 +16987,16 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       subtree: !0
     });
   }
+  function setupVisibilityObserver(element) {
+    if (visibilityObservers.has(element) || typeof IntersectionObserver != "function")
+      return;
+    let observer2 = observeIntersection(element, (entry) => {
+      entry.isIntersecting && refreshElement(element);
+    });
+    visibilityObservers.set(element, observer2);
+  }
   function handleElement(element) {
-    observedElements.has(element) || observedElements.add(element), element.dataset.rovalraUserCardObserved = "true", setupRefreshObserver(element), refreshElement(element);
+    observedElements.has(element) || observedElements.add(element), element.dataset.rovalraUserCardObserved = "true", setupRefreshObserver(element), setupVisibilityObserver(element), refreshElement(element);
   }
   function setupObservers() {
     startObserving();
@@ -16738,7 +17011,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     subscriptions.add(sub);
     for (let element of observedElements)
       try {
-        if (options.exclude?.some((selector) => element.matches(selector)))
+        if (!isElementOnScreen(element) || options.exclude?.some((selector) => element.matches(selector)))
           continue;
         callback(element, getUserCardContext(element));
       } catch (e) {
@@ -16748,7 +17021,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       subscriptions.delete(sub);
     };
   }
-  var USER_CARD_DEFINITIONS, USER_CARD_SELECTORS, subscriptions, observedElements, active, DISPLAY_NAME_FALLBACK_SELECTOR, init_userCardElements = __esm({
+  var USER_CARD_DEFINITIONS, USER_CARD_SELECTORS, subscriptions, observedElements, visibilityObservers, active, DISPLAY_NAME_FALLBACK_SELECTOR, init_userCardElements = __esm({
     "src/content/core/profile/userCardElements.js"() {
       init_observer();
       init_idExtractor();
@@ -16802,7 +17075,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         }
       ], USER_CARD_SELECTORS = USER_CARD_DEFINITIONS.map(
         ({ selector }) => selector
-      ), subscriptions = /* @__PURE__ */ new Set(), observedElements = /* @__PURE__ */ new Set(), active = !1, DISPLAY_NAME_FALLBACK_SELECTOR = [
+      ), subscriptions = /* @__PURE__ */ new Set(), observedElements = /* @__PURE__ */ new Set(), visibilityObservers = /* @__PURE__ */ new Map(), active = !1, DISPLAY_NAME_FALLBACK_SELECTOR = [
         ".friends-carousel-display-name",
         ".user-card-name span",
         ".avatar-name",
@@ -16815,9 +17088,11 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       __name(getLinkedDisplayName, "getLinkedDisplayName");
       __name(getUserCardContext, "getUserCardContext");
       __name(getContextKey, "getContextKey");
+      __name(isElementOnScreen, "isElementOnScreen");
       __name(notifySubscribers, "notifySubscribers");
       __name(refreshElement, "refreshElement");
       __name(setupRefreshObserver, "setupRefreshObserver");
+      __name(setupVisibilityObserver, "setupVisibilityObserver");
       __name(handleElement, "handleElement");
       __name(setupObservers, "setupObservers");
       __name(observeUserCardElements, "observeUserCardElements");
@@ -16829,36 +17104,13 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
   function setPixelStyle(element, name, value2) {
     element.style[name] = `${value2}px`;
   }
-  function isInlineContainer(container) {
-    let tagName = container.tagName;
-    return tagName === "SPAN" || tagName === "A";
-  }
-  function isBorderManagedChild(child) {
-    return child.nodeType === Node.ELEMENT_NODE && child.matches(`${BORDER_CHILD_SELECTOR}, ${OVERLAY_CHILD_SELECTOR}`);
-  }
-  function getOrCreateClip(container) {
-    let clip = container.querySelector(":scope > .rovalra-avatar-border-clip");
-    return clip || (clip = document.createElement(
-      isInlineContainer(container) ? "span" : "div"
-    ), clip.className = "rovalra-avatar-border-clip", container.prepend(clip), clip);
-  }
-  function syncBorderClipChildren(container) {
-    let clip = getOrCreateClip(container);
-    for (let child of [...container.childNodes])
-      child === clip || isBorderManagedChild(child) || clip.appendChild(child);
-    return syncBorderMetrics(container), clip;
-  }
   function syncBorderMetrics(container) {
-    let clip = container.querySelector(
-      ":scope > .rovalra-avatar-border-clip"
-    );
-    if (!clip) return;
-    let containerBox = getLocalLayoutBox(container), clipBox = getLayoutBox(clip);
-    if (!(!containerBox.width || !containerBox.height) && !(!clipBox.width || !clipBox.height))
+    let containerBox = getLocalLayoutBox(container);
+    if (!(!containerBox.width || !containerBox.height))
       for (let border of container.querySelectorAll(
         ":scope > .rovalra-avatar-border"
       ))
-        syncBorderImageMetrics(containerBox, clipBox, border);
+        syncBorderImageMetrics(containerBox, containerBox, border);
   }
   function ensureStackingLayer(element, zIndex) {
     window.getComputedStyle(element).position === "static" && (element.style.position = "relative"), element.style.zIndex = zIndex;
@@ -16887,14 +17139,6 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     return {
       left: 0,
       top: 0,
-      width: element.offsetWidth || element.clientWidth || 0,
-      height: element.offsetHeight || element.clientHeight || 0
-    };
-  }
-  function getLayoutBox(element) {
-    return {
-      left: element.offsetLeft || 0,
-      top: element.offsetTop || 0,
       width: element.offsetWidth || element.clientWidth || 0,
       height: element.offsetHeight || element.clientHeight || 0
     };
@@ -16951,27 +17195,16 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     window.getComputedStyle(container).display === "inline" && (container.style.display = "inline-block"), container.style.position = "relative", container.style.overflow = "visible";
   }
   function removeBorderFromContainer(container) {
-    if (!container) return;
-    delete container.dataset.rovalraBorderLoading, delete container.dataset.rovalraIntendedBorder;
-    for (let border of container.querySelectorAll(
-      ":scope > .rovalra-avatar-border"
-    ))
-      border.remove();
-    let clip = container.querySelector(
-      ":scope > .rovalra-avatar-border-clip"
-    );
-    if (clip) {
-      for (; clip.firstChild; )
-        container.insertBefore(clip.firstChild, clip);
-      clip.remove();
+    if (container) {
+      delete container.dataset.rovalraBorderLoading, delete container.dataset.rovalraIntendedBorder;
+      for (let border of container.querySelectorAll(
+        ":scope > .rovalra-avatar-border"
+      ))
+        border.remove();
     }
   }
   function ensureBorderStructure(container) {
-    ensureBorderContainerLayout(container);
-    let clip = syncBorderClipChildren(container);
-    return syncOverlayStacking(container), container.dataset.rovalraBorderClipObserver || (container.dataset.rovalraBorderClipObserver = "true", observeChildren(container, () => {
-      syncBorderClipChildren(container), syncOverlayStacking(container);
-    }), observeResize(container, () => syncBorderMetrics(container)), observeResize(clip, () => syncBorderMetrics(container))), clip;
+    ensureBorderContainerLayout(container), syncOverlayStacking(container), container.dataset.rovalraBorderClipObserver || (container.dataset.rovalraBorderClipObserver = "true", observeResize(container, () => syncBorderMetrics(container)));
   }
   async function applyBorderToContainer(container, borderUrl, alwaysPlay = !1) {
     if (!borderUrl) return;
@@ -17013,29 +17246,21 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     container.dataset.rovalraBorderLoading = "true", container.dataset.rovalraIntendedBorder = borderUrl;
     let img = document.createElement("img");
     img.className = "rovalra-avatar-border", img.crossOrigin = "anonymous", img.onload = async () => {
-      if (delete container.dataset.rovalraBorderLoading, container.querySelector(".rovalra-avatar-border") || container.dataset.rovalraIntendedBorder !== borderUrl)
-        return;
-      img.decode && await img.decode().catch(() => {
-      }), await getBorderContentBounds(img);
-      let overlays = [];
-      for (let child of container.children)
-        child.matches(OVERLAY_CHILD_SELECTOR) && overlays.push(child);
-      ensureBorderStructure(container);
-      for (let overlay of overlays)
-        container.appendChild(overlay);
-      if (syncOverlayStacking(container), alwaysPlay || !animatedLink || animatedLink === staticLink)
-        container.appendChild(img), syncBorderMetrics(container), syncOverlayStacking(container);
-      else {
-        let animImg = document.createElement("img");
-        animImg.className = "rovalra-avatar-border", animImg.crossOrigin = "anonymous", animImg.style.display = "none", animImg.onload = async () => {
-          animImg.decode && await animImg.decode().catch(() => {
-          }), await getBorderContentBounds(animImg), syncBorderMetrics(container);
-        }, container.appendChild(img), container.appendChild(animImg), syncBorderMetrics(container), syncOverlayStacking(container), container.addEventListener("mouseenter", () => {
-          img.style.display = "none", animImg.style.display = "block", startAnimatedBorder(animImg, animatedLink), syncOverlayStacking(container);
-        }), container.addEventListener("mouseleave", () => {
-          img.style.display = "block", animImg.style.display = "none", stopAnimatedBorder(animImg), syncOverlayStacking(container);
-        });
-      }
+      if (delete container.dataset.rovalraBorderLoading, !!container.isConnected && !(container.querySelector(".rovalra-avatar-border") || container.dataset.rovalraIntendedBorder !== borderUrl))
+        if (img.decode && await img.decode().catch(() => {
+        }), await getBorderContentBounds(img), ensureBorderStructure(container), syncOverlayStacking(container), alwaysPlay || !animatedLink || animatedLink === staticLink)
+          container.appendChild(img), syncBorderMetrics(container), syncOverlayStacking(container);
+        else {
+          let animImg = document.createElement("img");
+          animImg.className = "rovalra-avatar-border", animImg.crossOrigin = "anonymous", animImg.style.display = "none", animImg.onload = async () => {
+            animImg.decode && await animImg.decode().catch(() => {
+            }), await getBorderContentBounds(animImg), syncBorderMetrics(container);
+          }, container.appendChild(img), container.appendChild(animImg), syncBorderMetrics(container), syncOverlayStacking(container), container.addEventListener("mouseenter", () => {
+            img.style.display = "none", animImg.style.display = "block", startAnimatedBorder(animImg, animatedLink), syncOverlayStacking(container);
+          }), container.addEventListener("mouseleave", () => {
+            img.style.display = "block", animImg.style.display = "none", stopAnimatedBorder(animImg), syncOverlayStacking(container);
+          });
+        }
     }, img.onerror = () => {
       delete container.dataset.rovalraBorderLoading;
     }, img.src = alwaysPlay && animatedLink ? animatedLink : staticLink;
@@ -17085,8 +17310,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           ".avatar-card.profile-avatar .thumbnail-2d-container"
         ].join(", "),
         (element) => {
-          if (element.closest("#rovalra-banned-avatar-container"))
-            return;
+          if (element.closest(".rovalra-user-card") || element.closest("[data-rovalra-banned-profile]")) return;
           let target = element.parentElement || element;
           applyBorderToContainer(target, borderUrl, !0);
         },
@@ -17096,7 +17320,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       console.error("RoValra: Avatar border init failed", error3);
     }
   }
-  var BORDER_CHILD_SELECTOR, OVERLAY_CHILD_SELECTOR, BORDER_SCALE, BORDER_Z_INDEX, OVERLAY_Z_INDEX, MAX_ALPHA_CENTER_CORRECTION, borderContentBoundsCache, init_avatarBorder = __esm({
+  var OVERLAY_CHILD_SELECTOR, BORDER_SCALE, BORDER_Z_INDEX, OVERLAY_Z_INDEX, MAX_ALPHA_CENTER_CORRECTION, borderContentBoundsCache, init_avatarBorder = __esm({
     "src/content/features/profile/avatarBorder.js"() {
       init_observer();
       init_idExtractor();
@@ -17104,18 +17328,13 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       init_settingHandler();
       init_borders();
       init_userCardElements();
-      BORDER_CHILD_SELECTOR = ".rovalra-avatar-border, .rovalra-avatar-border-clip", OVERLAY_CHILD_SELECTOR = ".rovalra-status-bubble-wrapper, .avatar-status, .avatar-card-label, .icon-label", BORDER_SCALE = 1.24, BORDER_Z_INDEX = "2", OVERLAY_Z_INDEX = "4", MAX_ALPHA_CENTER_CORRECTION = 0.04, borderContentBoundsCache = /* @__PURE__ */ new Map();
+      OVERLAY_CHILD_SELECTOR = ".rovalra-status-bubble-wrapper, .avatar-status, .avatar-card-label, .icon-label", BORDER_SCALE = 1.24, BORDER_Z_INDEX = "2", OVERLAY_Z_INDEX = "4", MAX_ALPHA_CENTER_CORRECTION = 0.04, borderContentBoundsCache = /* @__PURE__ */ new Map();
       __name(setPixelStyle, "setPixelStyle");
-      __name(isInlineContainer, "isInlineContainer");
-      __name(isBorderManagedChild, "isBorderManagedChild");
-      __name(getOrCreateClip, "getOrCreateClip");
-      __name(syncBorderClipChildren, "syncBorderClipChildren");
       __name(syncBorderMetrics, "syncBorderMetrics");
       __name(ensureStackingLayer, "ensureStackingLayer");
       __name(getRelatedOverlayElements, "getRelatedOverlayElements");
       __name(syncOverlayStacking, "syncOverlayStacking");
       __name(getLocalLayoutBox, "getLocalLayoutBox");
-      __name(getLayoutBox, "getLayoutBox");
       __name(syncBorderImageMetrics, "syncBorderImageMetrics");
       __name(startAnimatedBorder, "startAnimatedBorder");
       __name(stopAnimatedBorder, "stopAnimatedBorder");
@@ -17384,7 +17603,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             <input type="checkbox" id="${settingName}" data-setting-name="${settingName}"${setting.disabled ? " disabled" : ""}>
             <span class="${setting.disabled ? "slider1" : "slider"}"></span>`), label;
     } else if (setting.type === "select") {
-      let dropdownOptions = [];
+      let dropdownOptions = [], dropdown, hiddenSelect;
       if (setting.options === "REGIONS") {
         dropdownOptions.push({
           value: "AUTO",
@@ -17412,7 +17631,23 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           regionsByContinent[continent] && dropdownOptions.push(...regionsByContinent[continent]);
         });
       } else setting.options === "BORDERS" ? dropdownOptions = getCachedBorders() : Array.isArray(setting.options) && (dropdownOptions = setting.options);
-      let dropdown = createDropdown({
+      if (settingName === "rovalraLanguage") {
+        let updateLanguageLabels = /* @__PURE__ */ __name(() => {
+          dropdownOptions.forEach((option) => {
+            let progress = getTranslationProgress(option.value);
+            progress !== null && (option.label = option.label.replace(/ \([\d.]+%\)$/, ""), option.label += ` (${progress}%)`);
+          });
+        }, "updateLanguageLabels");
+        updateLanguageLabels(), loadTranslationProgress().then(() => {
+          updateLanguageLabels(), dropdown.refresh(), hiddenSelect?.querySelectorAll("option").forEach((option) => {
+            let languageOption = dropdownOptions.find(
+              (item) => item.value === option.value
+            );
+            languageOption && (option.textContent = languageOption.label);
+          });
+        });
+      }
+      dropdown = createDropdown({
         items: dropdownOptions,
         initialValue: setting.default,
         showFlags: setting.showFlags || !1,
@@ -17422,14 +17657,13 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             new Event("change", { bubbles: !0 })
           ));
         }, "onValueChange")
-      }), tempDiv = document.createElement("div");
+      });
+      let tempDiv = document.createElement("div");
       tempDiv.style.position = "absolute", tempDiv.style.visibility = "hidden", tempDiv.style.height = "auto", tempDiv.style.width = "auto", tempDiv.style.whiteSpace = "nowrap", tempDiv.style.fontSize = "14px", tempDiv.style.fontWeight = "500", document.body.appendChild(tempDiv);
       let maxItemWidth = 0;
       dropdownOptions.forEach((item) => {
         tempDiv.textContent = item.label, maxItemWidth = Math.max(maxItemWidth, tempDiv.clientWidth);
-      }), document.body.removeChild(tempDiv);
-      let hiddenSelect = document.createElement("select");
-      hiddenSelect.id = settingName, hiddenSelect.dataset.settingName = settingName, hiddenSelect.style.display = "none", dropdownOptions.forEach((opt) => {
+      }), document.body.removeChild(tempDiv), hiddenSelect = document.createElement("select"), hiddenSelect.id = settingName, hiddenSelect.dataset.settingName = settingName, hiddenSelect.style.display = "none", dropdownOptions.forEach((opt) => {
         let option = document.createElement("option");
         option.value = opt.value, option.textContent = opt.label, hiddenSelect.appendChild(option);
       });
@@ -17899,6 +18133,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       init_confirmationPrompt();
       init_touAgreement();
       init_i18n();
+      init_translationProgress();
       init_thumbnails();
       init_users();
       init_userCard();
@@ -20104,37 +20339,86 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     verbose = (await chrome.storage.local.get({ verboseDebug: !1 })).verboseDebug;
   }
   function debugVerbose(fmt, ...args) {
-    toFlush.length >= 500 && flush(), verbose ? console.debug(fmt, ...args) : (toFlush += fmt, toFlush += (args?.length || 0) >= 1 ? ` (${args.length} suppressed Objects)` : "", toFlush += `
-`);
+    verbose && console.debug(fmt, ...args);
   }
-  function flush() {
-    console.debug(toFlush), toFlush = "";
-  }
-  var verbose, toFlush, init_debug = __esm({
+  var verbose, init_debug = __esm({
     "src/content/core/debug.ts"() {
       verbose = !1;
       __name(init4, "init");
       init4();
-      toFlush = "";
       __name(debugVerbose, "debugVerbose");
-      __name(flush, "flush");
     }
   });
 
   // src/content/core/settings/settingsCompat.ts
+  async function GetConfig() {
+    return {
+      Locales: {
+        UI: {
+          Popup: {
+            title: await t2("settingsCompat-settingChangeNote.ui.popup.title")
+          },
+          Deleted: await t2("settingsCompat-settingChangeNote.ui.deleted"),
+          Replaced: await t2("settingsCompat-settingChangeNote.ui.replaced")
+        }
+      }
+    };
+  }
+  async function Init(message) {
+    debugVerbose("settingsCompatResultData received data.", message);
+    let replaced = message.replaced, deleted = message.deleted;
+    if (!replaced || !deleted) {
+      console.error("settingsCompatGetRes returned no data.");
+      return;
+    }
+    let config = await GetConfig();
+    if (await settings.settingChangeNote !== !0)
+      return;
+    let displayedMarkdown = "";
+    if (replaced.length >= 1 && (displayedMarkdown += `${config.Locales.UI.Replaced}
+ * ${replaced.join(`
+ * `)}
+
+`, debugVerbose(`Replaced/changed ${replaced.length} settings.`, replaced)), deleted.length >= 1 && (displayedMarkdown += `${config.Locales.UI.Deleted}
+ * ${deleted.join(`
+ * `)}
+
+`, debugVerbose(`Deleted/locked/deprecated ${deleted.length} settings.`, deleted)), displayedMarkdown === "") {
+      debugVerbose("No markdown generated in settingsCompat. Returning.", { replaced, deleted });
+      return;
+    }
+    let outputHtml = parseMarkdown(displayedMarkdown), outputObject = document.createElement("div");
+    outputObject.innerHTML = outputHtml;
+    let okayBtn = createButton("Okay", "primary", {
+      onClick: /* @__PURE__ */ __name(() => {
+        overlay.close();
+      }, "onClick"),
+      classList: ["rovalra-overlay-btn"]
+    }), overlay = createOverlay({
+      title: config.Locales.UI.Popup.title,
+      showLogo: !0,
+      preventBackdropClose: !1,
+      bodyContent: outputObject,
+      actions: [okayBtn],
+      onClose: /* @__PURE__ */ __name(() => {
+      }, "onClose")
+    });
+  }
+  function onLoad() {
+    chrome.runtime.sendMessage({ type: "settingsCompatGetRes" }, Init);
+  }
   var init_settingsCompat = __esm({
     "src/content/core/settings/settingsCompat.ts"() {
       init_debug();
+      init_i18n();
+      init_buttons();
+      init_overlay();
+      init_markdown();
       init_getSettings();
-      chrome.runtime.sendMessage({ type: "settingsCompatGetRes" }, (message) => {
-        debugVerbose("settingsCompatResultData recieved data.", message);
-        let replaced = message.replaced, deleted = message.deleted;
-        return (!replaced || !deleted) && console.error("settingsCompatGetRes returned no data."), (async () => await settings.settingChangeNote === !0 && (replaced.length >= 1 && (alert(`(RoValra) The following settings have been recently replaced or changed:
-    *  ${replaced.join(`
-	*  `)}`), debugVerbose(`Replaced/changed ${replaced.length} settings.`, replaced)), deleted.length >= 1 && (alert(`(RoValra) The following settings have been recently deleted, locked or deprecated:
-    *  ${deleted.join(`
-    *  `)}`), debugVerbose(`Deleted/locked/deprecated ${deleted.length} settings.`, deleted)), flush()))(), !0;
-      });
+      __name(GetConfig, "GetConfig");
+      __name(Init, "Init");
+      __name(onLoad, "onLoad");
+      window !== void 0 && window.addEventListener("load", onLoad);
     }
   });
 
@@ -20587,7 +20871,9 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           });
         savePromises.push(handleSaveSettings(settingName, value2));
       } else if (target.matches("select")) {
-        if (value2 = target.value, savePromises.push(handleSaveSettings(settingName, value2)), settingName === "profileRenderEnvironment") {
+        value2 = target.value;
+        let previousLanguage = settingName === "rovalraLanguage" ? (await loadSettings()).rovalraLanguage : null;
+        if (savePromises.push(handleSaveSettings(settingName, value2)), settingName === "profileRenderEnvironment") {
           let selectedEnv = SETTINGS_CONFIG.Profile.settings.profile3DRenderEnabled.childSettings.profileRenderEnvironment.options.find(
             (opt) => opt.value === value2
           ), envId = selectedEnv ? selectedEnv.id : 1, settings2 = await loadSettings();
@@ -20597,6 +20883,10 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
               error3
             )
           );
+        }
+        if (settingName === "rovalraLanguage" && value2 !== previousLanguage) {
+          await Promise.all(savePromises), location.reload();
+          return;
         }
       } else if (target.matches(
         'input[type="text"], input[type="url"], input:not([type])'
@@ -20716,7 +21006,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       __name(restoreTextSettingInput, "restoreTextSettingInput");
       __name(restoreTextSettingInputValue, "restoreTextSettingInputValue");
       __name(queueGradientNameSync, "queueGradientNameSync");
-      getCurrentUserTierSync = /* @__PURE__ */ __name(() => currentUserTier, "getCurrentUserTierSync"), getCurrentUserTier = /* @__PURE__ */ __name(async () => (currentUserTierLoaded || await syncDonatorTier(), currentUserTier), "getCurrentUserTier"), syncDonatorTier = /* @__PURE__ */ __name(async () => {
+      getCurrentUserTierSync = /* @__PURE__ */ __name(() => currentUserTier, "getCurrentUserTierSync"), getCurrentUserTier = /* @__PURE__ */ __name(async () => (currentUserTierLoaded || await syncDonatorTier(), currentUserTier), "getCurrentUserTier"), syncDonatorTier = /* @__PURE__ */ __name(async ({ force = !1 } = {}) => {
         if (donatorTierPromise) return donatorTierPromise;
         let now = Date.now(), currentHref = window.location.href, currentPath = window.location.pathname, storePageUrl = "store-section/9452973012", currentUserId = await getAuthenticatedUserId();
         if (!currentUserId)
@@ -20735,9 +21025,14 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           lastTier: 0,
           userId: null
         };
-        state5.cachedResponse = null, state5.userId !== currentUserId && (state5.lastSync = 0, state5.cachedResponse = null, state5.lastTier = 0, state5.userId = currentUserId, currentUserTier = 0, await set("donator_info", "sync_state", state5, "local")), state5.lastTier !== void 0 && (currentUserTier = state5.lastTier), currentHref.includes(storePageUrl) && (state5.priorityActive = !0, state5.checksLeft = 10);
+        state5.userId !== currentUserId && (state5.lastSync = 0, state5.cachedResponse = null, state5.lastTier = 0, state5.userId = currentUserId, currentUserTier = 0, await set("donator_info", "sync_state", state5, "local")), state5.lastTier !== void 0 && (currentUserTier = state5.lastTier), currentHref.includes(storePageUrl) && (state5.priorityActive = !0, state5.checksLeft = 10);
         let isUrlChange = currentPath !== state5.lastPath, isPriorityCheck = state5.priorityActive && isUrlChange && state5.checksLeft > 0, isExpired = now - state5.lastSync > 300 * 1e3;
-        return inMemoryDonatorResponse && !isPriorityCheck && !isExpired ? inMemoryDonatorResponse : (donatorTierPromise = (async () => {
+        if (!force && !isPriorityCheck && !isExpired) {
+          let cachedResponse = inMemoryDonatorResponse || state5.cachedResponse || null;
+          if (cachedResponse)
+            return inMemoryDonatorResponse = cachedResponse, currentUserTierLoaded = !0, cachedResponse;
+        }
+        return donatorTierPromise = (async () => {
           try {
             let response = await callRobloxApiJson({
               isRovalraApi: !0,
@@ -20748,7 +21043,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             if (!response?.badges)
               return inMemoryDonatorResponse || null;
             let badges = response.badges, tier = 0;
-            badges.donator_3 || badges.legacy_donator ? tier = 3 : badges.donator_2 ? tier = 2 : badges.donator_1 && (tier = 1), state5.priorityActive && isUrlChange && (tier !== state5.lastTier ? (state5.priorityActive = !1, state5.checksLeft = 0) : (state5.checksLeft--, state5.checksLeft <= 0 && (state5.priorityActive = !1))), currentUserTier = tier, state5.lastTier = tier, state5.lastSync = Date.now(), state5.lastPath = currentPath, inMemoryDonatorResponse = response, state5.userId = currentUserId, state5.cachedResponse = null, await set(
+            badges.donator_3 || badges.legacy_donator ? tier = 3 : badges.donator_2 ? tier = 2 : badges.donator_1 && (tier = 1), state5.priorityActive && isUrlChange && (tier !== state5.lastTier ? (state5.priorityActive = !1, state5.checksLeft = 0) : (state5.checksLeft--, state5.checksLeft <= 0 && (state5.priorityActive = !1))), currentUserTier = tier, state5.lastTier = tier, state5.lastSync = Date.now(), state5.lastPath = currentPath, inMemoryDonatorResponse = response, state5.userId = currentUserId, state5.cachedResponse = response, await set(
               "donator_info",
               "sync_state",
               state5,
@@ -20773,7 +21068,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           } finally {
             donatorTierPromise = null;
           }
-        })(), donatorTierPromise);
+        })(), donatorTierPromise;
       }, "syncDonatorTier"), loadSettings = /* @__PURE__ */ __name(async () => new Promise((resolve, reject) => {
         let defaultSettings = {}, forcedSettings = {};
         for (let category of Object.values(SETTINGS_CONFIG))
@@ -20819,7 +21114,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           ]), bundledSettings = storedSettings.rovalra_settings || {}, getStoredSetting = /* @__PURE__ */ __name((name) => Object.prototype.hasOwnProperty.call(storedSettings, name) ? storedSettings[name] : bundledSettings[name], "getStoredSetting"), data = await chrome.storage.local.get([
             "profile3DRenderForceDisabled"
           ]), userTier = currentUserTier, overrides = {};
-          data.profile3DRenderForceDisabled === !0 && !settings2.profile3DRenderBypassCheck && settings2.profile3DRenderEnabled === !0 && (overrides.profile3DRenderEnabled = !1), await syncDonatorTier();
+          data.profile3DRenderForceDisabled === !0 && !settings2.profile3DRenderBypassCheck && settings2.profile3DRenderEnabled === !0 && (overrides.profile3DRenderEnabled = !1);
           for (let category of Object.values(SETTINGS_CONFIG))
             for (let [settingName, config] of Object.entries(
               category.settings
@@ -21352,7 +21647,11 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       return console.warn(
         "RoValra: Stored OAuth ID mismatch. Proactively re-authenticating."
       ), await startOAuthFlow(!0) ? (await chrome.storage.local.get(STORAGE_KEY3))[STORAGE_KEY3]?.[userId]?.accessToken || null : (console.log("RoValra: OAuth failed (wrong user), trying fallback..."), await clearOAuthProgress(), await getValidFallbackToken(forceRefresh));
-    if (!forceRefresh)
+    if (!forceRefresh || await get(
+      "oauth_validation",
+      String(userId),
+      "local"
+    ) === storedVerification.accessToken)
       return storedVerification.accessToken;
     try {
       let response = await callRobloxApi({
@@ -21365,9 +21664,17 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         skipAutoAuth: !0,
         noCache: !0
       });
-      return response.status === 401 || response.status === 403 ? (console.warn(
-        `RoValra: Session unauthorized (Status ${response.status}). Triggering re-auth...`
-      ), !isDonator && lazyForNonDonators ? null : await startOAuthFlow(!0) ? (await chrome.storage.local.get(STORAGE_KEY3))[STORAGE_KEY3]?.[userId]?.accessToken || null : (console.log("RoValra: OAuth re-auth failed, trying fallback..."), await clearOAuthProgress(), await getValidFallbackToken(!0))) : (await chrome.storage.local.get(STORAGE_KEY3))[STORAGE_KEY3]?.[userId]?.accessToken || storedVerification.accessToken;
+      if (response.status === 401 || response.status === 403)
+        return console.warn(
+          `RoValra: Session unauthorized (Status ${response.status}). Triggering re-auth...`
+        ), !isDonator && lazyForNonDonators ? null : await startOAuthFlow(!0) ? (await chrome.storage.local.get(STORAGE_KEY3))[STORAGE_KEY3]?.[userId]?.accessToken || null : (console.log("RoValra: OAuth re-auth failed, trying fallback..."), await clearOAuthProgress(), await getValidFallbackToken(!0));
+      let validToken = (await chrome.storage.local.get(STORAGE_KEY3))[STORAGE_KEY3]?.[userId]?.accessToken || storedVerification.accessToken;
+      return response.ok && await set(
+        "oauth_validation",
+        String(userId),
+        validToken,
+        "local"
+      ), validToken;
     } catch (error3) {
       return console.error("RoValra: Network error during token sync:", error3), storedVerification.accessToken;
     }
@@ -21546,6 +21853,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       init_user();
       init_fallback();
       init_handlesettings();
+      init_cacheHandler();
       STORAGE_KEY3 = "rovalra_oauth_verification", OAUTH_PROGRESS_KEY2 = "rovalra_oauth_progress", activeOAuthPromise = null;
       __name(clearOAuthProgress, "clearOAuthProgress");
       __name(saveOAuthProgress, "saveOAuthProgress");
@@ -21938,9 +22246,17 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
   }
   async function detectUnfriendEvents(userId, currentFriendRecords) {
     if (!await settings.unfriendDetectorEnabled || !currentFriendRecords?.length) return;
-    let allSnapshots = (await new Promise(
-      (resolve) => chrome.storage.local.get([UNFRIEND_SNAPSHOT_KEY], resolve)
-    ))[UNFRIEND_SNAPSHOT_KEY] || {}, previousSnapshot = allSnapshots[userId] || null, currentIds = new Set(currentFriendRecords.map((friend) => friend.id));
+    let actualUserId = await getAuthenticatedUserId(!0);
+    if (!actualUserId || String(actualUserId) !== String(userId)) return;
+    let result = await new Promise(
+      (resolve) => chrome.storage.local.get(
+        [UNFRIEND_SNAPSHOT_KEY, FRIENDS_DATA_KEY],
+        resolve
+      )
+    ), expectedCount = result[FRIENDS_DATA_KEY]?.[userId]?.friendsCount;
+    if (typeof expectedCount == "number" && currentFriendRecords.length < expectedCount)
+      return;
+    let allSnapshots = result[UNFRIEND_SNAPSHOT_KEY] || {}, previousSnapshot = allSnapshots[userId] || null, currentIds = new Set(currentFriendRecords.map((friend) => friend.id));
     if (previousSnapshot) {
       let removedFriends = Object.values(previousSnapshot).filter(
         (friend) => !currentIds.has(friend.id)
@@ -22003,7 +22319,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
   }
   function initFriendsListTracking() {
     initialFriendsRefreshPromise || (initialFriendsRefreshPromise = (async () => {
-      let userId = await getAuthenticatedUserId();
+      let userId = await getAuthenticatedUserId(!0);
       if (!userId) return;
       let friendsList = await updateFriendsList(userId);
       await detectUnfriendEvents(userId, friendsList);
@@ -23417,7 +23733,17 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         ) || document.head.appendChild(style);
       }
     );
-  }, "applyFriendsCarouselPaddingFix"), applyNavbarSearchWidthFix = /* @__PURE__ */ __name(() => {
+  }, "applyFriendsCarouselPaddingFix"), applyNotificationBellMarginFix = /* @__PURE__ */ __name(() => {
+    let styleId = "rovalra-notification-bell-margin-fix";
+    if (document.getElementById(styleId)) return;
+    let style = document.createElement("style");
+    style.id = styleId, style.textContent = `
+        #navbar-stream.navbar-stream.notification-margins {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
+    `, (document.head || document.documentElement).appendChild(style);
+  }, "applyNotificationBellMarginFix"), applyNavbarSearchWidthFix = /* @__PURE__ */ __name(() => {
     let setup2 = /* @__PURE__ */ __name(() => {
       let rightNavigationHeader = document.getElementById(
         "right-navigation-header"
@@ -23478,7 +23804,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           applyImpersonateAttribute
         ), observeElement(".profile-header", applyHeaderFix), applyHomeHeaderLinkFix(), applyProfileUsernameSpacingFix(
           data.profileUsernameSpacingFixEnabled
-        ), applyGameTitleFix(), applyCartRemoveButtonFix(), applyProfileGameCardFix(), applyFriendsCarouselPaddingFix(), applyNavbarSearchWidthFix());
+        ), applyGameTitleFix(), applyCartRemoveButtonFix(), applyProfileGameCardFix(), applyFriendsCarouselPaddingFix(), applyNavbarSearchWidthFix(), applyNotificationBellMarginFix());
       }
     );
   }
@@ -23544,7 +23870,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
   init_tooltip();
   function createNavbarButton({ id, iconSvgData, iconData, tooltipText, onClick: onClick2 }) {
     return new Promise((resolve) => {
-      let init173 = /* @__PURE__ */ __name(() => {
+      let init174 = /* @__PURE__ */ __name(() => {
         observeElement("ul.navbar-right.rbx-navbar-icon-group", (navbar) => {
           if (document.getElementById(id)) {
             resolve(document.getElementById(id).querySelector("button"));
@@ -23577,7 +23903,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           searchIcon ? navbar.insertBefore(li, searchIcon.nextSibling) : navbar.insertBefore(li, navbar.firstChild), resolve(button);
         });
       }, "init");
-      document.readyState === "complete" ? init173() : window.addEventListener("load", init173, { once: !0 });
+      document.readyState === "complete" ? init174() : window.addEventListener("load", init174, { once: !0 });
     });
   }
   __name(createNavbarButton, "createNavbarButton");
@@ -23630,17 +23956,6 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     return filled && iconElement.toggleAttribute("filled"), material && iconElement.toggleAttribute("material"), rovalra && iconElement.toggleAttribute("rovalra"), typeof classes == "string" ? iconElement.className = classes : typeof classes == "object" && Array.isArray(classes) && iconElement.classList.add(...classes), iconElement.setAttribute("size", size ?? "1em"), iconElement.textContent = icon, iconElement;
   }
   __name(Icon, "Icon");
-  function IconText({
-    icon,
-    filled,
-    size,
-    classes,
-    material,
-    rovalra
-  }) {
-    return Icon({ icon, filled, size, classes, material, rovalra }).outerHTML;
-  }
-  __name(IconText, "IconText");
   function ChangeIcon(iconEl, { icon, filled, size, material, rovalra }) {
     return !iconEl || iconEl.nodeName.toLowerCase() != "icon" ? null : (icon && (iconEl.textContent = dompurify_default.sanitize(icon)), filled && !iconEl.hasAttribute("filled") ? (iconEl.toggleAttribute("filled"), iconEl.hasAttribute("fill") && iconEl.toggleAttribute("fill")) : filled == !1 && (iconEl.hasAttribute("fill") && iconEl.toggleAttribute("fill"), iconEl.hasAttribute("filled") && iconEl.toggleAttribute("filled")), (material && !iconEl.hasAttribute("material") || material == !1 && iconEl.hasAttribute("material")) && iconEl.toggleAttribute("material"), (rovalra && !iconEl.hasAttribute("rovalra") || rovalra == !1 && iconEl.hasAttribute("rovalra")) && iconEl.toggleAttribute("rovalra"), size && iconEl.setAttribute("size", size), iconEl);
   }
@@ -24137,9 +24452,33 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
 
   // src/content/features/sitewide/streamermode.js
   init_observer();
-  var ROBUX_SELECTORS = "#nav-robux-amount, #nav-robux-balance, #rovalra-robux-after, .price-tag, .text-robux.ml-1.text-body-medium, .text-robux.ng-binding, .rovalra-streamer-robux-value", ROBUX_HIDDEN_ATTRIBUTE = "data-rovalra-robux-hidden", ROBUX_REAL_VALUE_CLASS = "rovalra-robux-real-value", ROBUX_HIDDEN_LABEL_CLASS = "rovalra-robux-hidden-label", ROBUX_HIDDEN_TEXT = "Hidden", ROBUX_REVEAL_HINT = "Click to reveal your Robux", ROBUX_VISIBILITY_EVENT = "rovalra-streamer-robux-visibility";
+  var ROBUX_SELECTORS = "#nav-robux-amount, #nav-robux-balance, #rovalra-robux-after, .price-tag, .text-robux.ml-1.text-body-medium, .text-robux.ng-binding, .rovalra-streamer-robux-value", ROBUX_HIDDEN_ATTRIBUTE = "data-rovalra-robux-hidden", ROBUX_REAL_VALUE_CLASS = "rovalra-robux-real-value", ROBUX_HIDDEN_LABEL_CLASS = "rovalra-robux-hidden-label", ROBUX_HIDDEN_TEXT = "Hidden", ROBUX_REVEAL_HINT = "Click to reveal your Robux", ROBUX_VISIBILITY_EVENT = "rovalra-streamer-robux-visibility", SETTINGS_MASKED_ATTRIBUTE = "data-rovalra-streamer-masked", SETTINGS_MASK_TEXT = "RoValra Streamer Mode Enabled", SETTINGS_PREHIDE_STYLE_ID = "rovalra-streamer-settings-prehide", PHONE_FIELD = "#account-field-phone", EMAIL_FIELD = `${PHONE_FIELD} ~ .settings-text-field-container:not(${PHONE_FIELD} ~ .settings-text-field-container ~ .settings-text-field-container)`, SETTINGS_PREHIDE_CSS = `
+${PHONE_FIELD} .settings-text-span-visible:not([${SETTINGS_MASKED_ATTRIBUTE}]),
+${EMAIL_FIELD} .settings-text-span-visible:not([${SETTINGS_MASKED_ATTRIBUTE}]) {
+    visibility: hidden !important;
+}`;
+  function setSettingsPrehide(enabled10) {
+    let existing = document.getElementById(SETTINGS_PREHIDE_STYLE_ID);
+    if (!enabled10) {
+      existing?.remove();
+      return;
+    }
+    if (existing) return;
+    let style = document.createElement("style");
+    style.id = SETTINGS_PREHIDE_STYLE_ID, style.textContent = SETTINGS_PREHIDE_CSS, (document.head || document.documentElement).appendChild(style);
+  }
+  __name(setSettingsPrehide, "setSettingsPrehide");
+  try {
+    sessionStorage.getItem("rovalra_streamermode") === "true" && sessionStorage.getItem("rovalra_settingsPageInfo") !== "false" && setSettingsPrehide(!0);
+  } catch {
+  }
   function init12() {
-    let isHideRobuxEnabled = !1, isRevealOnClickEnabled = !1, isRobuxRevealed = !1, isSettingsPageInfoEnabled = !1, managedRobuxElements = /* @__PURE__ */ new Set(), watchedRobuxElements = /* @__PURE__ */ new WeakSet();
+    let isHideRobuxEnabled = !1, isRevealOnClickEnabled = !1, isRobuxRevealed = !1, isSettingsPageInfoEnabled = !1;
+    try {
+      isSettingsPageInfoEnabled = sessionStorage.getItem("rovalra_streamermode") === "true" && sessionStorage.getItem("rovalra_settingsPageInfo") !== "false";
+    } catch {
+    }
+    let managedRobuxElements = /* @__PURE__ */ new Set(), watchedRobuxElements = /* @__PURE__ */ new WeakSet();
     function isRobuxCurrentlyHidden() {
       return isHideRobuxEnabled && !isRobuxRevealed;
     }
@@ -24247,7 +24586,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     function applyStreamerModeToSettingsField(element) {
       if (!isSettingsPageInfoEnabled || !window.location.href.includes("/my/account")) return;
       let valueSpan = element.querySelector(".settings-text-span-visible");
-      valueSpan && valueSpan.textContent !== "RoValra Streamer Mode Enabled" && (valueSpan.textContent = "RoValra Streamer Mode Enabled");
+      valueSpan && (valueSpan.textContent !== SETTINGS_MASK_TEXT && (valueSpan.textContent = SETTINGS_MASK_TEXT), valueSpan.hasAttribute(SETTINGS_MASKED_ATTRIBUTE) || valueSpan.setAttribute(SETTINGS_MASKED_ATTRIBUTE, ""));
     }
     __name(applyStreamerModeToSettingsField, "applyStreamerModeToSettingsField");
     function isSensitiveAccountSettingsField(container) {
@@ -24262,8 +24601,12 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       return !1;
     }
     __name(isSensitiveAccountSettingsField, "isSensitiveAccountSettingsField");
+    function isAccountSettingsPage2() {
+      return window.location.href.includes("/my/account");
+    }
+    __name(isAccountSettingsPage2, "isAccountSettingsPage");
     function updateSettingsPage() {
-      isSettingsPageInfoEnabled && window.location.href.includes("/my/account") && document.querySelectorAll(".settings-text-field-container").forEach((container) => {
+      isSettingsPageInfoEnabled && isAccountSettingsPage2() && document.querySelectorAll(".settings-text-field-container").forEach((container) => {
         isSensitiveAccountSettingsField(container) && applyStreamerModeToSettingsField(container);
       });
     }
@@ -24287,7 +24630,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             )) : sessionStorage.removeItem("rovalra_streamermode");
           } catch {
           }
-          isHideRobuxEnabled = !!data.streamermode && data.hideRobux === !0, isRevealOnClickEnabled = isHideRobuxEnabled && data.hideRobuxRevealOnClick === !0, isSettingsPageInfoEnabled = !!data.streamermode && data.settingsPageInfo !== !1, isRevealOnClickEnabled || (isRobuxRevealed = !1), updateRobuxElements(), updateSettingsPage(), document.dispatchEvent(
+          isHideRobuxEnabled = !!data.streamermode && data.hideRobux === !0, isRevealOnClickEnabled = isHideRobuxEnabled && data.hideRobuxRevealOnClick === !0, isSettingsPageInfoEnabled = !!data.streamermode && data.settingsPageInfo !== !1, isRevealOnClickEnabled || (isRobuxRevealed = !1), setSettingsPrehide(isSettingsPageInfoEnabled), updateRobuxElements(), updateSettingsPage(), document.dispatchEvent(
             new CustomEvent("rovalra-streamer-mode", {
               detail: {
                 enabled: data.streamermode,
@@ -24312,8 +24655,12 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       { multiple: !0 }
     ), observeElement(
       ".settings-text-field-container",
+      () => updateSettingsPage(),
+      { multiple: !0 }
+    ), observeElement(
+      ".settings-text-span-visible",
       (element) => {
-        isSensitiveAccountSettingsField(element) && applyStreamerModeToSettingsField(element);
+        observeChildren(element, updateSettingsPage), observeText(element, updateSettingsPage), updateSettingsPage();
       },
       { multiple: !0 }
     );
@@ -26809,23 +27156,6 @@ function run() {
     }
   }
   __name(getAuthenticatedUserLanguage, "getAuthenticatedUserLanguage");
-  function getLanguageNameFromLocale(locale4) {
-    if (typeof locale4 != "string" || !locale4.trim()) return null;
-    let languageCode = locale4.trim().replaceAll("_", "-").split("-")[0];
-    try {
-      return new Intl.DisplayNames(["en"], { type: "language" }).of(
-        languageCode
-      ) || null;
-    } catch {
-      return null;
-    }
-  }
-  __name(getLanguageNameFromLocale, "getLanguageNameFromLocale");
-  async function getAuthenticatedUserLanguageName(options) {
-    let locale4 = await getAuthenticatedUserLanguage(options);
-    return getLanguageNameFromLocale(locale4);
-  }
-  __name(getAuthenticatedUserLanguageName, "getAuthenticatedUserLanguageName");
   function initAuthenticatedUserLanguageTracking() {
     getAuthenticatedUserLanguage();
   }
@@ -26912,7 +27242,7 @@ function run() {
     tab.id = `tab-${id}`, tab.className = `rbx-tab tab-${id}`, tab.innerHTML = safeHtml`<a class="rbx-tab-heading"><span class="text-lead">${label}</span></a>`;
     let contentPane = document.createElement("div");
     contentPane.className = ["tab-pane", ...classes].join(" "), contentPane.id = `${id}-content-pane`;
-    let init173 = /* @__PURE__ */ __name(() => {
+    let init174 = /* @__PURE__ */ __name(() => {
       container.appendChild(tab), contentContainer.appendChild(contentPane);
       let otherPanes = contentContainer.querySelectorAll(".tab-pane");
       Array.from(otherPanes).some((pane) => {
@@ -26929,7 +27259,7 @@ function run() {
         e.preventDefault(), document.querySelectorAll(".rbx-tab.active, .tab-pane.active").forEach((el3) => el3.classList.remove("active")), tab.classList.add("active"), contentPane.classList.add("active"), hash && window.location.hash !== hash && (window.location.hash = hash);
       }), hash && window.location.hash === hash && setTimeout(() => tab.click(), 200);
     }, "init");
-    return document.readyState === "complete" ? init173() : window.addEventListener("load", init173, { once: !0 }), { tab, contentPane };
+    return document.readyState === "complete" ? init174() : window.addEventListener("load", init174, { once: !0 }), { tab, contentPane };
   }
   __name(createTab, "createTab");
 
@@ -27027,9 +27357,10 @@ function run() {
 
   // src/content/core/transactions/fiat.js
   init_api();
+  init_cacheHandler();
   init_fiatConfig();
   init_fiatConfig();
-  var fiatSettingsPromise = null, currencyRatesPromise = null, currencyRatesCache = null, conversionRateCache = /* @__PURE__ */ new Map();
+  var fiatSettingsPromise = null, currencyRatesPromise = null, conversionRateCache = /* @__PURE__ */ new Map(), CURRENCY_RATES_CACHE_SECTION = "currency_rates", CURRENCY_RATES_CACHE_KEY = "latest";
   chrome.storage.onChanged.addListener((changes, areaName) => {
     areaName === "local" && (changes.robuxFiatEstimatesEnabled || changes.robuxFiatDisplayCurrency || changes.robuxFiatRateMode || changes.robuxFiatEstimateColor || changes.robuxFiatEstimateStyleMode || changes.robuxFiatEstimateGradient || changes.robuxFiatEstimateBold || changes.robuxFiatEstimateItalic) && (fiatSettingsPromise = null);
   });
@@ -27053,14 +27384,26 @@ function run() {
     if (typeof cachedRate == "number" && Number.isFinite(cachedRate))
       return cachedRate;
     try {
-      currencyRatesPromise || (currencyRatesPromise = currencyRatesCache || callRobloxApiJson({
-        isRovalraApi: !0,
-        subdomain: "apis",
-        endpoint: "/v1/currency/rates"
-      }));
-      let data = await currencyRatesPromise;
-      currencyRatesCache = data;
-      let usdRates = data?.usd;
+      currencyRatesPromise || (currencyRatesPromise = (async () => {
+        let cachedRates = await get(
+          CURRENCY_RATES_CACHE_SECTION,
+          CURRENCY_RATES_CACHE_KEY,
+          "local"
+        );
+        if (cachedRates) return cachedRates;
+        let data2 = await callRobloxApiJson({
+          isRovalraApi: !0,
+          subdomain: "apis",
+          endpoint: "/v1/currency/rates"
+        });
+        return await set(
+          CURRENCY_RATES_CACHE_SECTION,
+          CURRENCY_RATES_CACHE_KEY,
+          data2,
+          "local"
+        ), data2;
+      })());
+      let usdRates = (await currencyRatesPromise)?.usd;
       if (!usdRates)
         throw new Error("RoValra: Invalid currency API response structure");
       let rateToBase = base === "usd" ? 1 : Number(usdRates[base]), rateToTarget = target === "usd" ? 1 : Number(usdRates[target]);
@@ -27071,7 +27414,7 @@ function run() {
       let rate = rateToTarget / rateToBase;
       return conversionRateCache.set(cacheKey, rate), rate;
     } catch (error3) {
-      throw currencyRatesCache = null, currencyRatesPromise = null, console.error("RoValra: Currency rate fetch failed", error3), error3;
+      throw currencyRatesPromise = null, console.error("RoValra: Currency rate fetch failed", error3), error3;
     }
   }
   __name(getCurrencyConversionRate, "getCurrencyConversionRate");
@@ -29806,243 +30149,6 @@ ${ts2("privateGames.disabledLinkText")}`)}
     initGamePassViewer();
   }
   __name(init24, "init");
-
-  // src/content/features/navigation/QoLToggles.js
-  init_assets();
-  init_dropdown();
-  init_api();
-  init_i18n();
-  function appendInlineControl(row, control) {
-    let textWrapper = row.querySelector(".text-truncate-split.flex.flex-col");
-    if (!textWrapper) return;
-    Object.assign(textWrapper.style, {
-      alignItems: "center",
-      display: "flex",
-      flexDirection: "row",
-      gap: "12px",
-      justifyContent: "space-between",
-      width: "100%"
-    });
-    let title = textWrapper.querySelector(".foundation-web-menu-item-title");
-    title && Object.assign(title.style, {
-      flex: "1 1 auto",
-      minWidth: "0"
-    }), textWrapper.appendChild(control);
-  }
-  __name(appendInlineControl, "appendInlineControl");
-  function init25() {
-    chrome.storage.local.get({ qolTogglesEnabled: !0 }, async (settings2) => {
-      if (!settings2.qolTogglesEnabled || document.getElementById("rovalra-qol-toggle")) return;
-      let assets7 = getAssets(), button = await createNavbarButton({
-        id: "rovalra-qol-toggle",
-        iconSvgData: assets7.qolIcon
-      });
-      if (!button) return;
-      let permissionLevels = {
-        AllUsers: 4,
-        All: 4,
-        FriendsFollowingAndFollowers: 3,
-        Followers: 3,
-        FriendsAndFollowing: 2,
-        Following: 2,
-        Friends: 1,
-        NoOne: 0
-      }, onlineToJoinMap = {
-        AllUsers: "All",
-        FriendsFollowingAndFollowers: "Followers",
-        FriendsAndFollowing: "Following",
-        Friends: "Friends",
-        NoOne: "NoOne"
-      }, joinToOnlineMap = {
-        All: "AllUsers",
-        Followers: "FriendsFollowingAndFollowers",
-        Following: "FriendsAndFollowing",
-        Friends: "Friends",
-        NoOne: "NoOne"
-      }, tMap = {
-        onlineStatus: await t2("qolToggles.onlineStatus"),
-        joinStatus: await t2("qolToggles.joinStatus"),
-        privateServerPrivacy: await t2("qolToggles.privateServerPrivacy"),
-        inventoryVisibility: await t2("qolToggles.inventoryVisibility"),
-        everyone: await t2("qolToggles.everyone"),
-        friendsFollowingAndFollowers: await t2(
-          "qolToggles.friendsFollowingAndFollowers"
-        ),
-        friendsAndFollowing: await t2("qolToggles.friendsAndFollowing"),
-        friends: await t2("qolToggles.friends"),
-        trustedFriends: await t2("qolToggles.trustedFriends"),
-        noOne: await t2("qolToggles.noOne")
-      }, currentOnlineStatus = "AllUsers", currentJoinStatus = "AllUsers", currentPrivateServerPrivacy = "AllUsers", currentInventoryVisibility = "AllUsers";
-      try {
-        let response = await callRobloxApi({
-          subdomain: "apis",
-          endpoint: "/user-settings-api/v1/user-settings/settings-and-options"
-        });
-        if (response.ok) {
-          let data2 = await response.json();
-          data2.whoCanSeeMyOnlineStatus?.currentValue && (currentOnlineStatus = data2.whoCanSeeMyOnlineStatus.currentValue), data2.whoCanJoinMeInExperiences?.currentValue && (currentJoinStatus = data2.whoCanJoinMeInExperiences.currentValue), data2.privateServerPrivacy?.currentValue && (currentPrivateServerPrivacy = data2.privateServerPrivacy.currentValue), data2.whoCanSeeMyInventory?.currentValue && (currentInventoryVisibility = data2.whoCanSeeMyInventory.currentValue);
-        }
-      } catch (e) {
-        console.warn("RoValra: Failed to fetch online status", e);
-      }
-      currentJoinStatus = onlineToJoinMap[currentJoinStatus] || currentJoinStatus;
-      let data = await new Promise(
-        (resolve) => chrome.storage.local.get([], resolve)
-      ), labelMap = {
-        onlineStatus: tMap.onlineStatus,
-        joinStatus: tMap.joinStatus,
-        privateServerPrivacy: tMap.privateServerPrivacy,
-        inventoryVisibility: tMap.inventoryVisibility
-      }, menu = createDropdownMenu({
-        trigger: button,
-        items: [
-          {
-            label: labelMap.onlineStatus,
-            value: "onlineStatus"
-          },
-          {
-            label: labelMap.joinStatus,
-            value: "joinStatus"
-          },
-          {
-            label: labelMap.privateServerPrivacy,
-            value: "privateServerPrivacy"
-          },
-          {
-            label: labelMap.inventoryVisibility,
-            value: "inventoryVisibility"
-          }
-        ],
-        onValueChange: /* @__PURE__ */ __name(() => {
-        }, "onValueChange"),
-        position: "center"
-      });
-      menu.panel.style.setProperty("min-width", "320px", "important");
-      let updatePosition = /* @__PURE__ */ __name(() => {
-        if (button.offsetWidth <= 0) return;
-        let edge = button.dataset.rovalraTopbarLayoutEdge || button.closest("[data-rovalra-topbar-layout-key]")?.dataset.rovalraTopbarLayoutEdge;
-        edge === "left" || edge === "right" ? (menu.panel.style.transform = "none", menu.panel.style.marginLeft = "0") : (menu.panel.style.transform = "translateX(-50%)", menu.panel.style.marginLeft = `${button.offsetWidth / 2}px`);
-      }, "updatePosition");
-      button.addEventListener("click", updatePosition), updatePosition(), menu.panel.querySelectorAll(
-        ".rovalra-dropdown-item"
-      ).forEach((btn) => {
-        let value2 = btn.dataset.value;
-        if (!value2) return;
-        let div = document.createElement("div");
-        for (div.className = btn.className, div.setAttribute("role", "option"), div.setAttribute("data-value", value2); btn.firstChild; )
-          div.appendChild(btn.firstChild);
-        if (value2 === "onlineStatus" || value2 === "joinStatus" || value2 === "privateServerPrivacy" || value2 === "inventoryVisibility") {
-          let isOnlineStatus = value2 === "onlineStatus", isJoinStatus = value2 === "joinStatus", isPrivateServer = value2 === "privateServerPrivacy", isInventoryVisibility = value2 === "inventoryVisibility", statusOptions = [
-            {
-              label: tMap.everyone,
-              value: isJoinStatus ? "All" : "AllUsers"
-            },
-            {
-              label: tMap.friendsFollowingAndFollowers,
-              value: isJoinStatus ? "Followers" : "FriendsFollowingAndFollowers"
-            },
-            {
-              label: tMap.friendsAndFollowing,
-              value: isJoinStatus ? "Following" : "FriendsAndFollowing"
-            },
-            { label: tMap.friends, value: "Friends" }
-          ];
-          (isOnlineStatus || isJoinStatus) && statusOptions.push({
-            label: tMap.trustedFriends,
-            value: "TrustedFriends"
-          }), statusOptions.push({ label: tMap.noOne, value: "NoOne" });
-          let initialValue;
-          isOnlineStatus ? initialValue = currentOnlineStatus : isJoinStatus ? initialValue = currentJoinStatus : isPrivateServer ? initialValue = currentPrivateServerPrivacy : isInventoryVisibility && (initialValue = currentInventoryVisibility);
-          let { element: statusDropdown, setValue } = createDropdown({
-            items: statusOptions,
-            initialValue,
-            onValueChange: /* @__PURE__ */ __name(async (newValue) => {
-              let payload;
-              if (isOnlineStatus) {
-                payload = { whoCanSeeMyOnlineStatus: newValue }, currentOnlineStatus = newValue;
-                let onlineLevel = permissionLevels[currentOnlineStatus], joinLevel = permissionLevels[currentJoinStatus], joinDropdownEl = document.getElementById(
-                  "rovalra-qol-joinStatus-dropdown"
-                );
-                if (onlineLevel < joinLevel) {
-                  let newJoinValue = onlineToJoinMap[currentOnlineStatus];
-                  joinDropdownEl && joinDropdownEl.rovalraSetValue && (await callRobloxApi({
-                    subdomain: "apis",
-                    endpoint: "/user-settings-api/v1/user-settings",
-                    method: "POST",
-                    body: {
-                      whoCanJoinMeInExperiences: newJoinValue
-                    }
-                  }).catch(
-                    (e) => console.error(
-                      "Failed to update join status",
-                      e
-                    )
-                  ), joinDropdownEl.rovalraSetValue(
-                    newJoinValue
-                  ), currentJoinStatus = newJoinValue);
-                }
-              } else if (isJoinStatus) {
-                payload = { whoCanJoinMeInExperiences: newValue }, currentJoinStatus = newValue;
-                let joinLevel = permissionLevels[currentJoinStatus], onlineLevel = permissionLevels[currentOnlineStatus], onlineDropdownEl = document.getElementById(
-                  "rovalra-qol-onlineStatus-dropdown"
-                );
-                if (joinLevel > onlineLevel) {
-                  let newOnlineValue = joinToOnlineMap[currentJoinStatus];
-                  onlineDropdownEl && onlineDropdownEl.rovalraSetValue && (await callRobloxApi({
-                    subdomain: "apis",
-                    endpoint: "/user-settings-api/v1/user-settings",
-                    method: "POST",
-                    body: {
-                      whoCanSeeMyOnlineStatus: newOnlineValue
-                    }
-                  }).catch(
-                    (e) => console.error(
-                      "Failed to update online status",
-                      e
-                    )
-                  ), onlineDropdownEl.rovalraSetValue(
-                    newOnlineValue
-                  ), currentOnlineStatus = newOnlineValue);
-                }
-              } else isPrivateServer ? (payload = { privateServerPrivacy: newValue }, currentPrivateServerPrivacy = newValue) : isInventoryVisibility && (payload = { whoCanSeeMyInventory: newValue }, currentInventoryVisibility = newValue);
-              callRobloxApi({
-                subdomain: "apis",
-                endpoint: "/user-settings-api/v1/user-settings",
-                method: "POST",
-                body: payload
-              }).catch(
-                (e) => console.error("Failed to update status", e)
-              );
-            }, "onValueChange")
-          });
-          statusDropdown.id = `rovalra-qol-${value2}-dropdown`, statusDropdown.rovalraSetValue = setValue, statusDropdown.style.marginLeft = "auto", statusDropdown.style.minWidth = "140px", statusDropdown.style.maxWidth = "140px", statusDropdown.addEventListener(
-            "click",
-            (e) => e.stopPropagation()
-          );
-          let trigger = statusDropdown.querySelector(
-            ".rovalra-dropdown-trigger"
-          );
-          trigger && (trigger.style.height = "30px", trigger.style.minHeight = "30px", trigger.style.padding = "0 8px", trigger.style.fontSize = "12px", trigger.style.minWidth = "100%"), appendInlineControl(div, statusDropdown);
-        } else {
-          let radio = createRadioButton({
-            id: `rovalra-qol-${value2}`,
-            checked: !!data[value2],
-            onChange: /* @__PURE__ */ __name((newState) => {
-              chrome.storage.local.set({ [value2]: newState });
-            }, "onChange")
-          });
-          radio.style.marginLeft = "auto", appendInlineControl(div, radio), div.addEventListener("click", () => {
-            let currentChecked = radio.getAttribute("aria-checked") === "true";
-            radio.setChecked(!currentChecked), chrome.storage.local.set({
-              [value2]: !currentChecked
-            });
-          });
-        }
-        btn.parentNode.replaceChild(div, btn);
-      });
-    });
-  }
-  __name(init25, "init");
 
   // node_modules/roavatar-renderer/dist/index.js
   var _a, _b;
@@ -42527,9 +42633,9 @@ ${ts2("privateGames.disabledLinkText")}`)}
      * @param {Function} [onProgress] - Executes when single items have been loaded.
      * @param {Function} [onError] - Executes when an error occurs.
      */
-    constructor(onLoad, onProgress, onError) {
+    constructor(onLoad2, onProgress, onError) {
       let scope = this, isLoading = !1, itemsLoaded = 0, itemsTotal = 0, urlModifier, handlers = [];
-      this.onStart = void 0, this.onLoad = onLoad, this.onProgress = onProgress, this.onError = onError, this._abortController = null, this.itemStart = function(url) {
+      this.onStart = void 0, this.onLoad = onLoad2, this.onProgress = onProgress, this.onError = onError, this._abortController = null, this.itemStart = function(url) {
         itemsTotal++, isLoading === !1 && scope.onStart !== void 0 && scope.onStart(url, itemsLoaded, itemsTotal), isLoading = !0;
       }, this.itemEnd = function(url) {
         itemsLoaded++, scope.onProgress !== void 0 && scope.onProgress(url, itemsLoaded, itemsTotal), itemsLoaded === itemsTotal && (isLoading = !1, scope.onLoad !== void 0 && scope.onLoad());
@@ -51362,10 +51468,10 @@ Program Info Log: ` + programLog + `
   __name(reversePainterSortStable, "reversePainterSortStable");
   function WebGLRenderList() {
     let renderItems2 = [], renderItemsIndex = 0, opaque = [], transmissive = [], transparent = [];
-    function init173() {
+    function init174() {
       renderItemsIndex = 0, opaque.length = 0, transmissive.length = 0, transparent.length = 0;
     }
-    __name(init173, "init");
+    __name(init174, "init");
     function materialVariant(object) {
       let variant = 0;
       return object.isInstancedMesh && (variant += 2), object.isSkinnedMesh && (variant += 1), variant;
@@ -51411,7 +51517,7 @@ Program Info Log: ` + programLog + `
       opaque,
       transmissive,
       transparent,
-      init: init173,
+      init: init174,
       push,
       unshift,
       finish,
@@ -51656,10 +51762,10 @@ Program Info Log: ` + programLog + `
   __name(WebGLLights, "WebGLLights");
   function WebGLRenderState(extensions) {
     let lights = new WebGLLights(extensions), lightsArray = [], shadowsArray = [], lightProbeGridArray = [];
-    function init173(camera) {
+    function init174(camera) {
       state5.camera = camera, lightsArray.length = 0, shadowsArray.length = 0, lightProbeGridArray.length = 0;
     }
-    __name(init173, "init");
+    __name(init174, "init");
     function pushLight(light) {
       lightsArray.push(light);
     }
@@ -51690,7 +51796,7 @@ Program Info Log: ` + programLog + `
       textureUnits: 0
     };
     return {
-      init: init173,
+      init: init174,
       state: state5,
       setupLights,
       setupLightsView,
@@ -56977,7 +57083,7 @@ void main() {
       return new Matrix4().compose(new Vector3$1(...this.Position), new Quaternion().setFromEuler(new Euler(rad(this.Orientation[0]), rad(this.Orientation[1]), rad(this.Orientation[2]), "YXZ")), new Vector3$1(1, 1, 1));
     }
     getMatrix() {
-      return this.getTHREEMatrix().toArray();
+      return this.getTHREEMatrix().elements;
     }
     fromMatrix(m2) {
       return this.Orientation = rotationMatrixToEulerAngles([
@@ -57040,11 +57146,11 @@ void main() {
       return euler = euler.reorder(order), euler.toArray();
     }
     inverse() {
-      let inverse = new Matrix4().fromArray(this.getMatrix()).clone();
+      let inverse = this.getTHREEMatrix();
       return inverse.invert(), new _CFrame().fromMatrix(inverse.elements);
     }
     multiply(cf) {
-      let thisM = new Matrix4().fromArray(this.getMatrix()), cfM = new Matrix4().fromArray(cf.getMatrix()), newM = thisM.multiply(cfM);
+      let thisM = this.getTHREEMatrix(), cfM = cf.getTHREEMatrix(), newM = thisM.multiply(cfM);
       return new _CFrame().fromMatrix(newM.elements);
     }
     multiplyVector(vector) {
@@ -57337,16 +57443,21 @@ void main() {
     GetFullName() {
       return this.parent && this.parent.className !== "DataModel" ? this.parent.GetFullName() + "." + this.name : this.name || "null";
     }
+    /**
+     * @returns A reference to Instance._children, dangerous since the array can be modified by the Instance due to setParent and similar
+     */
+    GetChildrenDangerous() {
+      return this._children;
+    }
     GetChildren() {
-      let childrenList = [];
-      for (let child of this._children)
-        childrenList.push(child);
-      return childrenList;
+      return [...this._children];
     }
     GetDescendants() {
-      let descendants = this.GetChildren();
-      for (let child of this.GetChildren())
-        descendants = descendants.concat(child.GetDescendants());
+      let toCheck = this.GetChildren(), descendants = [...toCheck];
+      for (; toCheck.length > 0; ) {
+        let children = toCheck.pop().GetChildrenDangerous();
+        toCheck.push(...children), descendants.push(...children);
+      }
       return descendants;
     }
     FindFirstChild(name) {
@@ -60950,8 +61061,14 @@ void main() {
           other.skinning.getIndex(i2).map((v2) => boneIndexMap.get(v2))
         ), this.skinning.setWeight(ogSkinningsSize + i2, other.skinning.getWeight(i2));
     }
-    removeDuplicateVertices(distance2 = 1e-4) {
-      let posToIndex = /* @__PURE__ */ new Map(), remap = new Array(this.coreMesh.numverts).fill(-1), vertToSubset = new Array(this.coreMesh.numverts).fill(-1);
+    /**
+     * 
+     * @param distance
+     * @param updateFaces This also fixes the faces (but it doesnt actually since its broken)
+     * @returns 
+     */
+    removeDuplicateVertices(distance2 = 1e-4, updateFaces = !1) {
+      let posToIndex = /* @__PURE__ */ new Map(), remap = new Array(this.coreMesh.numverts).fill(-1);
       for (let i2 = 0; i2 < this.coreMesh.numverts; i2++) {
         let pos = this.coreMesh.getPos(i2), uv = this.coreMesh.getUV(i2), hash = hashVec3(pos[0], pos[1], pos[2], distance2) + hashVec2(uv[0], uv[1]), existing = posToIndex.get(hash);
         if (existing !== void 0) {
@@ -60961,19 +61078,16 @@ void main() {
         } else
           posToIndex.set(hash, i2), remap[i2] = i2;
       }
-      for (let i2 = 0; i2 < this.coreMesh.numfaces; i2++) {
-        let remapFace = this.coreMesh.getFace(remap[i2]);
-        this.coreMesh.setFace(i2, clonePrimitiveArray(remapFace));
-      }
-      let newVerts = [], newSkinnings = [], newSubsetIndices = [], newIndex = /* @__PURE__ */ new Map();
+      let newVerts = [], newSkinnings = [], newIndex = /* @__PURE__ */ new Map();
       for (let i2 = 0; i2 < this.coreMesh.numverts; i2++) {
         let canonical = remap[i2];
-        newIndex.has(canonical) || (newIndex.set(canonical, newVerts.length), newVerts.push(canonical), newSubsetIndices.push(vertToSubset[i2]), newSkinnings.push(canonical)), remap[i2] = newIndex.get(canonical);
+        newIndex.has(canonical) || (newIndex.set(canonical, newVerts.length), newVerts.push(canonical), newSkinnings.push(canonical)), remap[i2] = newIndex.get(canonical);
       }
-      for (let i2 = 0; i2 < this.coreMesh.numfaces; i2++) {
-        let remapFace = this.coreMesh.getFace(remap[i2]);
-        this.coreMesh.setFace(i2, clonePrimitiveArray(remapFace));
-      }
+      if (updateFaces)
+        for (let i2 = 0; i2 < this.coreMesh.numfaces; i2++) {
+          let face = this.coreMesh.getFace(i2);
+          face[0] = remap[face[0]], face[1] = remap[face[1]], face[2] = remap[face[2]], this.coreMesh.setFace(i2, face);
+        }
       return this.coreMesh.onlyVerts(newVerts), this.skinning.onlySkinnings(newSkinnings), newVerts.length;
     }
     /*removeFace(index: number) {
@@ -61189,6 +61303,7 @@ void main() {
     map = /* @__PURE__ */ new Map();
     lastAccess = /* @__PURE__ */ new Map();
     maxEntries;
+    onDelete;
     constructor(maxEntries = 250) {
       this.maxEntries = maxEntries;
     }
@@ -61206,6 +61321,7 @@ void main() {
       return this.map.has(key);
     }
     delete(key) {
+      this.onDelete && this.onDelete(key);
       let toReturn = this.map.delete(key);
       return this.lastAccess.delete(key), toReturn;
     }
@@ -64341,17 +64457,17 @@ void main() {
       if (this.instance.parent && this.instance.parent.FindFirstChildOfClass("Humanoid")) {
         let handle = this.instance.FindFirstChild("Handle");
         if (handle) {
-          let accessoryAttachment = null, bodyAttachment = null;
-          for (let child of handle.GetChildren())
+          for (let child of handle.GetChildrenDangerous())
             if (child.className === "Attachment") {
-              let bodyDescendants = this.instance.parent.GetDescendants();
-              for (let bodyChild of bodyDescendants)
-                if (bodyChild.className === "Attachment" && child && bodyChild.Property("Name") === child.Property("Name") && bodyChild.parent && bodyChild.parent.parent === this.instance.parent) {
-                  bodyAttachment = bodyChild, accessoryAttachment = child;
-                  break;
-                }
+              let bodyParts = this.instance.parent.GetChildrenDangerous();
+              for (let bodyPart of bodyParts) {
+                if (bodyPart.className !== "Part" && bodyPart.className !== "MeshPart") continue;
+                let bodyPartChildren = bodyPart.GetChildrenDangerous();
+                for (let bodyChild of bodyPartChildren)
+                  if (bodyChild.className === "Attachment" && child && bodyChild.Property("Name") === child.Property("Name") && bodyChild.parent && bodyChild.parent.parent === this.instance.parent)
+                    return [bodyChild, child];
+              }
             }
-          if (bodyAttachment && accessoryAttachment) return [bodyAttachment, accessoryAttachment];
         }
       }
     }
@@ -64360,13 +64476,13 @@ void main() {
         let handle = this.instance.FindFirstChild("Handle");
         if (handle) {
           let attachmentPair = this.getBodyAccessoryAttachmentPair(), oldAccessoryWeld = handle.FindFirstChild("AccessoryWeld");
-          if (oldAccessoryWeld && oldAccessoryWeld.Destroy(), attachmentPair) {
-            let [bodyAttachment, accessoryAttachment] = attachmentPair, weld = new Instance("Weld");
+          if (attachmentPair) {
+            let [bodyAttachment, accessoryAttachment] = attachmentPair, weld = oldAccessoryWeld || new Instance("Weld");
             weld.addProperty(new Property("Name", DataType.String), "AccessoryWeld"), weld.addProperty(new Property("Archivable", DataType.Bool), !0), weld.addProperty(new Property("C1", DataType.CFrame), accessoryAttachment.Property("CFrame").clone()), weld.addProperty(new Property("C0", DataType.CFrame), bodyAttachment.Property("CFrame").clone()), weld.addProperty(new Property("Part1", DataType.Referent), accessoryAttachment.parent), weld.addProperty(new Property("Part0", DataType.Referent), bodyAttachment.parent), weld.addProperty(new Property("Active", DataType.Bool), !0), weld.addProperty(new Property("Enabled", DataType.Bool), !1), weld.setParent(handle), weld.setProperty("Enabled", !0);
           } else {
             let head = this.instance.parent.FindFirstChild("Head");
             if (!head) return;
-            let attachmentPoint = this.instance.PropOrDefault("AttachmentPoint", new CFrame()), weld = new Instance("Weld");
+            let attachmentPoint = this.instance.PropOrDefault("AttachmentPoint", new CFrame()), weld = oldAccessoryWeld || new Instance("Weld");
             weld.addProperty(new Property("Name", DataType.String), "AccessoryWeld"), weld.addProperty(new Property("Archivable", DataType.Bool), !0), weld.addProperty(new Property("C1", DataType.CFrame), attachmentPoint.clone()), weld.addProperty(new Property("C0", DataType.CFrame), new CFrame()), weld.addProperty(new Property("Part1", DataType.Referent), handle), weld.addProperty(new Property("Part0", DataType.Referent), head), weld.addProperty(new Property("Active", DataType.Bool), !0), weld.addProperty(new Property("Enabled", DataType.Bool), !1), weld.setParent(handle), weld.setProperty("Enabled", !0);
           }
         }
@@ -66109,7 +66225,51 @@ void main() {
     fragmentShader,
     depthWrite: !1,
     transparent: !0
-  });
+  }), managedTextures = /* @__PURE__ */ new Map();
+  async function createTexturePromise(url, params) {
+    let image = await API.Generic.LoadImage(url);
+    if (!image) return;
+    let texture = new Texture(image, void 0, void 0, void 0, void 0, void 0, void 0, void 0, void 0, params?.colorSpace || "srgb");
+    return texture.needsUpdate = !0, texture;
+  }
+  __name(createTexturePromise, "createTexturePromise");
+  function createManagedTexture(url, params) {
+    let textureInfo = {
+      texture: void 0,
+      uses: 1
+      //used by texture promise (internal), so we dont try to dispose when it doesnt even exist yet
+    };
+    return textureInfo.texture = new Promise((resolve) => {
+      createTexturePromise(url, params).then((result) => {
+        textureInfo.texture = result, finishManagedTexture(url, params), resolve(result);
+      });
+    }), textureInfo;
+  }
+  __name(createManagedTexture, "createManagedTexture");
+  function getTextureInfoKey(url, params) {
+    return url + JSON.stringify(params);
+  }
+  __name(getTextureInfoKey, "getTextureInfoKey");
+  async function getManagedTexture(url, params) {
+    let key = getTextureInfoKey(url, params), managedTextureInfo = managedTextures.get(key);
+    managedTextureInfo || (managedTextureInfo = createManagedTexture(url, params), managedTextures.set(key, managedTextureInfo)), managedTextureInfo.uses += 1;
+    let disposeTimeout = managedTextureInfo.disposeTimeout;
+    return disposeTimeout && (clearTimeout(disposeTimeout), managedTextureInfo.disposeTimeout = void 0), managedTextureInfo.texture;
+  }
+  __name(getManagedTexture, "getManagedTexture");
+  async function finishManagedTexture(url, params) {
+    let key = getTextureInfoKey(url, params), managedTextureInfo = managedTextures.get(key);
+    if (managedTextureInfo && (managedTextureInfo.uses -= 1, managedTextureInfo.uses <= 0 && !managedTextureInfo.disposeTimeout)) {
+      let disposeTimeout = setTimeout(() => {
+        if (managedTextureInfo.disposeTimeout !== disposeTimeout || managedTextureInfo.uses > 0) return;
+        managedTextures.delete(key);
+        let texture = managedTextureInfo.texture;
+        texture && texture instanceof Texture && texture.dispose();
+      }, 5e3);
+      managedTextureInfo.disposeTimeout = disposeTimeout;
+    }
+  }
+  __name(finishManagedTexture, "finishManagedTexture");
   async function renderBodyPartClothingR15(limbId, texture) {
     let instruction;
     if (limbId !== BodyPart.Torso) {
@@ -66171,11 +66331,17 @@ void main() {
     return canvas.width = mask.width, canvas.height = mask.height, ctx.drawImage(mask, 0, 0, mask.width, mask.height), ctx.globalCompositeOperation = "source-in", ctx.drawImage(image, 0, 0, mask.width, mask.height), canvas;
   }
   __name(fastMask, "fastMask");
-  function imageDataToCanvas(data, width, height) {
+  function imageDataToCanvas(data, width, height, fixAlpha = !1) {
     let offscreenCanvas = new OffscreenCanvas(width, height), offscreenCtx = offscreenCanvas.getContext("2d"), canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
     if (canvas.width = width, canvas.height = height, !ctx || !offscreenCtx)
       throw new Error("Failed to get CanvasContext");
-    let imgData = new ImageData(new Uint8ClampedArray(data.buffer), width, height);
+    let u8Data = new Uint8ClampedArray(data.buffer);
+    if (fixAlpha)
+      for (let i2 = 0; i2 < u8Data.length / 4; i2++) {
+        let r = u8Data[i2 * 4 + 0], g2 = u8Data[i2 * 4 + 1], b3 = u8Data[i2 * 4 + 2], a = u8Data[i2 * 4 + 3], brightness = 0.299 * r + 0.587 * g2 + 0.114 * b3, newA = Math.max(brightness, a) / 255, lerpFactor = 1 - (1 - newA) * (1 - newA) * (1 - newA) * (1 - newA);
+        u8Data[i2 * 4 + 0] = lerp(r / newA, r, lerpFactor), u8Data[i2 * 4 + 1] = lerp(g2 / newA, g2, lerpFactor), u8Data[i2 * 4 + 2] = lerp(b3 / newA, b3, lerpFactor), u8Data[i2 * 4 + 3] = newA * 255;
+      }
+    let imgData = new ImageData(u8Data, width, height);
     return offscreenCtx.putImageData(imgData, 0, 0), ctx.translate(0, height), ctx.scale(1, -1), ctx.drawImage(offscreenCanvas, 0, 0), canvas;
   }
   __name(imageDataToCanvas, "imageDataToCanvas");
@@ -66280,11 +66446,33 @@ void main() {
       }
       return textures;
     }
+    /**Call finishManagedTextures when they are no longer needed */
+    async loadManagedTextures(textureType) {
+      let textures = /* @__PURE__ */ new Map(), promises = [], urls = [];
+      for (let layer of this.layers)
+        if (layer instanceof TextureLayer) {
+          let layerURL = layer[textureType];
+          layerURL && (urls.push(layerURL), promises.push(getManagedTexture(layerURL, { colorSpace: textureType === "color" ? LinearSRGBColorSpace : NoColorSpace })));
+        }
+      let values = await Promise.all(promises);
+      for (let i2 = 0; i2 < values.length; i2++) {
+        let value2 = values[i2], url = urls[i2];
+        value2 && textures.set(url, value2);
+      }
+      return textures;
+    }
+    finishManagedTextures(textureType) {
+      for (let layer of this.layers)
+        if (layer instanceof TextureLayer) {
+          let layerURL = layer[textureType];
+          layerURL && finishManagedTexture(layerURL, { colorSpace: textureType === "color" ? LinearSRGBColorSpace : NoColorSpace });
+        }
+    }
     /**
      * Uses three js rendertargets for composing textures, has issues with transparency due to a bug with three js
      */
     async compileTexture_FullCompose(textureType, meshDesc) {
-      let layerTextures = await this.loadTextures(textureType), width = 2, height = 2, camWidth = 2, camHeight = 2;
+      let layerTextures = await this.loadManagedTextures(textureType), width = 2, height = 2, camWidth = 2, camHeight = 2;
       if (this.avatarType && this.bodyPart !== BodyPart.Head)
         this.avatarType === AvatarType.R15 ? this.bodyPart === BodyPart.Torso ? (width = 388, height = 272, camWidth = 388, camHeight = 272) : (width = 264, camWidth = 264, height = 284, camHeight = 284) : this.avatarType === AvatarType.R6 && (width = 1024, height = 512, camWidth = 1024, camHeight = 512);
       else {
@@ -66293,87 +66481,87 @@ void main() {
           imgWidth = Math.max(imgWidth, img.width), imgHeight = Math.max(imgHeight, img.height);
         width = imgWidth, height = imgHeight, camWidth = imgWidth, camHeight = imgHeight;
       }
-      let composeInsts = [], texturesToDestroy = [], noMipmaps = !1, hasColorLayer = !1;
+      let composeInsts = [], noMipmaps = !1, hasColorLayer = !1;
       this.canHaveMipmaps || (noMipmaps = !0);
       for (let layer of this.layers)
         if (layer instanceof TextureLayer && layer[textureType]) {
-          let layerImage = layerTextures.get(layer[textureType]), layerTexture = new Texture(layerImage);
-          if (layerTexture.colorSpace = textureType === "color" ? LinearSRGBColorSpace : NoColorSpace, layerTexture.needsUpdate = !0, texturesToDestroy.push(layerTexture), layerImage)
-            switch (layer.uvType) {
-              case "Normal":
-                composeInsts.push(await TextureComposer.simpleMesh(
-                  "CompositQuad",
-                  Shader_TextureComposer_FullscreenQuad,
-                  {
-                    uTexture: { value: layerTexture },
-                    uOffset: { value: new Vector2$1(0, 0) },
-                    uSize: { value: new Vector2$1(1, 1) }
-                  }
-                ));
-                break;
-              case "Pants":
-                if (noMipmaps = !0, !this.bodyPart) break;
-                this.avatarType === AvatarType.R15 ? this.bodyPart !== BodyPart.LeftArm && this.bodyPart !== BodyPart.RightArm && composeInsts.push(await renderBodyPartClothingR15(this.bodyPart, layerTexture)) : composeInsts.push(await renderBodyPartClothingR6(layerTexture, "pants"));
-                break;
-              case "Shirt":
-                if (noMipmaps = !0, !this.bodyPart) break;
-                this.avatarType === AvatarType.R15 ? this.bodyPart !== BodyPart.LeftLeg && this.bodyPart !== BodyPart.RightLeg && composeInsts.push(await renderBodyPartClothingR15(this.bodyPart, layerTexture)) : composeInsts.push(await renderBodyPartClothingR6(layerTexture, "shirt"));
-                break;
-              case "TShirt":
-                if (noMipmaps = !0, !this.bodyPart) break;
-                this.avatarType === AvatarType.R15 && this.bodyPart === BodyPart.Torso ? composeInsts.push(await TextureComposer.simpleMesh(
-                  "CompositQuad",
-                  Shader_TextureComposer_FullscreenQuad,
-                  {
-                    uTexture: { value: layerTexture },
-                    uOffset: { value: new Vector2$1(2 / camWidth, 70 / camHeight) },
-                    uSize: { value: new Vector2$1(128 / camWidth, 128 / camHeight) }
-                  }
-                )) : this.avatarType === AvatarType.R6 && composeInsts.push(await renderBodyPartClothingR6(layerTexture, "tshirt"));
-                break;
-              case "Decal":
+          let layerTexture = layerTextures.get(layer[textureType]);
+          if (!layerTexture) continue;
+          switch (layer.uvType) {
+            case "Normal":
+              composeInsts.push(await TextureComposer.simpleMesh(
+                "CompositQuad",
+                Shader_TextureComposer_FullscreenQuad,
                 {
-                  let result = await meshDesc.getMesh();
-                  if (result instanceof FileMesh) {
-                    let size = result.size, geometry = fileMeshToTHREEGeometry(result), threeMesh = new Mesh(geometry, Shader_TextureComposer_Decal), origin = new Vector3$1(0, 0, 0), up = new Vector3$1(0, 1, 0), sizeX = size[0], sizeY = size[1], direction = new Vector3$1(0, 0, -1);
-                    switch (layer.face) {
-                      case NormalId.Front:
-                        sizeX = -size[0], sizeY = size[1], direction = new Vector3$1(0, 0, -1);
-                        break;
-                      case NormalId.Back:
-                        sizeX = -size[0], sizeY = size[1], direction = new Vector3$1(0, 0, 1);
-                        break;
-                      case NormalId.Right:
-                        sizeX = -size[2], sizeY = size[1], direction = new Vector3$1(1, 0, 0);
-                        break;
-                      case NormalId.Left:
-                        sizeX = -size[2], sizeY = size[1], direction = new Vector3$1(-1, 0, 0);
-                        break;
-                      case NormalId.Top:
-                        sizeX = -size[0], sizeY = size[2], direction = new Vector3$1(0, 1, 0);
-                        break;
-                      case NormalId.Bottom:
-                        sizeX = size[0], sizeY = -size[2], direction = new Vector3$1(0, -1, 0);
-                        break;
-                    }
-                    let sizeMatrix = new Matrix4().makeScale(1 / sizeX, 1 / sizeY, 1), translationMatrix = new Matrix4().makeTranslation(sizeX / 2, sizeY / 2, 0), lookAt = new Matrix4().lookAt(origin, direction, up), decalProjMatrix = sizeMatrix.multiply(translationMatrix.multiply(lookAt.invert()));
-                    threeMesh.onBeforeRender = () => {
-                      threeMesh.material.uniforms.uTexture.value = layerTexture, threeMesh.material.uniforms.uTextureProjMat.value = decalProjMatrix, threeMesh.material.uniforms.uDecalNormal.value = direction, threeMesh.material.uniformsNeedUpdate = !0;
-                    }, composeInsts.push(threeMesh);
-                  }
+                  uTexture: { value: layerTexture },
+                  uOffset: { value: new Vector2$1(0, 0) },
+                  uSize: { value: new Vector2$1(1, 1) }
                 }
-                break;
-              default:
-                composeInsts.push(await TextureComposer.simpleMesh(
-                  "CompositQuad",
-                  Shader_TextureComposer_FullscreenQuad,
-                  {
-                    uTexture: { value: layerTexture },
-                    uOffset: { value: new Vector2$1(0, 0) },
-                    uSize: { value: new Vector2$1(1, 1) }
+              ));
+              break;
+            case "Pants":
+              if (noMipmaps = !0, !this.bodyPart) break;
+              this.avatarType === AvatarType.R15 ? this.bodyPart !== BodyPart.LeftArm && this.bodyPart !== BodyPart.RightArm && composeInsts.push(await renderBodyPartClothingR15(this.bodyPart, layerTexture)) : composeInsts.push(await renderBodyPartClothingR6(layerTexture, "pants"));
+              break;
+            case "Shirt":
+              if (noMipmaps = !0, !this.bodyPart) break;
+              this.avatarType === AvatarType.R15 ? this.bodyPart !== BodyPart.LeftLeg && this.bodyPart !== BodyPart.RightLeg && composeInsts.push(await renderBodyPartClothingR15(this.bodyPart, layerTexture)) : composeInsts.push(await renderBodyPartClothingR6(layerTexture, "shirt"));
+              break;
+            case "TShirt":
+              if (noMipmaps = !0, !this.bodyPart) break;
+              this.avatarType === AvatarType.R15 && this.bodyPart === BodyPart.Torso ? composeInsts.push(await TextureComposer.simpleMesh(
+                "CompositQuad",
+                Shader_TextureComposer_FullscreenQuad,
+                {
+                  uTexture: { value: layerTexture },
+                  uOffset: { value: new Vector2$1(2 / camWidth, 70 / camHeight) },
+                  uSize: { value: new Vector2$1(128 / camWidth, 128 / camHeight) }
+                }
+              )) : this.avatarType === AvatarType.R6 && composeInsts.push(await renderBodyPartClothingR6(layerTexture, "tshirt"));
+              break;
+            case "Decal":
+              {
+                let result = await meshDesc.getMesh();
+                if (result instanceof FileMesh) {
+                  let size = result.size, geometry = fileMeshToTHREEGeometry(result), threeMesh = new Mesh(geometry, Shader_TextureComposer_Decal), origin = new Vector3$1(0, 0, 0), up = new Vector3$1(0, 1, 0), sizeX = size[0], sizeY = size[1], direction = new Vector3$1(0, 0, -1);
+                  switch (layer.face) {
+                    case NormalId.Front:
+                      sizeX = -size[0], sizeY = size[1], direction = new Vector3$1(0, 0, -1);
+                      break;
+                    case NormalId.Back:
+                      sizeX = -size[0], sizeY = size[1], direction = new Vector3$1(0, 0, 1);
+                      break;
+                    case NormalId.Right:
+                      sizeX = -size[2], sizeY = size[1], direction = new Vector3$1(1, 0, 0);
+                      break;
+                    case NormalId.Left:
+                      sizeX = -size[2], sizeY = size[1], direction = new Vector3$1(-1, 0, 0);
+                      break;
+                    case NormalId.Top:
+                      sizeX = -size[0], sizeY = size[2], direction = new Vector3$1(0, 1, 0);
+                      break;
+                    case NormalId.Bottom:
+                      sizeX = size[0], sizeY = -size[2], direction = new Vector3$1(0, -1, 0);
+                      break;
                   }
-                )), warn(!1, `Unsupported uvType: ${layer.uvType}, treating as Normal`);
-            }
+                  let sizeMatrix = new Matrix4().makeScale(1 / sizeX, 1 / sizeY, 1), translationMatrix = new Matrix4().makeTranslation(sizeX / 2, sizeY / 2, 0), lookAt = new Matrix4().lookAt(origin, direction, up), decalProjMatrix = sizeMatrix.multiply(translationMatrix.multiply(lookAt.invert()));
+                  threeMesh.onBeforeRender = () => {
+                    threeMesh.material.uniforms.uTexture.value = layerTexture, threeMesh.material.uniforms.uTextureProjMat.value = decalProjMatrix, threeMesh.material.uniforms.uDecalNormal.value = direction, threeMesh.material.uniformsNeedUpdate = !0;
+                  }, composeInsts.push(threeMesh);
+                }
+              }
+              break;
+            default:
+              composeInsts.push(await TextureComposer.simpleMesh(
+                "CompositQuad",
+                Shader_TextureComposer_FullscreenQuad,
+                {
+                  uTexture: { value: layerTexture },
+                  uOffset: { value: new Vector2$1(0, 0) },
+                  uSize: { value: new Vector2$1(1, 1) }
+                }
+              )), warn(!1, `Unsupported uvType: ${layer.uvType}, treating as Normal`);
+          }
         } else if (layer instanceof ColorLayer && textureType === layer.textureType) {
           let color2 = layer.color, colorValue = new Color(color2.R, color2.G, color2.B);
           if (hasColorLayer = !0, this.avatarType === "R15" || this.bodyPart === BodyPart.Head)
@@ -66418,8 +66606,7 @@ void main() {
       for (let inst of composeInsts)
         TextureComposer.add(inst);
       let renderTarget = TextureComposer.render();
-      for (let texture2 of texturesToDestroy)
-        texture2.dispose();
+      this.finishManagedTextures(textureType);
       let lineartexture = renderTarget.texture;
       lineartexture.wrapS = RepeatWrapping, lineartexture.wrapT = RepeatWrapping, lineartexture.needsUpdate = !0;
       let texture = lineartexture;
@@ -67090,8 +67277,12 @@ void main() {
         if (threeMesh instanceof SkinnedMesh && (threeMaterial.skinning = !0, this.isSkinned = !0), threeMesh.material = threeMaterial, threeMesh.receiveShadow = !0, threeMaterial.needsUpdate = !0, this.results = [threeMesh], this.originalScale = threeMesh.scale.clone(), !this.meshDesc.scaleIsRelative)
           threeMesh.scale.set(this.size.X, this.size.Y, this.size.Z);
         else {
-          let oldSize = this.originalScale;
-          threeMesh.scale.set(this.size.X / oldSize.x, this.size.Y / oldSize.y, this.size.Z / oldSize.z);
+          let oldSize = this.originalScale, [sX, sY, sZ] = [
+            specialClamp(this.size.X / oldSize.x, 1e-5, 1e6),
+            specialClamp(this.size.Y / oldSize.y, 1e-5, 1e6),
+            specialClamp(this.size.Z / oldSize.z, 1e-5, 1e6)
+          ];
+          threeMesh.scale.set(sX, sY, sZ);
         }
         SkeletonDesc.descNeedsSkeleton(this.meshDesc) ? this.skeletonDesc = new SkeletonDesc(this, this.meshDesc, scene) : this.meshDesc.fileMesh = void 0, originalResult && this.disposeMeshes(scene, originalResult), originalSkeletonDesc && this.disposeSkeleton(scene, originalSkeletonDesc), originalResult && this.disposeRenderLists(renderer);
       } finally {
@@ -67103,8 +67294,12 @@ void main() {
       if (!this.results)
         return new Vector3(1, 1, 1);
       if (this.meshDesc.scaleIsRelative) {
-        let oldSize = this.originalScale;
-        return new Vector3(this.size.X / oldSize.x, this.size.Y / oldSize.y, this.size.Z / oldSize.z);
+        let oldSize = this.originalScale, [sX, sY, sZ] = [
+          specialClamp(this.size.X / oldSize.x, 1e-5, 1e6),
+          specialClamp(this.size.Y / oldSize.y, 1e-5, 1e6),
+          specialClamp(this.size.Z / oldSize.z, 1e-5, 1e6)
+        ];
+        return new Vector3(sX, sY, sZ);
       } else
         return new Vector3(this.size.X, this.size.Y, this.size.Z);
     }
@@ -67509,10 +67704,13 @@ void main() {
       if (foundMotor6D && foundMotor6D.Prop("Part0") === part0 && foundMotor6D.Prop("Part1") === part1)
         return foundMotor6D;
       {
-        let descendants = this.rig.GetDescendants();
-        for (let child of descendants)
-          if (child.className === "Motor6D" && child.Prop("Part0") === part0 && child.Prop("Part1") === part1)
-            return child;
+        let bodyParts = this.rig.GetChildrenDangerous();
+        for (let bodyPart of bodyParts) {
+          let children = bodyPart.GetChildrenDangerous();
+          for (let child of children)
+            if (child.className === "Motor6D" && child.Prop("Part0") === part0 && child.Prop("Part1") === part1)
+              return child;
+        }
       }
     }
     findPartKeyframeGroup(motorName, motorParentName) {
@@ -69230,1441 +69428,7 @@ void main() {
   }, __vite_glob_0_22 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
     __proto__: null,
     PartWrapper
-  }, Symbol.toStringTag, { value: "Module" })), particle_vertexShader = (
-    /*glsl*/
-    `
-attribute vec3 instanceColor;
-attribute vec3 instanceSeedTime;
-attribute float instanceOpacity;
-attribute vec4 instanceFlipbook;
-
-varying vec2 vUv;
-varying vec3 vInstanceColor;
-varying float vInstanceOpacity;
-varying vec3 vInstanceSeedTime;
-varying vec2 vFlipbookUv0;
-varying vec2 vFlipbookUv1;
-
-uniform float uZOffset;
-
-void main() {
-    vUv = uv;
-    vInstanceColor = instanceColor;
-    vInstanceOpacity = instanceOpacity;
-    vInstanceSeedTime = instanceSeedTime;
-    vFlipbookUv0 = instanceFlipbook.xy;
-    vFlipbookUv1 = instanceFlipbook.zw;
-
-    vec4 modelViewPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-
-    //offset position toward camera
-    vec3 viewDir = normalize(modelViewPosition.xyz);
-    modelViewPosition.xyz += viewDir * -uZOffset;
-
-    gl_Position = projectionMatrix * modelViewPosition;
-}
-`
-  ), particle_fragmentShader = (
-    /*glsl*/
-    `
-//artibutes
-varying vec2 vUv;
-varying vec3 vInstanceColor;
-varying float vInstanceOpacity;
-varying vec3 vInstanceSeedTime;
-varying vec2 vFlipbookUv0;
-varying vec2 vFlipbookUv1;
-
-//textures
-uniform sampler2D uColorMap;
-uniform sampler2D uAlphaMap;
-uniform sampler2D uMap;
-
-//uniforms
-uniform float uLightInfluence;
-uniform float uOpacity;
-uniform vec2 uFlipbookSize;
-
-//light uniforms
-struct DirectionalLight {
-  vec3 direction;
-  vec3 color;
-};
-uniform DirectionalLight directionalLights[NUM_DIR_LIGHTS]; 
-
-uniform vec3 ambientLightColor; 
-
-void main() {
-    float seed = vInstanceSeedTime.x;
-    float time = vInstanceSeedTime.y;
-    float flipbookFrameTime = vInstanceSeedTime.z;
-
-    // Sample the texture using the UV coordinates (for both frames)
-    vec4 texColor0 = texture2D(uMap, vUv * uFlipbookSize + vFlipbookUv0);
-    vec4 texColor1 = texture2D(uMap, vUv * uFlipbookSize + vFlipbookUv1);
-
-    float frameTransition = mod(time, flipbookFrameTime) / flipbookFrameTime;
-    vec4 texColor = texColor0 * (1.0 - frameTransition) + texColor1 * frameTransition;
-
-    vec4 alphaTex = texture2D(uAlphaMap, vec2(time, seed)); 
-    vec4 colorTex = texture2D(uColorMap, vec2(time, seed));
-
-    // Tint texture with our color
-    vec4 tintedColor = texColor * vec4(vInstanceColor, 1.0);
-
-    // Apply opacity to the texture alpha
-    vec4 opacityColor = tintedColor * vec4(1.0, 1.0, 1.0, uOpacity * vInstanceOpacity) * alphaTex.r;
-
-    //#ADDITIVE_INSERT
-
-    // Apply that weird color things sparkles have
-    vec4 finalColor = opacityColor;
-    finalColor.rgb = mix(opacityColor.rgb, opacityColor.rgb * colorTex.rgb, colorTex.a);
-
-    // Apply lighting
-    vec3 light = ambientLightColor;
-    #if NUM_DIR_LIGHTS > 0
-        for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
-            light += directionalLights[i].color;
-        }
-    #endif
-
-    finalColor = vec4(mix(finalColor.rgb, finalColor.rgb * light, uLightInfluence), finalColor.a);
-
-    gl_FragColor = finalColor;
-}
-`
-  ), particle_fragmentShader_additive = particle_fragmentShader.replace(
-    "//#ADDITIVE_INSERT",
-    /*glsl*/
-    `
-if (opacityColor.r + opacityColor.g + opacityColor.b <= 0.05) {
-    discard;
-}`
-  );
-  function randomBetween(min, max2) {
-    return Math.random() * (max2 - min) + min;
-  }
-  __name(randomBetween, "randomBetween");
-  function velocityFromSpread(speed, spread) {
-    let theta = spread.X, phi = spread.Y;
-    return new Vector3(
-      -speed * Math.sin(phi),
-      -speed * Math.cos(phi) * Math.sin(theta),
-      -speed * Math.cos(phi) * Math.cos(theta)
-    );
-  }
-  __name(velocityFromSpread, "velocityFromSpread");
-  var Particle = class {
-    static {
-      __name(this, "Particle");
-    }
-    lifetime;
-    time = 0;
-    position;
-    rotation;
-    velocity;
-    rotationSpeed;
-    seed = Math.random();
-    constructor(lifetime, position, rotation, velocity, rotationSpeed) {
-      this.lifetime = lifetime, this.position = position, this.rotation = rotation, this.velocity = velocity, this.rotationSpeed = rotationSpeed;
-    }
-    get intSeed() {
-      return Math.floor(this.seed * 1e6);
-    }
-    camDistance(renderScene) {
-      let cameraPos = new Vector3(...renderScene.camera.position.toArray()), particlePos = this.position;
-      return cameraPos.minus(particlePos).magnitude();
-    }
-    getMatrix(renderScene, size, orientation, squash) {
-      let camera = renderScene.camera, particlePos = new Vector3$1(...this.position.toVec3()), translation = new Matrix4().makeTranslation(particlePos), sizeX = squash > 0 ? size / (1 + squash) : size * (1 - squash), sizeY = squash > 0 ? size * (1 + squash) : size / (1 - squash), scale = new Matrix4().makeScale(sizeX, sizeY, 1);
-      switch (orientation) {
-        case ParticleOrientation.FacingCameraWorldUp: {
-          let cameraLookVector = new Vector3$1();
-          camera.getWorldDirection(cameraLookVector);
-          let rotationParticlePosMatrix = new Matrix4().lookAt(new Vector3$1(0, 0, 0), new Vector3$1(0, 1, 0), cameraLookVector), _pos = new Vector3$1(), _scale = new Vector3$1(), rotationQuat = new Quaternion();
-          rotationParticlePosMatrix.decompose(_pos, rotationQuat, _scale);
-          let rotation = new Matrix4().makeRotationFromQuaternion(rotationQuat), flatRotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 0, 1), rad(this.rotation)), offsetRotation = new Matrix4().makeRotationAxis(new Vector3$1(1, 0, 0), rad(-90)), offset2Rotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 1, 0), rad(180));
-          return translation.multiply(rotation).multiply(offsetRotation).multiply(offset2Rotation).multiply(flatRotation).multiply(scale);
-        }
-        case ParticleOrientation.VelocityPerpendicular: {
-          let normalizedVelocity = new Vector3$1(...this.velocity.normalize().toVec3()), rotationParticlePosMatrix = new Matrix4().lookAt(new Vector3$1(0, 0, 0), normalizedVelocity, new Vector3$1(0, 1, 0)), _pos = new Vector3$1(), _scale = new Vector3$1(), rotationQuat = new Quaternion();
-          rotationParticlePosMatrix.decompose(_pos, rotationQuat, _scale);
-          let rotation = new Matrix4().makeRotationFromQuaternion(rotationQuat), flatRotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 0, 1), rad(this.rotation));
-          return translation.multiply(rotation).multiply(flatRotation).multiply(scale);
-        }
-        case ParticleOrientation.VelocityParallel: {
-          let toCamera = new Vector3$1(0, 0, -1).applyQuaternion(camera.quaternion), vY = new Vector3$1(...this.velocity.toVec3()).normalize(), vX = new Vector3$1().crossVectors(toCamera.normalize(), vY).normalize(), vZ = new Vector3$1().crossVectors(vX, vY).normalize(), rotation = new Matrix4().set(
-            vX.x,
-            vY.x,
-            vZ.x,
-            0,
-            vX.y,
-            vY.y,
-            vZ.y,
-            0,
-            vX.z,
-            vY.z,
-            vZ.z,
-            0,
-            0,
-            0,
-            0,
-            1
-          ), flatRotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 0, 1), rad(this.rotation + 90));
-          return translation.multiply(rotation).multiply(flatRotation).multiply(scale);
-        }
-        case ParticleOrientation.FacingCamera:
-        default: {
-          let rotation = new Matrix4().makeRotationFromQuaternion(camera.quaternion), flatRotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 0, 1), rad(this.rotation));
-          return translation.multiply(rotation).multiply(flatRotation).multiply(scale);
-        }
-      }
-    }
-    getFlipbookIndex(total, isNext, framerate, mode, startRandom) {
-      let randomVal = new RNG(this.intSeed + 324).nextFloat(), offset = startRandom ? mathRandom(0, total - 1, randomVal) : 0;
-      switch (mode) {
-        case ParticleFlipbookMode.Loop:
-          offset += Math.floor(this.time * framerate);
-          break;
-        case ParticleFlipbookMode.OneShot:
-          offset += Math.round(this.time * total);
-          break;
-        case ParticleFlipbookMode.PingPong:
-          offset += Math.floor(this.time * framerate);
-          break;
-        case ParticleFlipbookMode.Random:
-          offset += mathRandom(0, total - 1, new RNG(this.intSeed + 334 + Math.floor(this.time * framerate)).nextFloat());
-          break;
-      }
-      return isNext && (offset += 1), offset >= total && (mode !== ParticleFlipbookMode.OneShot ? offset %= total : offset = total - 1), offset;
-    }
-    tick(dt, drag, acceleration) {
-      this.time += specialClamp(dt, 0, this.lifetime), this.position = this.position.add(this.velocity.multiply(new Vector3(dt, dt, dt)));
-      let accMult = 0.5 * Math.pow(dt, 2);
-      this.position = this.position.add(acceleration.multiply(new Vector3(accMult, accMult, accMult))), this.velocity = this.velocity.add(acceleration.multiply(new Vector3(dt, dt, dt)));
-      let dragVal = Math.pow(2, -drag * dt);
-      this.velocity = this.velocity.multiply(new Vector3(dragVal, dragVal, dragVal)), this.rotation += this.rotationSpeed * dt;
-    }
-  }, EmitterDesc = class extends DisposableDesc {
-    static {
-      __name(this, "EmitterDesc");
-    }
-    passedTime = 0;
-    lockedToPart = !1;
-    lifetime = new NumberRange(1, 1);
-    spreadAngle = new Vector2(0, 0);
-    speed = new NumberRange(1, 1);
-    rotation = new NumberRange(0, 0);
-    rotationSpeed = new NumberRange(0, 0);
-    localAcceleration = new Vector3(0, 0, 0);
-    acceleration = new Vector3(0, 0, 0);
-    drag = 0;
-    timeScale = 1;
-    orientation = ParticleOrientation.FacingCamera;
-    zOffset = 0;
-    offset = new Vector3();
-    shapeInOut = 0;
-    opacity = 1;
-    lightEmission = 1;
-    lightInfluence = 0;
-    blending = AdditiveBlending;
-    color = new ColorSequence();
-    size = new NumberSequence();
-    squash = new NumberSequence([new NumberSequenceKeypoint(0, 0, 0)]);
-    transparency = new NumberSequence([new NumberSequenceKeypoint(0, 0, 0)]);
-    normalizeSizeKeypointTime = !0;
-    flipbookLayout = ParticleFlipbookLayout.None;
-    flipbookBlendFrames = !0;
-    flipbookFramerate = new NumberRange(1, 1);
-    flipbookMode = ParticleFlipbookMode.Loop;
-    flipbookSizeX = 1;
-    flipbookSizeY = 1;
-    flipbookStartRandom = !1;
-    //requires recompilation
-    rate = 10;
-    colorTexture;
-    alphaTexture;
-    texture;
-    //results
-    instanceOpacityBuffer;
-    instanceColorBuffer;
-    instanceSeedTimeBuffer;
-    instanceFlipbookBuffer;
-    result;
-    resultMaterial;
-    particles = [];
-    initialParticleCount = 0;
-    get maxCount() {
-      let calculatedMax = Math.max(Math.ceil(this.lifetime.Max * this.rate) * 2, 1);
-      return this.initialParticleCount + calculatedMax;
-    }
-    needsRegeneration(newDesc) {
-      return this.texture === newDesc.texture && this.alphaTexture === newDesc.alphaTexture && this.colorTexture === newDesc.colorTexture && this.rate === newDesc.rate;
-    }
-    isSame(newDesc) {
-      return !this.needsRegeneration(newDesc) && this.lockedToPart === newDesc.lockedToPart && this.lifetime.isSame(newDesc.lifetime) && this.spreadAngle.isSame(newDesc.spreadAngle) && this.speed.isSame(newDesc.speed) && this.rotation.isSame(newDesc.rotation) && this.rotationSpeed.isSame(newDesc.rotationSpeed) && this.localAcceleration.isSame(newDesc.localAcceleration) && this.acceleration.isSame(newDesc.acceleration) && this.drag === newDesc.drag && this.timeScale === newDesc.timeScale && this.orientation === newDesc.orientation && this.zOffset === newDesc.zOffset && this.offset.isSame(newDesc.offset) && this.shapeInOut === newDesc.shapeInOut && this.opacity === newDesc.opacity && this.lightEmission === newDesc.lightEmission && this.lightInfluence === newDesc.lightInfluence && this.blending === newDesc.blending && this.color.isSame(newDesc.color) && this.size.isSame(newDesc.size) && this.squash.isSame(newDesc.squash) && this.transparency.isSame(newDesc.transparency) && this.normalizeSizeKeypointTime === newDesc.normalizeSizeKeypointTime && this.flipbookLayout === newDesc.flipbookLayout && this.flipbookBlendFrames === newDesc.flipbookBlendFrames && this.flipbookFramerate.isSame(newDesc.flipbookFramerate) && this.flipbookMode === newDesc.flipbookMode && this.flipbookSizeX === newDesc.flipbookSizeX && this.flipbookSizeY === newDesc.flipbookSizeY && this.flipbookStartRandom === newDesc.flipbookStartRandom;
-    }
-    fromEmitterDesc(other) {
-      this.lockedToPart = other.lockedToPart, this.lifetime = other.lifetime.clone(), this.rate = other.rate, this.spreadAngle = other.spreadAngle.clone(), this.speed = other.speed.clone(), this.rotation = other.rotation.clone(), this.rotationSpeed = other.rotationSpeed.clone(), this.localAcceleration = other.localAcceleration.clone(), this.acceleration = other.acceleration.clone(), this.drag = other.drag, this.timeScale = other.timeScale, this.orientation = other.orientation, this.zOffset = other.zOffset, this.offset = other.offset.clone(), this.shapeInOut = other.shapeInOut, this.opacity = other.opacity, this.lightEmission = other.lightEmission, this.lightInfluence = other.lightInfluence, this.blending = other.blending, this.color = other.color.clone(), this.size = other.size.clone(), this.squash = other.squash.clone(), this.transparency = other.transparency.clone(), this.normalizeSizeKeypointTime = other.normalizeSizeKeypointTime, this.flipbookLayout = other.flipbookLayout, this.flipbookBlendFrames = other.flipbookBlendFrames, this.flipbookFramerate = other.flipbookFramerate.clone(), this.flipbookMode = other.flipbookMode, this.flipbookSizeX = other.flipbookSizeX, this.flipbookSizeY = other.flipbookSizeY, this.flipbookStartRandom = other.flipbookStartRandom;
-    }
-    dispose(renderer, scene) {
-      let mesh = this.result;
-      mesh && (this.disposeMesh(scene, mesh), this.disposeRenderLists(renderer));
-    }
-    getFlipbookSize() {
-      let flipbookSizeX = this.flipbookSizeX, flipbookSizeY = this.flipbookSizeY;
-      switch (this.flipbookLayout) {
-        case ParticleFlipbookLayout.None:
-          flipbookSizeX = 1, flipbookSizeY = 1;
-          break;
-        case ParticleFlipbookLayout.Grid2x2:
-          flipbookSizeX = 2, flipbookSizeY = 2;
-          break;
-        case ParticleFlipbookLayout.Grid4x4:
-          flipbookSizeX = 4, flipbookSizeY = 4;
-          break;
-        case ParticleFlipbookLayout.Grid8x8:
-          flipbookSizeX = 8, flipbookSizeY = 8;
-          break;
-        case ParticleFlipbookLayout.Custom:
-          break;
-      }
-      return [flipbookSizeX, flipbookSizeY];
-    }
-    async compileResult(renderer, scene) {
-      let originalResult = this.result, texturePromises = [
-        getTexture(this.texture),
-        getTexture(this.alphaTexture, NoColorSpace),
-        getTexture(this.colorTexture)
-      ], [mapToUse, alphaMapToUse, colorMapToUse] = await Promise.all(texturePromises);
-      mapToUse || (mapToUse = new DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1, RGBAFormat), mapToUse.needsUpdate = !0), alphaMapToUse || (alphaMapToUse = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, RGBAFormat), alphaMapToUse.needsUpdate = !0), colorMapToUse || (colorMapToUse = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, RGBAFormat), colorMapToUse.needsUpdate = !0);
-      let geometry = new PlaneGeometry(2, 2);
-      this.instanceColorBuffer = new InstancedBufferAttribute(new Float32Array(this.maxCount * 3), 3), geometry.setAttribute("instanceColor", this.instanceColorBuffer), this.instanceOpacityBuffer = new InstancedBufferAttribute(new Float32Array(this.maxCount), 1), geometry.setAttribute("instanceOpacity", this.instanceOpacityBuffer), this.instanceSeedTimeBuffer = new InstancedBufferAttribute(new Float32Array(this.maxCount * 3), 3), geometry.setAttribute("instanceSeedTime", this.instanceSeedTimeBuffer), this.instanceFlipbookBuffer = new InstancedBufferAttribute(new Float32Array(this.maxCount * 4), 4), geometry.setAttribute("instanceFlipbook", this.instanceFlipbookBuffer);
-      let [flipbookSizeX, flipbookSizeY] = this.getFlipbookSize(), material = new ShaderMaterial({
-        transparent: !0,
-        depthWrite: !1,
-        side: DoubleSide,
-        blending: this.blending,
-        opacity: this.opacity,
-        lights: !0,
-        vertexShader: particle_vertexShader,
-        fragmentShader: this.blending === AdditiveBlending ? particle_fragmentShader_additive : particle_fragmentShader,
-        uniforms: UniformsUtils.merge([
-          UniformsLib.lights,
-          {
-            uMap: { value: mapToUse },
-            uAlphaMap: { value: alphaMapToUse },
-            uColorMap: { value: colorMapToUse },
-            uLightInfluence: { value: this.lightInfluence },
-            uOpacity: { value: this.opacity },
-            uZOffset: { value: this.zOffset },
-            uFlipbookSize: { value: new Vector2$1(1 / flipbookSizeX, 1 / flipbookSizeY) }
-          }
-        ])
-      });
-      return this.resultMaterial = material, this.result = new InstancedMesh(geometry, material, this.maxCount), this.result.name = "Particles", this.result.frustumCulled = !1, originalResult && (this.disposeMesh(scene, originalResult), this.disposeRenderLists(renderer)), this.result;
-    }
-    emit(groupDesc, force = !1) {
-      if (this.particles.length >= this.maxCount || groupDesc.enabled === !1 && !force)
-        return;
-      let speed = randomBetween(this.speed.Min, this.speed.Max), spreadX = rad((Math.random() - 0.5) * 2 * Math.abs(this.spreadAngle.X)), spreadY = rad((Math.random() - 0.5) * 2 * Math.abs(this.spreadAngle.Y)), spread = new Vector2(spreadX, spreadY), velocityMultiplierScalar = 1;
-      this.shapeInOut === ParticleEmitterShapeInOut.Inward ? velocityMultiplierScalar = -1 : this.shapeInOut === ParticleEmitterShapeInOut.InAndOut && (velocityMultiplierScalar = Math.random() > 0.5 ? 1 : -1);
-      let velocityMultiplier = new Vector3$1(velocityMultiplierScalar, velocityMultiplierScalar, velocityMultiplierScalar), velocityFront = velocityFromSpread(speed, spread), worldVelocity = new Vector3$1(...velocityFront.toVec3()).multiply(velocityMultiplier).applyQuaternion(groupDesc.getNormalQuaternionForVelocity()).applyQuaternion(new Quaternion().setFromRotationMatrix(groupDesc.cframe.getTHREEMatrix())), worldVelocityRoblox = new Vector3(...worldVelocity.toArray()).add(groupDesc.parentVelocity), localPos = groupDesc.getRandomLocalPos();
-      localPos = localPos.add(this.offset);
-      let worldPos = groupDesc.toWorldSpace(localPos), particle = new Particle(
-        randomBetween(this.lifetime.Min, this.lifetime.Max),
-        worldPos,
-        randomBetween(this.rotation.Min, this.rotation.Max),
-        worldVelocityRoblox,
-        randomBetween(this.rotationSpeed.Min, this.rotationSpeed.Max)
-      );
-      this.particles.push(particle);
-    }
-    vectorLocalToWorld(pivot, vector) {
-      let localVectorCF = new CFrame(...vector.toVec3()), rotatedWorldCF = pivot.clone();
-      rotatedWorldCF.Position = [0, 0, 0];
-      let localVectorToWorldCF = rotatedWorldCF.multiply(localVectorCF);
-      return new Vector3(...localVectorToWorldCF.Position);
-    }
-    tick(dt, groupDesc) {
-      if (this.passedTime += dt * this.timeScale, this.lockedToPart)
-        for (let particle of this.particles) {
-          let particleCF = new CFrame(...particle.position.toVec3()), localParticleCF = groupDesc.lastCframe.inverse().multiply(particleCF), newParticleCF = groupDesc.cframe.multiply(localParticleCF), newParticleCFOnlyOrientation = newParticleCF.clone();
-          newParticleCFOnlyOrientation.Position = [0, 0, 0], particle.position = new Vector3(...newParticleCF.Position), particle.velocity = new Vector3(...newParticleCFOnlyOrientation.multiply(new CFrame(...particle.velocity.toVec3())).Position);
-        }
-      for (let particle of this.particles) {
-        let acceleration = this.lockedToPart ? new Vector3(0, 0, 0) : this.acceleration, localAccelerationToWorld = this.vectorLocalToWorld(groupDesc.cframe, this.localAcceleration);
-        this.lockedToPart && (localAccelerationToWorld = localAccelerationToWorld.add(this.vectorLocalToWorld(groupDesc.cframe, this.acceleration))), particle.tick(dt * this.timeScale, this.drag, acceleration.add(localAccelerationToWorld));
-      }
-      for (let i2 = this.particles.length - 1; i2 >= 0; i2--) {
-        let particle = this.particles[i2];
-        particle.time >= particle.lifetime && this.particles.splice(i2, 1);
-      }
-      for (this.passedTime = specialClamp(this.passedTime, 0, 5); this.passedTime >= 1 / this.rate; )
-        this.emit(groupDesc), this.passedTime -= 1 / this.rate;
-    }
-    updateResult(renderScene) {
-      if (!this.result || !this.instanceColorBuffer || !this.instanceOpacityBuffer || !this.instanceSeedTimeBuffer || !this.instanceFlipbookBuffer) return;
-      this.result.count = this.particles.length;
-      let [flipbookSizeX, flipbookSizeY] = this.getFlipbookSize(), flipbookTotal = flipbookSizeX * flipbookSizeY;
-      this.resultMaterial && (this.resultMaterial.uniforms.uOpacity.value = this.opacity, this.resultMaterial.uniforms.uZOffset.value = this.zOffset, this.resultMaterial.uniforms.uLightInfluence.value = this.lightInfluence, this.resultMaterial.uniforms.uFlipbookSize.value.set(1 / flipbookSizeX, 1 / flipbookSizeY), this.resultMaterial.needsUpdate = !0);
-      for (let i2 = 0; i2 < this.result.count; i2++) {
-        let particle = this.particles[i2], time2 = particle.time, normalizedTime = particle.time / particle.lifetime, color2 = this.color.getValue(normalizedTime), size = this.size.getValue(this.normalizeSizeKeypointTime ? normalizedTime : time2, particle.seed + 0), squash = this.squash.getValue(this.normalizeSizeKeypointTime ? normalizedTime : time2, particle.seed + 2), opacity = 1 - this.transparency.getValue(normalizedTime, particle.seed + 1), flipbookFramerate = mathRandom(this.flipbookFramerate.Min, this.flipbookFramerate.Max, new RNG(particle.seed + 67).nextFloat()), flipbookFrameTime = this.flipbookMode === ParticleFlipbookMode.OneShot ? particle.lifetime / flipbookTotal : 1 / flipbookFramerate;
-        this.flipbookBlendFrames || (flipbookFrameTime = 1e6), this.result.setMatrixAt(i2, particle.getMatrix(renderScene, size, this.orientation, squash)), this.instanceColorBuffer.setXYZ(i2, color2.R, color2.G, color2.B), this.instanceOpacityBuffer.setX(i2, opacity), this.instanceSeedTimeBuffer.setXYZ(i2, particle.seed, normalizedTime, flipbookFrameTime);
-        let flipbookFrame0 = particle.getFlipbookIndex(flipbookTotal, !1, flipbookFramerate, this.flipbookMode, this.flipbookStartRandom), flipbookFrame1 = this.flipbookBlendFrames ? particle.getFlipbookIndex(flipbookTotal, !0, flipbookFramerate, this.flipbookMode, this.flipbookStartRandom) : flipbookFrame0, column0 = flipbookFrame0 % flipbookSizeX, row0 = Math.floor(flipbookFrame0 / flipbookSizeX), column1 = flipbookFrame1 % flipbookSizeX, row1 = Math.floor(flipbookFrame1 / flipbookSizeX), u0 = column0 * 1 / flipbookSizeX, v0 = (flipbookSizeY - 1 - row0) * 1 / flipbookSizeY, u1 = column1 * 1 / flipbookSizeX, v1 = (flipbookSizeY - 1 - row1) * 1 / flipbookSizeY;
-        this.instanceFlipbookBuffer.setXYZW(i2, u0, v0, u1, v1);
-      }
-      this.result.instanceMatrix.needsUpdate = !0, this.instanceColorBuffer.needsUpdate = !0, this.instanceOpacityBuffer.needsUpdate = !0, this.instanceSeedTimeBuffer.needsUpdate = !0, this.instanceFlipbookBuffer.needsUpdate = !0;
-    }
-  }, EmitterGroupDesc = class extends RenderDesc {
-    static {
-      __name(this, "EmitterGroupDesc");
-    }
-    static classTypes = ["ParticleEmitter", "Sparkles", "Fire", "Smoke"];
-    lastTime = Date.now() / 1e3;
-    time = Date.now() / 1e3;
-    enabled = !0;
-    lowerBound = new Vector3(0, 0, 0);
-    higherBound = new Vector3(0, 0, 0);
-    lastCframe = new CFrame();
-    cframe = new CFrame();
-    emitterDir = NormalId.Top;
-    parentVelocity = new Vector3();
-    emitterDescs = [];
-    //special for emitter group
-    getRandomLocalPos() {
-      let totalSize = this.higherBound.minus(this.lowerBound), x3 = Math.random() * totalSize.X + this.lowerBound.X, y2 = Math.random() * totalSize.Y + this.lowerBound.Y, z2 = Math.random() * totalSize.Z + this.lowerBound.Z;
-      return new Vector3(x3, y2, z2);
-    }
-    toWorldSpace(vec) {
-      let vecAsCF = new CFrame(...vec.toVec3());
-      return new Vector3().fromVec3(this.cframe.multiply(vecAsCF).Position);
-    }
-    getRandomWorldPos() {
-      return this.toWorldSpace(this.getRandomLocalPos());
-    }
-    getNormalQuaternionForVelocity() {
-      switch (this.emitterDir) {
-        case NormalId.Right:
-          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(1, 0, 0));
-        case NormalId.Top:
-          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(0, 1, 0));
-        case NormalId.Back:
-          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(0, 0, 1));
-        case NormalId.Left:
-          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(-1, 0, 0));
-        case NormalId.Bottom:
-          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(0, -1, 0));
-        case NormalId.Front:
-        default:
-          return new Quaternion();
-      }
-    }
-    createEmitter(config) {
-      let emitter = new EmitterDesc();
-      return Object.assign(emitter, config), emitter;
-    }
-    //inherited from RenderDesc
-    isSame(newDesc) {
-      return this.needsRegeneration(newDesc) ? !1 : this.time === newDesc.time;
-    }
-    needsRegeneration(newDesc) {
-      if (this.emitterDescs.length !== newDesc.emitterDescs.length)
-        return !0;
-      for (let i2 = 0; i2 < this.emitterDescs.length; i2++)
-        if (!this.emitterDescs[i2].needsRegeneration(newDesc.emitterDescs[i2]))
-          return !0;
-      return !1;
-    }
-    virtualFromRenderDesc(other) {
-      this.time = other.time, this.cframe = other.cframe, this.lowerBound = other.lowerBound, this.higherBound = other.higherBound, this.emitterDir = other.emitterDir, this.enabled = other.enabled;
-      for (let i2 = 0; i2 < this.emitterDescs.length; i2++)
-        this.emitterDescs[i2].fromEmitterDesc(other.emitterDescs[i2]);
-    }
-    virtualTransferFrom(other) {
-      if (this.emitterDescs.length === other.emitterDescs.length)
-        for (let i2 = 0; i2 < this.emitterDescs.length; i2++)
-          this.emitterDescs[i2].particles = other.emitterDescs[i2].particles, this.emitterDescs[i2].initialParticleCount = this.emitterDescs[i2].particles.length;
-    }
-    fromInstance(child) {
-      this.instance = child;
-      let parent = child.parent;
-      if (parent) {
-        if (parent.className === "Attachment") {
-          let attachmentW = new AttachmentWrapper(parent);
-          this.cframe = attachmentW.getWorldCFrame();
-        } else
-          this.cframe = parent.PropOrDefault("CFrame", this.cframe).clone();
-        if (this.lastCframe = this.cframe, parent.HasProperty("Size") || parent.HasProperty("size")) {
-          let size = parent.Prop("Size");
-          this.higherBound = size.multiply(new Vector3(0.5, 0.5, 0.5)), this.lowerBound = size.multiply(new Vector3(-0.5, -0.5, -0.5));
-        }
-        let lastParent = parent;
-        for (; lastParent; ) {
-          if (lastParent.IsA("BasePart")) {
-            let assembly = lastParent.w.GetAssembly();
-            this.parentVelocity = assembly.linearVelocity.clone();
-            break;
-          }
-          lastParent = lastParent.parent;
-        }
-      }
-      switch (this.enabled = child.PropOrDefault("Enabled", !0), child.className) {
-        case "ParticleEmitter":
-          this.fromParticleEmitter(child);
-          break;
-        case "Sparkles":
-          this.fromSparkles(child);
-          break;
-        case "Fire":
-          this.fromFire(child);
-          break;
-        case "Smoke":
-          this.fromSmoke(child);
-          break;
-      }
-    }
-    fromParticleEmitter(child) {
-      this.emitterDir = child.Prop("EmissionDirection");
-      let emitterDesc = new EmitterDesc();
-      child.HasProperty("Lifetime") && (emitterDesc.lifetime = child.Prop("Lifetime")), child.HasProperty("Rate") && (emitterDesc.rate = child.Prop("Rate")), child.HasProperty("SpreadAngle") && (emitterDesc.spreadAngle = child.Prop("SpreadAngle")), child.HasProperty("ShapeInOut") && (emitterDesc.shapeInOut = child.Prop("ShapeInOut")), child.HasProperty("Speed") && (emitterDesc.speed = child.Prop("Speed")), child.HasProperty("Rotation") && (emitterDesc.rotation = child.Prop("Rotation")), child.HasProperty("RotSpeed") && (emitterDesc.rotationSpeed = child.Prop("RotSpeed")), child.HasProperty("Acceleration") && (emitterDesc.acceleration = child.Prop("Acceleration")), child.HasProperty("Drag") && (emitterDesc.drag = child.Prop("Drag")), child.HasProperty("TimeScale") && (emitterDesc.timeScale = child.Prop("TimeScale")), child.HasProperty("Size") && (emitterDesc.size = child.Prop("Size")), child.HasProperty("Squash") && (emitterDesc.squash = child.Prop("Squash")), child.HasProperty("Color") && (emitterDesc.color = child.Prop("Color")), child.HasProperty("Texture") && (emitterDesc.texture = child.Prop("Texture")), child.HasProperty("Transparency") && (emitterDesc.transparency = child.Prop("Transparency")), child.HasProperty("LightEmission") && (emitterDesc.lightEmission = child.Prop("LightEmission")), emitterDesc.blending = emitterDesc.lightEmission === 0 ? NormalBlending : AdditiveBlending, child.HasProperty("LightInfluence") && (emitterDesc.lightInfluence = child.Prop("LightInfluence")), child.HasProperty("ZOffset") && (emitterDesc.zOffset = child.Prop("ZOffset")), child.HasProperty("Orientation") && (emitterDesc.orientation = child.Prop("Orientation")), child.HasProperty("LockedToPart") && (emitterDesc.lockedToPart = child.Prop("LockedToPart")), emitterDesc.flipbookLayout = child.PropOrDefault("FlipbookLayout", emitterDesc.flipbookLayout), emitterDesc.flipbookBlendFrames = child.PropOrDefault("FlipbookBlendFrames", emitterDesc.flipbookBlendFrames), emitterDesc.flipbookFramerate = child.PropOrDefault("FlipbookFramerate", emitterDesc.flipbookFramerate), emitterDesc.flipbookMode = child.PropOrDefault("FlipbookMode", emitterDesc.flipbookMode), emitterDesc.flipbookSizeX = child.PropOrDefault("FlipbookSizeX", emitterDesc.flipbookSizeX), emitterDesc.flipbookSizeY = child.PropOrDefault("FlipbookSizeY", emitterDesc.flipbookSizeY), emitterDesc.flipbookStartRandom = child.PropOrDefault("FlipbookStartRandom", emitterDesc.flipbookStartRandom), this.emitterDescs.push(emitterDesc);
-    }
-    fromSparkles(child) {
-      this.lowerBound = new Vector3(-0.2, -0.2, -0.2), this.higherBound = new Vector3(0.2, 0.2, 0.2);
-      let color2 = child.PropOrDefault("SparkleColor", new Color3(144 / 255, 25 / 255, 255 / 255));
-      this.emitterDescs.push(this.createEmitter({
-        texture: "rbxasset://textures/particles/sparkles_main.dds",
-        alphaTexture: "rbxasset://textures/particles/common_alpha.dds",
-        colorTexture: "rbxasset://textures/particles/sparkles_color.dds",
-        drag: 0.2,
-        size: new NumberSequence([new NumberSequenceKeypoint(0, 0.37, 0), new NumberSequenceKeypoint(1, 0.37 + 0.65, 0)]),
-        speed: new NumberRange(5, 5),
-        rotation: new NumberRange(-90, 90),
-        rotationSpeed: new NumberRange(40, 100),
-        spreadAngle: new Vector2(100, 100),
-        rate: 30,
-        lifetime: new NumberRange(1.3, 1.3),
-        timeScale: child.PropOrDefault("TimeScale", 1),
-        color: ColorSequence.fromColor(color2)
-      })), this.emitterDescs.push(this.createEmitter({
-        texture: "rbxasset://textures/particles/sparkles_main.dds",
-        alphaTexture: "rbxasset://textures/particles/common_alpha.dds",
-        drag: 2,
-        size: new NumberSequence([new NumberSequenceKeypoint(0, 0.1, 0), new NumberSequenceKeypoint(1, 0.1 + 0.34, 0)]),
-        speed: new NumberRange(8, 8),
-        rotation: new NumberRange(-90, 90),
-        rotationSpeed: new NumberRange(-500, 500),
-        spreadAngle: new Vector2(150, 150),
-        rate: 5,
-        lifetime: new NumberRange(1.7, 1.7),
-        timeScale: child.PropOrDefault("TimeScale", 1),
-        color: ColorSequence.fromColor(color2),
-        offset: new Vector3(0, 4, 0)
-      }));
-    }
-    fromFire(child) {
-      let size = child.PropOrDefault("size_xml", 3) / 3.5, boundSize = size / 8, heat = child.PropOrDefault("heat_xml", 5), timeScale = child.PropOrDefault("TimeScale", 1), color2 = child.PropOrDefault("Color", new Color3(236 / 255, 139 / 255, 70 / 255)), secondaryColor = child.PropOrDefault("SecondaryColor", new Color3(106 / 255, 44 / 255, 13 / 255));
-      this.lowerBound = new Vector3(-boundSize, -boundSize, -boundSize), this.higherBound = new Vector3(boundSize, boundSize, boundSize);
-      let strongColor = color2.clone();
-      strongColor.R *= 4, strongColor.G *= 4, strongColor.B *= 4, this.emitterDescs.push(this.createEmitter({
-        texture: "rbxasset://textures/particles/fire_main.dds",
-        alphaTexture: "rbxasset://textures/particles/fire_alpha.dds",
-        drag: 0.4,
-        localAcceleration: new Vector3(0, 0.5 * (1 * size * size / 4 + 0.7 * heat), 0),
-        rotation: new NumberRange(-90, 90),
-        size: new NumberSequence([new NumberSequenceKeypoint(0, 1.1 * size, 0), new NumberSequenceKeypoint(2, Math.max(1.1 * size - 0.8 * size * 2, 0), 0)]),
-        speed: new NumberRange(0.4 * (0.2 * size * size + 0.2 * heat), 0.4 * (0.2 * size * size + 0.2 * heat)),
-        rotationSpeed: new NumberRange(100, 100),
-        spreadAngle: new Vector2(10, 10),
-        rate: 65,
-        lifetime: new NumberRange(1, 2),
-        normalizeSizeKeypointTime: !1,
-        timeScale,
-        color: ColorSequence.fromColor(strongColor)
-      }));
-      let sparkSize = size * 0.2;
-      this.emitterDescs.push(this.createEmitter({
-        texture: "rbxasset://textures/particles/fire_main.dds",
-        alphaTexture: "rbxasset://textures/particles/common_alpha.dds",
-        colorTexture: "rbxasset://textures/particles/fire_sparks_color.dds",
-        drag: 0.4,
-        localAcceleration: new Vector3(0, 0.5 * (1 * size * size / 4 + 0.7 * heat), 0),
-        rotation: new NumberRange(-90, 90),
-        size: new NumberSequence([new NumberSequenceKeypoint(0, 1.1 * sparkSize, 0), new NumberSequenceKeypoint(3, Math.max(1.1 * sparkSize - -sparkSize / 3 * 3, 0), 0)]),
-        speed: new NumberRange(0.4 * (0.2 * size * size + 0.2 * heat), 0.4 * (0.2 * size * size + 0.2 * heat)),
-        rotationSpeed: new NumberRange(100, 100),
-        spreadAngle: new Vector2(10, 10),
-        rate: 65,
-        lifetime: new NumberRange(1.5, 3),
-        normalizeSizeKeypointTime: !1,
-        timeScale,
-        color: ColorSequence.fromColor(secondaryColor),
-        blending: AdditiveBlending
-      }));
-    }
-    fromSmoke(child) {
-      let size = child.PropOrDefault("size_xml", 1), endSize = 10 + size, timeScale = child.PropOrDefault("TimeScale", 1), riseVelocity = child.PropOrDefault("riseVelocity_xml", 1), opacity = child.PropOrDefault("opacity_xml", 0.5), color2 = child.PropOrDefault("Color", new Color3(1, 1, 1));
-      this.emitterDescs.push(this.createEmitter({
-        texture: "rbxasset://textures/particles/smoke_main.dds",
-        alphaTexture: "rbxasset://textures/particles/common_alpha.dds",
-        drag: 0.1,
-        opacity,
-        acceleration: new Vector3(0, 0, 0.4),
-        size: new NumberSequence([new NumberSequenceKeypoint(0, size, 0), new NumberSequenceKeypoint(1, endSize, 0)]),
-        rotation: new NumberRange(-90, 90),
-        speed: new NumberRange(riseVelocity * 0.9, riseVelocity * 1),
-        rotationSpeed: new NumberRange(-20, 20),
-        spreadAngle: new Vector2(30, 30),
-        rate: 7,
-        lifetime: new NumberRange(5, 5),
-        timeScale,
-        color: ColorSequence.fromColor(color2),
-        blending: NormalBlending,
-        lightInfluence: 1
-      }));
-    }
-    dispose(renderer, scene) {
-      let meshes = this.results;
-      meshes && (this.disposeMeshes(scene, meshes), this.disposeRenderLists(renderer));
-    }
-    async compileResults(renderer, scene) {
-      let originalResults = this.results, resultPromises = [];
-      for (let emitterDesc of this.emitterDescs)
-        resultPromises.push(emitterDesc.compileResult(renderer, scene));
-      this.results = [];
-      let compiledResults = await Promise.all(resultPromises);
-      for (let compiledResult of compiledResults)
-        if (compiledResult instanceof Mesh)
-          this.results.push(compiledResult);
-        else
-          return this.disposeMeshes(scene, this.results), this.disposeRenderLists(renderer), compiledResult;
-      originalResults && (this.disposeMeshes(scene, originalResults), this.disposeRenderLists(renderer));
-      let startFull = this.renderScene.particlesStartFull || FLAGS.PARTICLES_START_FULL, startFullFramerate = this.renderScene.particlesStartFullFramerate;
-      if (startFull)
-        for (let emitterDesc of this.emitterDescs) {
-          for (let i2 = 0; i2 < Math.min(emitterDesc.lifetime.Max * 2 * startFullFramerate, startFull * startFullFramerate); i2++)
-            emitterDesc.tick(1 / startFullFramerate, this);
-          emitterDesc.updateResult(this.renderScene);
-        }
-      return this.results;
-    }
-    updateResults(forceDeltaTime) {
-      let dt = forceDeltaTime !== void 0 ? forceDeltaTime : specialClamp(this.time - this.lastTime, 0, 0.1) * FLAGS.RENDERER_DELTA_TIME_MULTIPLIER;
-      this.lastTime = this.time;
-      for (let emitterDesc of this.emitterDescs)
-        emitterDesc.tick(dt, this), emitterDesc.updateResult(this.renderScene);
-      this.lastCframe = this.cframe.clone();
-    }
-    moveLoose(vec) {
-      for (let emitterDesc of this.emitterDescs)
-        if (!emitterDesc.lockedToPart)
-          for (let particle of emitterDesc.particles)
-            particle.position = particle.position.add(new Vector3().fromVec3(vec));
-    }
-  }, __vite_glob_0_2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    EmitterGroupDesc
-  }, Symbol.toStringTag, { value: "Module" })), ParticleEmitterWrapper = class extends InstanceWrapper {
-    static {
-      __name(this, "ParticleEmitterWrapper");
-    }
-    static className = "ParticleEmitter";
-    static requiredProperties = [
-      "Name"
-    ];
-    setup() {
-      this.instance.HasProperty("Name") || this.instance.addProperty(new Property("Name", DataType.String), this.instance.className);
-    }
-    Emit(count = 16) {
-      let renderDescs = RBXRenderer.getRenderDescs(this.instance);
-      for (let renderDesc of renderDescs)
-        if (renderDesc instanceof EmitterGroupDesc)
-          for (let emitterDesc of renderDesc.emitterDescs)
-            for (let i2 = 0; i2 < count; i2++)
-              emitterDesc.emit(renderDesc, !0);
-    }
-  }, __vite_glob_0_23 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    ParticleEmitterWrapper
-  }, Symbol.toStringTag, { value: "Module" })), SoundWrapperData = class {
-    static {
-      __name(this, "SoundWrapperData");
-    }
-    audioContext;
-    gainNode;
-    buffer;
-    playingSource;
-  }, SoundWrapper = class extends InstanceWrapper {
-    static {
-      __name(this, "SoundWrapper");
-    }
-    static className = "Sound";
-    static requiredProperties = ["Name", "Looped", "Playing", "Volume", "_data"];
-    setup() {
-      this.instance.HasProperty("Name") || this.instance.addProperty(new Property("Name", DataType.String), this.instance.className), this.instance.HasProperty("Looped") || this.instance.addProperty(new Property("Looped", DataType.Bool), !1), this.instance.HasProperty("Playing") || this.instance.addProperty(new Property("Playing", DataType.Bool), !1), this.instance.HasProperty("Volume") || this.instance.addProperty(new Property("Volume", DataType.Float32), !1), this.instance.HasProperty("_data") || this.instance.addProperty(new Property("_data", DataType.NonSerializable), new SoundWrapperData());
-    }
-    get data() {
-      return this.instance.Prop("_data");
-    }
-    created() {
-      this.instance.Prop("Playing") && this.Play(), this.instance.Destroying.Connect(() => {
-        this.data.playingSource && this.Stop(), this.data.audioContext = void 0, this.data.gainNode = void 0, this.data.buffer = void 0;
-      }), this.instance.Changed.Connect(() => {
-        this._updateVolume();
-      });
-    }
-    _updateVolume() {
-      if (this.data.gainNode && this.instance.HasProperty("Volume")) {
-        let volume = this.instance.Prop("Volume");
-        this.data.gainNode.gain.value = volume;
-      }
-    }
-    setPlaying(value2) {
-      this.instance.setProperty("Playing", value2);
-    }
-    playSource() {
-      !this.data.audioContext || !this.data.gainNode || !this.data.buffer || (this.data.playingSource = this.data.audioContext.createBufferSource(), this.data.playingSource.buffer = this.data.buffer, this.data.playingSource.connect(this.data.gainNode), this.data.gainNode.connect(this.data.audioContext.destination), this._updateVolume(), this.data.playingSource.start(0), this.data.playingSource.onended = (() => {
-        this.instance.Prop("Looped") ? this.Play() : this.Stop();
-      }));
-    }
-    Play() {
-      if (FLAGS.AUDIO_ENABLED)
-        if (this.Stop(), this.setPlaying(!0), this.data.audioContext || (this.data.audioContext = new AudioContext()), this.data.gainNode || (this.data.gainNode = this.data.audioContext.createGain()), this.data.buffer)
-          this.data.buffer && this.playSource();
-        else {
-          let audioUrl;
-          this.instance.HasProperty("SoundId") ? audioUrl = this.instance.Prop("SoundId") : this.instance.HasProperty("AudioContent") && (audioUrl = this.instance.Prop("AudioContent").uri), audioUrl && audioUrl.length > 0 && API.Asset.GetAssetBuffer(audioUrl).then((responseBuffer) => {
-            if (responseBuffer instanceof Response || !this.data.audioContext) return;
-            let buffer2 = responseBuffer.slice(0);
-            this.data.audioContext.decodeAudioData(buffer2).then((decodedData) => {
-              !this.data.audioContext || !this.data.gainNode || (this.data.buffer = decodedData, this.playSource());
-            });
-          });
-        }
-    }
-    Stop() {
-      this.setPlaying(!1), this.data.playingSource && (this.data.playingSource.stop(), this.data.playingSource = void 0);
-    }
-  }, __vite_glob_0_25 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    SoundWrapper
-  }, Symbol.toStringTag, { value: "Module" })), ScriptWrapperData = class {
-    static {
-      __name(this, "ScriptWrapperData");
-    }
-    shouldStop = !1;
-  }, ScriptWrapper = class extends InstanceWrapper {
-    static {
-      __name(this, "ScriptWrapper");
-    }
-    static className = "Script";
-    static requiredProperties = ["Name", "_data"];
-    setup() {
-      this.instance.HasProperty("Name") || this.instance.addProperty(new Property("Name", DataType.String), this.instance.className), this.instance.HasProperty("_data") || this.instance.addProperty(new Property("_data", DataType.NonSerializable), new ScriptWrapperData());
-    }
-    get data() {
-      return this.instance.Prop("_data");
-    }
-    created() {
-      this.Run();
-    }
-    Run() {
-      switch (this.instance.Prop("Name")) {
-        case "ChickenSounds":
-        case "HarmonicaSounds":
-        case "SoundPlayer":
-          this.SoundPlayer(this.instance);
-          break;
-        case "HatScript2.0":
-          this.HatScript20(this.instance);
-          break;
-        case "TrailTestRoAvatar":
-          this.TrailTestRoAvatar(this.instance);
-          break;
-      }
-    }
-    //Scripts
-    async SoundPlayer(script) {
-      let Handle;
-      if (script.parent && script.parent.Prop("Name") === "Handle" ? Handle = script.parent : script.parent && script.parent.FindFirstChild("Handle") && (Handle = script.parent.FindFirstChild("Handle")), !Handle) return;
-      let Hat = Handle.parent;
-      if (!Hat) return;
-      let Sounds = [];
-      for (let child of Handle.GetDescendants())
-        child.className === "Sound" && Sounds.push(child);
-      function IsBeingWorn() {
-        return Hat?.parent?.FindFirstChild("Humanoid");
-      }
-      __name(IsBeingWorn, "IsBeingWorn");
-      let maxTime = 20;
-      for (script.Prop("Name") === "SoundPlayer" && (maxTime = 15); ; ) {
-        if (await Wait(mathRandom(5, maxTime)), this.instance.destroyed || this.data.shouldStop) return;
-        if (IsBeingWorn()) {
-          let index = mathRandom(0, Sounds.length - 1), Sound = Sounds[index];
-          new SoundWrapper(Sound).Play();
-        }
-      }
-    }
-    async HatScript20(script) {
-      let now = /* @__PURE__ */ new Date(), month = now.getMonth(), day = now.getDay(), data = this.data, hw, tg, xm, bd, pt, vt, af;
-      month == 10 && day > 21 ? hw = !0 : month == 11 && day > 19 ? tg = !0 : month == 12 && day > 17 && day < 28 ? xm = !0 : month == 9 && day == 1 ? bd = !0 : month == 3 && day > 11 && day < 20 ? pt = !0 : month == 2 && day > 8 && day < 17 ? vt = !0 : month == 4 && day == 1 && (af = !0);
-      let emitter = script.parent?.Child("ParticleEmitter"), burst = script.parent?.Child("Burst");
-      async function snowBlower() {
-        let snow1 = script.parent?.Child("Snowflake1"), snow2 = script.parent?.Child("Snowflake2");
-        for (; ; )
-          if (await Wait(Math.random() * 5), script.destroyed || data.shouldStop || (snow1?.setProperty("Enabled", !1), snow2?.setProperty("Enabled", !0), await Wait(Math.random() * 5), script.destroyed || data.shouldStop) || (snow1?.setProperty("Enabled", !0), snow2?.setProperty("Enabled", !1), Math.random() > 0.97 && (snow1?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop || ((snow1?.w).Emit(22), await Wait(Math.random()), script.destroyed || data.shouldStop) || ((snow2?.w).Emit(22), await Wait(2), script.destroyed || data.shouldStop))))
-            return;
-      }
-      __name(snowBlower, "snowBlower");
-      async function leafBlower() {
-        let leaf1 = script.parent?.Child("Leaf1"), leaf2 = script.parent?.Child("Leaf2");
-        for (; ; )
-          if (await Wait(Math.random() * 5), script.destroyed || data.shouldStop || (leaf1?.setProperty("Enabled", !1), leaf2?.setProperty("Enabled", !0), await Wait(Math.random() * 5), script.destroyed || data.shouldStop) || (leaf1?.setProperty("Enabled", !0), leaf2?.setProperty("Enabled", !1), Math.random() > 0.97 && (leaf1?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop || ((leaf1?.w).Emit(22), await Wait(Math.random()), script.destroyed || data.shouldStop) || ((leaf2?.w).Emit(22), await Wait(2), script.destroyed || data.shouldStop))))
-            return;
-      }
-      __name(leafBlower, "leafBlower");
-      async function cloverBlower() {
-        let leaf1 = script.parent?.Child("Clover1"), leaf2 = script.parent?.Child("Clover2");
-        for (; ; )
-          if (await Wait(Math.random() * 5), script.destroyed || data.shouldStop || (leaf1?.setProperty("Enabled", !1), leaf2?.setProperty("Enabled", !0), await Wait(Math.random() * 5), script.destroyed || data.shouldStop) || (leaf1?.setProperty("Enabled", !0), leaf2?.setProperty("Enabled", !1), Math.random() > 0.97 && (leaf1?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop || ((leaf1?.w).Emit(22), await Wait(Math.random()), script.destroyed || data.shouldStop) || ((leaf2?.w).Emit(22), await Wait(2), script.destroyed || data.shouldStop))))
-            return;
-      }
-      for (__name(cloverBlower, "cloverBlower"), hw ? (emitter?.setProperty("Enabled", !1), emitter = script.parent?.Child("Hallow"), script.parent?.parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://6991166143") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://6991166143")) : tg ? (script.parent?.parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://6991393806") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://6991393806"), leafBlower()) : xm ? (emitter?.setProperty("Enabled", !1), emitter = script.parent?.Child("Snowflake3"), snowBlower()) : bd ? (emitter?.setProperty("Enabled", !1), emitter = script.parent?.Child("Confetti"), script.parent?.parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://2399316028") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://2399316028")) : pt ? (script.Parent?.Parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://2399447918") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://2399447918"), cloverBlower()) : vt ? (emitter?.setProperty("Enabled", !1), emitter = script.Parent?.Child("Heart"), script.Parent?.Parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://2399448372") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://2399448372")) : af && (emitter?.setProperty("Enabled", !1), emitter = script.Parent?.Child("Hats"), script.Parent?.Child("Smokescreen")?.setProperty("Enabled", !0), script.Parent?.Parent?.setProperty("Transparency", 1)); ; ) {
-        if (await Wait(1.3), script.destroyed || data.shouldStop || (emitter?.setProperty("Enabled", !1), await Wait(0.8), script.destroyed || data.shouldStop)) return;
-        emitter?.setProperty("Enabled", !0);
-        let rando = Math.random();
-        if (rando > 0.97) {
-          if (emitter?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop || (burst?.setProperty("Enabled", !0), await Wait(2), script.destroyed || data.shouldStop)) return;
-          burst?.setProperty("Enabled", !1), emitter?.setProperty("Enabled", !0);
-        } else if (rando > 0.969) {
-          if (emitter?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop) return;
-          for (let v2 of script.Parent?.GetChildren() || [])
-            if (v2.IsA("ParticleEmitter") && (v2.w.Emit(mathRandom(6, 10)), await Wait(0.5), script.destroyed || data.shouldStop))
-              return;
-          if (await Wait(2), script.destroyed || data.shouldStop) return;
-          emitter?.setProperty("Enabled", !0);
-        }
-      }
-    }
-    async TrailTestRoAvatar(script) {
-      await Wait(1);
-      let part = script.parent;
-      if (part) {
-        let ogCF = part.Prop("CFrame").clone();
-        for (; ; ) {
-          if (script.destroyed || this.data.shouldStop) return;
-          let newCF = ogCF.clone(), val = Date.now() / 1e3 % 3 / 3 * 2 * Math.PI, xAdd = Math.sin(val) * 2, zAdd = Math.cos(val) * 2;
-          newCF.Position[0] += xAdd, newCF.Position[2] += zAdd, part.setProperty("CFrame", newCF), await Wait(1 / 60);
-        }
-      }
-    }
-  }, __vite_glob_0_24 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    ScriptWrapper
-  }, Symbol.toStringTag, { value: "Module" })), ToolWrapper = class extends InstanceWrapper {
-    static {
-      __name(this, "ToolWrapper");
-    }
-    static className = "Tool";
-    static requiredProperties = [
-      "Name",
-      "Grip"
-    ];
-    setup() {
-      this.instance.HasProperty("Name") || this.instance.addProperty(new Property("Name", DataType.String), this.instance.className), this.instance.HasProperty("Grip") || this.instance.addProperty(new Property("Grip", DataType.CFrame), new CFrame());
-    }
-    created() {
-      this.instance.AncestryChanged.Connect(() => {
-        this.createWeld();
-      });
-    }
-    //doing this is actually inaccurate because tools dont create welds, but its easier
-    createWeld() {
-      let handle = this.instance.FindFirstChild("Handle"), rig = this.instance.parent, grip = this.instance.PropOrDefault("Grip", new CFrame()).clone();
-      if (handle) {
-        let oldToolWeld = handle.FindFirstChild("ToolWeld_GripRoAvatar");
-        oldToolWeld && oldToolWeld.Destroy();
-      }
-      let humanoid = rig?.FindFirstChildOfClass("Humanoid");
-      if (handle && rig && rig.className === "Model" && humanoid) {
-        let rightHand = rig.FindFirstChild("RightHand") || rig.FindFirstChild("Right Arm");
-        if (rightHand) {
-          for (let child of rightHand.GetDescendants())
-            if (child.Prop("Name") === "RightGripAttachment") {
-              let rightGripAttCF = child.PropOrDefault("CFrame", new CFrame()).clone();
-              humanoid.Prop("RigType") === HumanoidRigType.R6 && (rightGripAttCF.Orientation[0] -= 90);
-              let weld = new Instance("Weld");
-              weld.addProperty(new Property("Name", DataType.String), "ToolWeld_GripRoAvatar"), weld.addProperty(new Property("Archivable", DataType.Bool), !0), weld.addProperty(new Property("C0", DataType.CFrame), rightGripAttCF), weld.addProperty(new Property("C1", DataType.CFrame), grip), weld.addProperty(new Property("Part0", DataType.Referent), child.parent), weld.addProperty(new Property("Part1", DataType.Referent), handle), weld.addProperty(new Property("Active", DataType.Bool), !0), weld.addProperty(new Property("Enabled", DataType.Bool), !1), weld.setParent(handle), weld.setProperty("Enabled", !0);
-            }
-        }
-      }
-    }
-  }, __vite_glob_0_26 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    ToolWrapper
-  }, Symbol.toStringTag, { value: "Module" })), UnionOperationWrapper = class extends BasePartWrapper {
-    static {
-      __name(this, "UnionOperationWrapper");
-    }
-    static className = "UnionOperation";
-    static requiredProperties = [
-      ...super.requiredProperties
-    ];
-    setup() {
-      super.setup();
-    }
-  }, __vite_glob_0_27 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    UnionOperationWrapper
-  }, Symbol.toStringTag, { value: "Module" })), WedgePartWrapper = class extends BasePartWrapper {
-    static {
-      __name(this, "WedgePartWrapper");
-    }
-    static className = "WedgePart";
-  }, __vite_glob_0_28 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    WedgePartWrapper
-  }, Symbol.toStringTag, { value: "Module" })), WeldWrapper = class extends JointInstanceWrapper {
-    static {
-      __name(this, "WeldWrapper");
-    }
-    static className = "Weld";
-  }, __vite_glob_0_29 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    WeldWrapper
-  }, Symbol.toStringTag, { value: "Module" })), modules$1 = /* @__PURE__ */ Object.assign({ "./instance/Accessory.ts": __vite_glob_0_0$1, "./instance/AccessoryDescription.ts": __vite_glob_0_1$1, "./instance/AnimationConstraint.ts": __vite_glob_0_2$1, "./instance/Animator.ts": __vite_glob_0_3$1, "./instance/Attachment.ts": __vite_glob_0_4, "./instance/BasePart.ts": __vite_glob_0_5$1, "./instance/BodyColors.ts": __vite_glob_0_6, "./instance/BodyPartDescription.ts": __vite_glob_0_7, "./instance/Bone.ts": __vite_glob_0_8, "./instance/Camera.ts": __vite_glob_0_9, "./instance/Constraint.ts": __vite_glob_0_10, "./instance/Decal.ts": __vite_glob_0_11, "./instance/FaceControls.ts": __vite_glob_0_12, "./instance/HumanoidDescription.ts": __vite_glob_0_13, "./instance/InstanceWrapper.ts": __vite_glob_0_14, "./instance/JointInstance.ts": __vite_glob_0_15, "./instance/MakeupDescription.ts": __vite_glob_0_16, "./instance/ManualWeld.ts": __vite_glob_0_17, "./instance/MeshPart.ts": __vite_glob_0_18, "./instance/Model.ts": __vite_glob_0_19, "./instance/Motor.ts": __vite_glob_0_20, "./instance/Motor6D.ts": __vite_glob_0_21, "./instance/Part.ts": __vite_glob_0_22, "./instance/ParticleEmitter.ts": __vite_glob_0_23, "./instance/Script.ts": __vite_glob_0_24, "./instance/Sound.ts": __vite_glob_0_25, "./instance/Tool.ts": __vite_glob_0_26, "./instance/UnionOperation.ts": __vite_glob_0_27, "./instance/WedgePart.ts": __vite_glob_0_28, "./instance/Weld.ts": __vite_glob_0_29 });
-  function RegisterWrappers() {
-    for (let module of Object.values(modules$1))
-      for (let exprt of Object.values(module)) {
-        let prototype = Object.getPrototypeOf(exprt);
-        for (; prototype; ) {
-          if (prototype === InstanceWrapper) {
-            exprt.register();
-            break;
-          }
-          prototype = Object.getPrototypeOf(prototype);
-        }
-      }
-  }
-  __name(RegisterWrappers, "RegisterWrappers");
-  var attachmentGeometry = new SphereGeometry(0.125, 16, 8), AttachmentDesc = class extends RenderDesc {
-    static {
-      __name(this, "AttachmentDesc");
-    }
-    static classTypes = ["Attachment"];
-    visible = !1;
-    cframe = new CFrame();
-    isSame(other) {
-      return this.visible === other.visible && this.cframe.isSame(other.cframe);
-    }
-    needsRegeneration(newDesc) {
-      return this.visible !== newDesc.visible;
-    }
-    virtualFromRenderDesc(other) {
-      this.cframe = other.cframe.clone();
-    }
-    fromInstance(child) {
-      let attachmentW = new AttachmentWrapper(child);
-      this.cframe = attachmentW.getWorldCFrame(), this.visible = child.PropOrDefault("Visible", this.visible) || FLAGS.ALWAYS_SHOW_ATTACHMENTS;
-    }
-    async compileResults() {
-      if (this.results = [], this.visible) {
-        let mesh = new Mesh(attachmentGeometry, new MeshLambertMaterial({ color: 65280 }));
-        mesh.name = this.instance ? this.instance.PropOrDefault("Name", "Unknown") + "_Att" : "Unknown_Att", this.results.push(mesh);
-      }
-      return this.updateResults(), this.results;
-    }
-    updateResults() {
-      if (this.results)
-        for (let attachment of this.results) {
-          let resultCF = this.cframe;
-          setTHREEObjectCF(attachment, resultCF);
-        }
-    }
-    dispose(_renderer, scene) {
-      if (this.results)
-        for (let result of this.results)
-          scene.remove(result);
-    }
-  }, __vite_glob_0_0 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    AttachmentDesc
-  }, Symbol.toStringTag, { value: "Module" })), BeamDesc = class extends RenderDesc {
-    static {
-      __name(this, "BeamDesc");
-    }
-    static classTypes = ["Beam"];
-    lastTime = Date.now() / 1e3;
-    time = Date.now() / 1e3;
-    passedLength = 0;
-    enabled = !0;
-    lightEmission = 0;
-    //blends between normal -> additive blending, how?? graphics magic
-    lightInfluence = 1;
-    texture;
-    textureLength = 1;
-    textureMode = TextureMode.Stretch;
-    //static behaves identically to wrap
-    textureSpeed = 1;
-    color = ColorSequence.fromColor(new Color3(1, 1, 1));
-    transparency = new NumberSequence([new NumberSequenceKeypoint(0, 0.5), new NumberSequenceKeypoint(1, 0.5)]);
-    zOffset = 0;
-    //this moves its world position based on camera direction
-    cframe0 = new CFrame();
-    cframe1 = new CFrame();
-    curveSize0 = 0;
-    curveSize1 = 1;
-    width0 = 1;
-    width1 = 1;
-    faceCamera = !1;
-    segments = 10;
-    //results
-    results = [];
-    isSame(newDesc) {
-      return this.time === newDesc.time && this.enabled === newDesc.enabled && this.lightEmission === newDesc.lightEmission && this.lightInfluence === newDesc.lightInfluence && this.texture === newDesc.texture && this.textureLength === newDesc.textureLength && this.textureMode === newDesc.textureMode && this.textureSpeed === newDesc.textureSpeed && this.color.isSame(newDesc.color) && this.transparency.isSame(newDesc.transparency) && this.zOffset === newDesc.zOffset && this.cframe0.isSame(newDesc.cframe0) && this.cframe1.isSame(newDesc.cframe1) && this.curveSize0 === newDesc.curveSize0 && this.curveSize1 === newDesc.curveSize1 && this.width0 === newDesc.width0 && this.width1 === newDesc.width1 && this.faceCamera === newDesc.faceCamera && this.segments === newDesc.segments;
-    }
-    needsRegeneration(newDesc) {
-      return this.enabled !== newDesc.enabled || this.texture !== newDesc.texture || this.segments !== newDesc.segments;
-    }
-    virtualFromRenderDesc(newDesc) {
-      this.time = newDesc.time, this.lightEmission = newDesc.lightEmission, this.lightInfluence = newDesc.lightInfluence, this.textureLength = newDesc.textureLength, this.textureMode = newDesc.textureMode, this.textureSpeed = newDesc.textureSpeed, this.color = newDesc.color.clone(), this.transparency = newDesc.transparency.clone(), this.zOffset = newDesc.zOffset, this.cframe0 = newDesc.cframe0.clone(), this.cframe1 = newDesc.cframe1.clone(), this.curveSize0 = newDesc.curveSize0, this.curveSize1 = newDesc.curveSize1, this.width0 = newDesc.width0, this.width1 = newDesc.width1, this.faceCamera = newDesc.faceCamera;
-    }
-    virtualTransferFrom(oldDesc) {
-      this.passedLength = oldDesc.passedLength;
-    }
-    fromInstance(child) {
-      if (this.enabled = child.PropOrDefault("Enabled", this.enabled), this.lightEmission = child.PropOrDefault("LightEmission", this.lightEmission), this.lightInfluence = child.PropOrDefault("LightInfluence", this.lightInfluence), this.texture = child.PropOrDefault("Texture", this.texture), !this.texture) {
-        let textureContent = child.PropOrDefault("TextureContent", void 0);
-        textureContent && (this.texture = textureContent.uri);
-      }
-      this.textureLength = child.PropOrDefault("TextureLength", this.textureLength), this.textureMode = child.PropOrDefault("TextureMode", this.textureMode), this.textureSpeed = child.PropOrDefault("TextureSpeed", this.textureSpeed), this.color = child.PropOrDefault("Color", this.color), this.transparency = child.PropOrDefault("Transparency", this.transparency), this.zOffset = child.PropOrDefault("ZOffset", this.zOffset);
-      let att0 = child.PropOrDefault("Attachment0", void 0);
-      if (att0 && att0.IsA("Attachment")) {
-        let att0W = att0.w;
-        this.cframe0 = att0W.getWorldCFrame();
-      }
-      let att1 = child.PropOrDefault("Attachment1", void 0);
-      if (att1 && att1.IsA("Attachment")) {
-        let att1W = att1.w;
-        this.cframe1 = att1W.getWorldCFrame();
-      }
-      this.curveSize0 = child.PropOrDefault("CurveSize0", this.curveSize0), this.curveSize1 = child.PropOrDefault("CurveSize1", this.curveSize1), this.width0 = child.PropOrDefault("Width0", this.width0), this.width1 = child.PropOrDefault("Width1", this.width1), this.faceCamera = child.PropOrDefault("FaceCamera", this.faceCamera), this.segments = child.PropOrDefault("Segments", this.segments), FLAGS.BEAMS_ENABLED || (this.enabled = !1);
-    }
-    async compileResults(renderer, scene) {
-      let originalResults = this.results;
-      if (this.results = [], this.enabled) {
-        let textureResult;
-        this.texture && (textureResult = await getTexture(this.texture), textureResult && (textureResult.wrapT = RepeatWrapping));
-        let material = new MeshBasicMaterial({
-          side: DoubleSide,
-          map: textureResult,
-          vertexColors: !0,
-          transparent: !0,
-          depthWrite: !1
-        }), geometry = new PlaneGeometry(1, 1, this.segments, 1), colorValues = new Float32Array((this.segments + 1) * 2 * 4).fill(1);
-        geometry.setAttribute("color", new BufferAttribute(colorValues, 4));
-        let mesh = new Mesh(geometry, material);
-        mesh.name = this.instance ? this.instance.PropOrDefault("Name", "Unknown") + "_Beam" : "Unknown_Beam", this.results.push(mesh);
-      }
-      return originalResults && (this.disposeMeshes(scene, originalResults), this.disposeRenderLists(renderer)), this.updateResults(), this.results;
-    }
-    updateResults() {
-      if (!this.results) return;
-      let deltaTime = this.time - this.lastTime;
-      this.passedLength += deltaTime * this.textureSpeed;
-      let camera = this.renderScene.camera, toCamera = new Vector3$1(0, 0, -1).applyQuaternion(camera.quaternion), v0 = new Vector3$1(...this.cframe0.Position), v1 = new Vector3$1(...this.cframe0.multiply(new CFrame(this.curveSize0, 0, 0)).Position), v2 = new Vector3$1(...this.cframe1.multiply(new CFrame(-this.curveSize1, 0, 0)).Position), v3 = new Vector3$1(...this.cframe1.Position), curve = new CubicBezierCurve3(v0, v1, v2, v3), curveLength = curve.getLength();
-      for (let result of this.results) {
-        let resultMaterial = result.material, resultGeometry = result.geometry;
-        resultMaterial.blending = this.lightEmission > 0.5 ? AdditiveBlending : NormalBlending;
-        let positions = resultGeometry.getAttribute("position");
-        for (let i2 = 0; i2 < positions.count; i2++) {
-          let normSide = i2 < positions.count / 2 ? 0.5 : -0.5, t3 = i2 % (positions.count / 2) / (positions.count / 2 - 1), side = normSide * lerp(this.width0, this.width1, t3), prevT = specialClamp(t3 - 1e-3, 0, 1), nextT = specialClamp(prevT + 1e-3, 0, 1), prevPos = curve.getPoint(prevT), nextPos = curve.getPoint(nextT), finalMatrix;
-          if (this.faceCamera) {
-            let vZ = new Vector3$1().subVectors(nextPos, prevPos).normalize(), vX = toCamera.clone().negate().normalize(), vY = new Vector3$1().crossVectors(vZ, vX).normalize();
-            vX = new Vector3$1().crossVectors(vY, vZ).normalize();
-            let rotation = new Matrix4().set(
-              vX.x,
-              vY.x,
-              vZ.x,
-              0,
-              vX.y,
-              vY.y,
-              vZ.y,
-              0,
-              vX.z,
-              vY.z,
-              vZ.z,
-              0,
-              0,
-              0,
-              0,
-              1
-            );
-            finalMatrix = new Matrix4().makeTranslation(prevPos).multiply(rotation);
-          } else {
-            let vZ = new Vector3$1().subVectors(nextPos, prevPos).normalize(), vY = new Vector3$1(...lerpCFrame(this.cframe0, this.cframe1, t3).upVector()), vX = new Vector3$1().crossVectors(vZ, vY);
-            vY = new Vector3$1().crossVectors(vZ, vX);
-            let rotation = new Matrix4().set(
-              vX.x,
-              vY.x,
-              vZ.x,
-              0,
-              vX.y,
-              vY.y,
-              vZ.y,
-              0,
-              vX.z,
-              vY.z,
-              vZ.z,
-              0,
-              0,
-              0,
-              0,
-              1
-            );
-            finalMatrix = new Matrix4().makeTranslation(prevPos).multiply(rotation);
-          }
-          let sideCF = new CFrame().fromMatrix(finalMatrix.toArray()).multiply(new CFrame(0, side, 0));
-          positions.setXYZ(i2, ...sideCF.Position);
-        }
-        let colors = resultGeometry.getAttribute("color");
-        for (let i2 = 0; i2 < colors.count; i2++) {
-          let t3 = i2 % (colors.count / 2) / (colors.count / 2 - 1), colorValue = this.color.getValue(t3), transparencyValue = this.transparency.getValue(t3, 0), mult = 1 + this.lightEmission;
-          colors.setXYZW(i2, colorValue.R * mult, colorValue.G * mult, colorValue.B * mult, 1 - transparencyValue);
-        }
-        let uvs = resultGeometry.getAttribute("uv");
-        if (this.textureMode === TextureMode.Stretch)
-          for (let i2 = 0; i2 < uvs.count; i2++) {
-            let t3 = i2 % (colors.count / 2) / (colors.count / 2 - 1), normSide = i2 < positions.count / 2 ? 1 : 0;
-            uvs.setXY(i2, normSide, (1 - t3 + this.passedLength) * this.textureLength);
-          }
-        else
-          for (let i2 = 0; i2 < uvs.count; i2++) {
-            let t3 = i2 % (colors.count / 2) / (colors.count / 2 - 1), normSide = i2 < positions.count / 2 ? 1 : 0;
-            uvs.setXY(i2, normSide, (1 - t3 + this.passedLength / curveLength) * curveLength / this.textureLength);
-          }
-        positions.needsUpdate = !0, colors.needsUpdate = !0, uvs.needsUpdate = !0;
-        let resultCF = new CFrame();
-        resultCF.Position = multiply(toCamera.clone().negate().normalize().toArray(), [this.zOffset, this.zOffset, this.zOffset]), setTHREEObjectCF(result, resultCF);
-      }
-      this.lastTime = this.time;
-    }
-    dispose(_renderer, scene) {
-      if (this.results)
-        for (let result of this.results)
-          scene.remove(result);
-    }
-  }, __vite_glob_0_1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    BeamDesc
-  }, Symbol.toStringTag, { value: "Module" }));
-  function disposeLight(scene, light) {
-    light.shadow && light.shadow.map && light.shadow.map.dispose(), scene.remove(light);
-  }
-  __name(disposeLight, "disposeLight");
-  var LightDesc = class extends RenderDesc {
-    static {
-      __name(this, "LightDesc");
-    }
-    static classTypes = ["PointLight", "SpotLight", "SurfaceLight"];
-    enabled = !0;
-    cframe = new CFrame();
-    shadows = !1;
-    color = new Color3(1, 1, 1);
-    brightness = 1;
-    range = 8;
-    lightType = "point";
-    //spot and face only
-    angle = 90;
-    face = NormalId.Front;
-    isSame(other) {
-      return this.enabled === other.enabled && this.shadows === other.shadows && this.color.isSame(other.color) && this.brightness === other.brightness && this.range === other.range && this.lightType === other.lightType && this.angle === other.angle && this.face === other.face && this.cframe.isSame(other.cframe);
-    }
-    needsRegeneration(newDesc) {
-      return this.lightType !== newDesc.lightType;
-    }
-    virtualFromRenderDesc(other) {
-      this.enabled = other.enabled, this.shadows = other.shadows, this.color = other.color.clone(), this.brightness = other.brightness, this.range = other.range, this.angle = other.angle, this.face = other.face, this.cframe = other.cframe.clone();
-    }
-    fromInstance(child) {
-      switch (child.className) {
-        case "PointLight":
-          this.lightType = "point";
-          break;
-        case "SpotLight":
-          this.lightType = "spot";
-          break;
-        case "SurfaceLight":
-          this.lightType = "surface";
-          break;
-      }
-      if (child.parent)
-        if (child.parent.className === "Attachment") {
-          let attachmentW = new AttachmentWrapper(child.parent);
-          this.cframe = attachmentW.getWorldCFrame();
-        } else
-          this.cframe = child.parent.PropOrDefault("CFrame", this.cframe).clone();
-      this.enabled = child.PropOrDefault("Enabled", this.enabled), this.color = child.PropOrDefault("Color", this.color), this.brightness = child.PropOrDefault("Brightness", this.brightness), this.range = child.PropOrDefault("Range", this.range), this.angle = child.PropOrDefault("Angle", this.angle), this.face = child.PropOrDefault("Face", this.face);
-    }
-    async compileResults(_renderer, scene) {
-      if (this.results)
-        for (let light of this.results)
-          disposeLight(scene, light);
-      switch (this.results = [], this.lightType) {
-        case "point": {
-          let pointLight = new PointLight();
-          pointLight.name = this.instance?.PropOrDefault("Name", void 0) || this.instance?.className || "Light", this.results.push(
-            pointLight
-            /*, pointLightHelper*/
-          );
-          break;
-        }
-        case "spot":
-        case "surface": {
-          let spotLight = new SpotLight();
-          spotLight.add(spotLight.target), spotLight.name = this.instance?.PropOrDefault("Name", void 0) || this.instance?.className || "Light", this.results.push(spotLight);
-          break;
-        }
-      }
-      return this.updateResults(), this.results;
-    }
-    updateResults() {
-      if (this.results) {
-        for (let light of this.results)
-          if (light instanceof PointLight || light instanceof SpotLight) {
-            light.decay = 0.4, light.visible = this.enabled, light.intensity = this.brightness * 4, light.distance = this.range + 0.5, light.castShadow = this.shadows, light.shadow.intensity = 0.5, light.color = new Color().setRGB(this.color.R, this.color.G, this.color.B, SRGBColorSpace);
-            let resultCF = this.cframe, targetCF = new CFrame();
-            if (light instanceof SpotLight) {
-              switch (light.angle = rad(this.angle), this.face) {
-                case NormalId.Front:
-                  targetCF.Position = [0, 0, -1];
-                  break;
-                case NormalId.Back:
-                  targetCF.Position = [0, 0, 1];
-                  break;
-                case NormalId.Right:
-                  targetCF.Position = [1, 0, 0];
-                  break;
-                case NormalId.Left:
-                  targetCF.Position = [-1, 0, 0];
-                  break;
-                case NormalId.Top:
-                  targetCF.Position = [0, 1, 0];
-                  break;
-                case NormalId.Bottom:
-                  targetCF.Position = [0, -1, 0];
-                  break;
-              }
-              light.target.position.set(...targetCF.Position);
-            }
-            setTHREEObjectCF(light, resultCF);
-          }
-      }
-    }
-    dispose(_renderer, scene) {
-      if (this.results)
-        for (let result of this.results)
-          disposeLight(scene, result);
-    }
-  }, __vite_glob_0_3 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    LightDesc
-  }, Symbol.toStringTag, { value: "Module" })), TrailSegment = class {
-    static {
-      __name(this, "TrailSegment");
-    }
-    cframe;
-    length;
-    time = 0;
-    constructor(cf, length) {
-      this.cframe = cf, this.length = length;
-    }
-  }, TrailDesc = class extends RenderDesc {
-    static {
-      __name(this, "TrailDesc");
-    }
-    static classTypes = ["Trail"];
-    lastTime = Date.now() / 1e3;
-    time = Date.now() / 1e3;
-    segmentTime = 0;
-    enabled = !0;
-    lightEmission = 0;
-    //blends between normal -> additive blending, how?? graphics magic
-    lightInfluence = 1;
-    texture;
-    textureLength = 1;
-    textureMode = TextureMode.Stretch;
-    color = ColorSequence.fromColor(new Color3(1, 1, 1));
-    transparency = new NumberSequence([new NumberSequenceKeypoint(0, 0.5), new NumberSequenceKeypoint(1, 0.5)]);
-    widthScale = new NumberSequence([new NumberSequenceKeypoint(0, 1), new NumberSequenceKeypoint(1, 1)]);
-    cframe0 = new CFrame();
-    cframe1 = new CFrame();
-    lifetime = 1;
-    maxLength = 0;
-    minLength = 0.1;
-    faceCamera = !1;
-    //results
-    results = [];
-    segments = [];
-    get maxSegments() {
-      let maxLength = this.maxLength === 0 ? 9999 : this.maxLength;
-      return Math.ceil(Math.min(this.lifetime * FLAGS.TRAIL_FPS, maxLength / this.minLength)) + 2;
-    }
-    isSame(newDesc) {
-      return this.time === newDesc.time && this.enabled === newDesc.enabled && this.lightEmission === newDesc.lightEmission && this.lightInfluence === newDesc.lightInfluence && this.texture === newDesc.texture && this.textureLength === newDesc.textureLength && this.textureMode === newDesc.textureMode && this.color.isSame(newDesc.color) && this.transparency.isSame(newDesc.transparency) && this.widthScale.isSame(newDesc.widthScale) && this.cframe0.isSame(newDesc.cframe0) && this.cframe1.isSame(newDesc.cframe1) && this.faceCamera === newDesc.faceCamera && this.lifetime === newDesc.lifetime && this.maxLength === newDesc.maxLength && this.minLength === newDesc.minLength;
-    }
-    needsRegeneration(newDesc) {
-      return this.enabled !== newDesc.enabled || this.texture !== newDesc.texture || this.lifetime !== newDesc.lifetime;
-    }
-    virtualFromRenderDesc(newDesc) {
-      this.time = newDesc.time, this.lightEmission = newDesc.lightEmission, this.lightInfluence = newDesc.lightInfluence, this.textureLength = newDesc.textureLength, this.textureMode = newDesc.textureMode, this.color = newDesc.color.clone(), this.transparency = newDesc.transparency.clone(), this.widthScale = newDesc.widthScale.clone(), this.cframe0 = newDesc.cframe0.clone(), this.cframe1 = newDesc.cframe1.clone(), this.lifetime = newDesc.lifetime, this.maxLength = newDesc.maxLength, this.minLength = newDesc.minLength, this.faceCamera = newDesc.faceCamera;
-    }
-    virtualTransferFrom(oldDesc) {
-      this.segmentTime = oldDesc.segmentTime, this.segments = oldDesc.segments;
-    }
-    fromInstance(child) {
-      if (this.enabled = child.PropOrDefault("Enabled", this.enabled), this.lightEmission = child.PropOrDefault("LightEmission", this.lightEmission), this.lightInfluence = child.PropOrDefault("LightInfluence", this.lightInfluence), this.texture = child.PropOrDefault("Texture", this.texture), !this.texture) {
-        let textureContent = child.PropOrDefault("TextureContent", void 0);
-        textureContent && (this.texture = textureContent.uri);
-      }
-      this.textureLength = child.PropOrDefault("TextureLength", this.textureLength), this.textureMode = child.PropOrDefault("TextureMode", this.textureMode), this.color = child.PropOrDefault("Color", this.color), this.transparency = child.PropOrDefault("Transparency", this.transparency), this.widthScale = child.PropOrDefault("WidthScale", this.widthScale);
-      let att0 = child.PropOrDefault("Attachment0", void 0);
-      if (att0 && att0.IsA("Attachment")) {
-        let att0W = att0.w;
-        this.cframe0 = att0W.getWorldCFrame();
-      }
-      let att1 = child.PropOrDefault("Attachment1", void 0);
-      if (att1 && att1.IsA("Attachment")) {
-        let att1W = att1.w;
-        this.cframe1 = att1W.getWorldCFrame();
-      }
-      this.lifetime = child.PropOrDefault("Lifetime", this.lifetime), this.maxLength = child.PropOrDefault("MaxLength", this.maxLength), this.minLength = child.PropOrDefault("MinLength", this.minLength), this.faceCamera = child.PropOrDefault("FaceCamera", this.faceCamera), FLAGS.BEAMS_ENABLED || (this.enabled = !1);
-    }
-    async compileResults(renderer, scene) {
-      let originalResults = this.results;
-      if (this.results = [], this.enabled) {
-        let textureResult;
-        this.texture && (textureResult = await getTexture(this.texture), textureResult && (textureResult.wrapT = RepeatWrapping));
-        let material = new MeshBasicMaterial({
-          side: DoubleSide,
-          map: textureResult,
-          vertexColors: !0,
-          transparent: !0,
-          depthWrite: !1
-        }), geometry = new PlaneGeometry(1, 1, this.maxSegments, 1), colorValues = new Float32Array((this.maxSegments + 1) * 2 * 4).fill(1);
-        geometry.setAttribute("color", new BufferAttribute(colorValues, 4));
-        let mesh = new Mesh(geometry, material);
-        mesh.frustumCulled = !1, mesh.name = this.instance ? this.instance.PropOrDefault("Name", "Unknown") + "_Trail" : "Unknown_Trail", this.results.push(mesh);
-      }
-      return originalResults && (this.disposeMeshes(scene, originalResults), this.disposeRenderLists(renderer)), this.updateResults(), this.results;
-    }
-    calculateSegmentCFrame() {
-      let newCF = lerpCFrame(this.cframe0, this.cframe1, 0.5);
-      return newCF = CFrame.lookAt(newCF.Position, this.cframe0.Position), newCF;
-    }
-    addSegment() {
-      let newCF = this.calculateSegmentCFrame(), newLength = distance(this.cframe0.Position, this.cframe1.Position), lastSegment = this.segments[0];
-      if (lastSegment && distance(lastSegment.cframe.Position, newCF.Position) <= this.minLength)
-        return;
-      let newSegment = new TrailSegment(newCF, newLength);
-      newSegment.time = this.segmentTime, this.segments.unshift(newSegment);
-    }
-    getSegmentCFrame(i2) {
-      if (i2 <= 0)
-        return this.calculateSegmentCFrame();
-      {
-        let segment = this.segments[specialClamp(i2 - 1, 0, this.segments.length - 1)];
-        return segment ? segment.cframe : this.calculateSegmentCFrame();
-      }
-    }
-    getSegmentLength(i2) {
-      if (i2 <= 0)
-        return distance(this.cframe0.Position, this.cframe1.Position);
-      {
-        let segment = this.segments[specialClamp(i2 - 1, 0, this.segments.length - 1)];
-        return segment ? segment.length : 0;
-      }
-    }
-    getSegmentTime(i2) {
-      if (i2 <= 0)
-        return this.segmentTime;
-      {
-        let segment = this.segments[specialClamp(i2 - 1, 0, this.segments.length - 1)];
-        return segment ? segment.time : this.segmentTime;
-      }
-    }
-    updateResults() {
-      if (!this.results) return;
-      let deltaTime = this.time - this.lastTime;
-      this.segmentTime += deltaTime;
-      let requiredSegmentTime = 1 / FLAGS.TRAIL_FPS;
-      for (let segment of this.segments)
-        segment.time += deltaTime;
-      let lastSegmentCF;
-      for (let i2 = 0; i2 < this.segments.length; i2++) {
-        let totalLength = 0, segment = this.segments[i2];
-        if (segment.time >= this.lifetime || totalLength > this.maxLength) {
-          this.segments.splice(i2, this.segments.length - i2);
-          break;
-        }
-        if (lastSegmentCF) {
-          let diff = distance(lastSegmentCF.Position, segment.cframe.Position);
-          totalLength += diff;
-        }
-        lastSegmentCF = segment.cframe;
-      }
-      this.segmentTime >= requiredSegmentTime && (this.addSegment(), this.segmentTime = 0);
-      for (let result of this.results) {
-        let resultMaterial = result.material, resultGeometry = result.geometry;
-        resultMaterial.blending = this.lightEmission > 0.5 ? AdditiveBlending : NormalBlending;
-        let positions = resultGeometry.getAttribute("position");
-        for (let i2 = 0; i2 < positions.count; i2++) {
-          let index = Math.floor(i2 % (positions.count / 2)), segmentLength = this.getSegmentLength(index), segmentCF = this.getSegmentCFrame(index), normSide = i2 < positions.count / 2 ? 0.5 : -0.5, t3 = this.getSegmentTime(index) / this.lifetime, side = normSide * segmentLength * this.widthScale.getValue(t3, 0), sideCF = segmentCF.multiply(new CFrame(0, 0, side));
-          positions.setXYZ(i2, ...sideCF.Position);
-        }
-        let colors = resultGeometry.getAttribute("color");
-        for (let i2 = 0; i2 < colors.count; i2++) {
-          let index = Math.floor(i2 % (positions.count / 2)), t3 = this.getSegmentTime(index) / this.lifetime, colorValue = this.color.getValue(t3), transparencyValue = this.transparency.getValue(t3, 0), mult = 1 + this.lightEmission;
-          colors.setXYZW(i2, colorValue.R * mult, colorValue.G * mult, colorValue.B * mult, 1 - transparencyValue);
-        }
-        let uvs = resultGeometry.getAttribute("uv");
-        for (let i2 = 0; i2 < uvs.count; i2++) {
-          let t3 = Math.floor(i2 % (positions.count / 2)) / this.segments.length, normSide = i2 < positions.count / 2 ? 1 : 0;
-          uvs.setXY(i2, normSide, (1 - t3) * this.textureLength);
-        }
-        positions.needsUpdate = !0, colors.needsUpdate = !0, uvs.needsUpdate = !0;
-      }
-      this.lastTime = this.time;
-    }
-    moveLoose(vec) {
-      for (let segment of this.segments)
-        segment.cframe.Position = add(segment.cframe.Position, vec);
-    }
-    dispose(_renderer, scene) {
-      if (this.results)
-        for (let result of this.results)
-          scene.remove(result);
-    }
-  }, __vite_glob_0_5 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    TrailDesc
-  }, Symbol.toStringTag, { value: "Module" })), modules = /* @__PURE__ */ Object.assign({ "./attachmentDesc.ts": __vite_glob_0_0, "./beamDesc.ts": __vite_glob_0_1, "./emitterGroupDesc.ts": __vite_glob_0_2, "./lightDesc.ts": __vite_glob_0_3, "./objectDesc.ts": __vite_glob_0_4$1, "./trailDesc.ts": __vite_glob_0_5 });
-  function RegisterRenderDescs() {
-    for (let module of Object.values(modules))
-      for (let exprt of Object.values(module)) {
-        let prototype = Object.getPrototypeOf(exprt);
-        for (; prototype; ) {
-          if (prototype === RenderDesc) {
-            exprt.register();
-            break;
-          }
-          prototype = Object.getPrototypeOf(prototype);
-        }
-      }
-  }
-  __name(RegisterRenderDescs, "RegisterRenderDescs");
-  var fullscreenGeometry = /* @__PURE__ */ (() => {
+  }, Symbol.toStringTag, { value: "Module" })), fullscreenGeometry = /* @__PURE__ */ (() => {
     let vertices = new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), uvs = new Float32Array([0, 0, 2, 0, 0, 2]), geometry = new BufferGeometry();
     return geometry.setAttribute("position", new BufferAttribute(vertices, 3)), geometry.setAttribute("uv", new BufferAttribute(uvs, 2)), geometry;
   })(), Pass = class _Pass {
@@ -76972,29 +75736,7 @@ layout(location = 0) out highp vec4 neuralFragColor;
     Default: 1,
     Log: 2,
     Reverse: 3
-  };
-  function disposeMesh(scene, mesh) {
-    if (mesh.material) {
-      let materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (let material of materials) {
-        for (let key of Object.keys(material)) {
-          let value2 = material[key];
-          value2 instanceof Texture && value2.dispose();
-        }
-        if (material instanceof ShaderMaterial) {
-          let uniforms = material.uniforms;
-          for (let key of Object.keys(uniforms)) {
-            let value2 = uniforms[key].value;
-            value2 instanceof Texture && value2.dispose();
-          }
-        }
-        material.dispose();
-      }
-    }
-    mesh.geometry && mesh.geometry.dispose(), scene.remove(mesh);
-  }
-  __name(disposeMesh, "disposeMesh");
-  var RBXRendererScene = class {
+  }, RBXRendererScene = class {
     static {
       __name(this, "RBXRendererScene");
     }
@@ -77004,9 +75746,19 @@ layout(location = 0) out highp vec4 neuralFragColor;
     controls;
     shouldAnimate = !0;
     destroyed = !1;
+    /**Used internally to determine color space output */
+    isForRenderTarget = !1;
+    get colorSpace() {
+      return this.effectComposer && RBXRenderer.usePostProcessing || this.isForRenderTarget ? "srgb-linear" : "srgb";
+    }
     //renderer
     n8aoPass = void 0;
+    effectPass = void 0;
     effectComposer;
+    hasPostProcessing = !1;
+    /**Used so MSAA will stay the same even when effectComposer is recreated */
+    _msaa = 4;
+    queueEffectComposerCreation = !1;
     //viewport
     scissor;
     viewport;
@@ -77038,6 +75790,39 @@ layout(location = 0) out highp vec4 neuralFragColor;
     ambientLight;
     directionalLight;
     directionalLight2;
+    /**Adds a SSAO pass to the effectComposer and replaces the current EffectPass with one that contains SSAO and Bloom */
+    addPostProcessing() {
+      if (!this.effectComposer) return;
+      this.hasPostProcessing = !0;
+      let effectPass = this.effectPass;
+      effectPass && (this.effectComposer.removePass(effectPass), effectPass.dispose());
+      let ogn8aoPass = this.n8aoPass;
+      ogn8aoPass && (this.effectComposer.removePass(ogn8aoPass), ogn8aoPass.dispose());
+      let n8aoPass = new $87431ee93b037844$export$2489f9981ab0fa82(this.scene, this.camera, FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? 840 : 420, FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? 840 : 420);
+      n8aoPass.configuration.aoRadius = 0.2, this.n8aoPass = n8aoPass, this.effectComposer.addPass(n8aoPass);
+      let newEffectPass = new EffectPass(
+        this.camera,
+        new SMAAEffect({
+          preset: SMAAPreset.ULTRA
+        }),
+        new BloomEffect({
+          blendFunction: BlendFunction.ADD,
+          mipmapBlur: !0,
+          luminanceThreshold: 0.95,
+          luminanceSmoothing: 0.2,
+          intensity: 0.5,
+          radius: 0.5
+        })
+      );
+      this.effectPass = newEffectPass, this.effectComposer.addPass(newEffectPass);
+    }
+    /**Sets/gets MSAA level of the effectComposer, which is 4 by default */
+    set msaa(value2) {
+      this.effectComposer && (this._msaa = value2, this.effectComposer.multisampling = value2);
+    }
+    get msaa() {
+      return this.effectComposer ? this.effectComposer.multisampling : 0;
+    }
     /** Forces viewport to be within bounds */
     setRect(bounds) {
       this.viewport = [bounds.left, window.innerHeight - bounds.bottom, bounds.width, bounds.height], this.scissor = [...this.viewport];
@@ -77172,7 +75957,1991 @@ layout(location = 0) out highp vec4 neuralFragColor;
         });
       });
     }
-  }, RBXRenderer = class _RBXRenderer {
+  }, particle_vertexShader = (
+    /*glsl*/
+    `
+attribute vec3 instanceColor;
+attribute vec3 instanceSeedTime;
+attribute float instanceOpacity;
+attribute vec4 instanceFlipbook;
+
+varying vec2 vUv;
+varying vec3 vInstanceColor;
+varying float vInstanceOpacity;
+varying vec3 vInstanceSeedTime;
+varying vec2 vFlipbookUv0;
+varying vec2 vFlipbookUv1;
+
+uniform float uZOffset;
+
+void main() {
+    vUv = uv;
+    vInstanceColor = instanceColor;
+    vInstanceOpacity = instanceOpacity;
+    vInstanceSeedTime = instanceSeedTime;
+    vFlipbookUv0 = instanceFlipbook.xy;
+    vFlipbookUv1 = instanceFlipbook.zw;
+
+    vec4 modelViewPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+
+    //offset position toward camera
+    vec3 viewDir = normalize(modelViewPosition.xyz);
+    modelViewPosition.xyz += viewDir * -uZOffset;
+
+    gl_Position = projectionMatrix * modelViewPosition;
+}
+`
+  ), particle_fragmentShaderOld = (
+    /*glsl*/
+    `
+//artibutes
+varying vec2 vUv;
+varying vec3 vInstanceColor;
+varying float vInstanceOpacity;
+varying vec3 vInstanceSeedTime;
+varying vec2 vFlipbookUv0;
+varying vec2 vFlipbookUv1;
+
+//textures
+uniform sampler2D uColorMap;
+uniform sampler2D uAlphaMap;
+uniform sampler2D uMap;
+
+//uniforms
+uniform float uLightInfluence;
+uniform float uOpacity;
+uniform float uBrightness;
+uniform vec2 uFlipbookSize;
+
+//light uniforms
+#if NUM_DIR_LIGHTS > 0
+    struct DirectionalLight {
+    vec3 direction;
+    vec3 color;
+    };
+    uniform DirectionalLight directionalLights[NUM_DIR_LIGHTS]; 
+#endif
+
+uniform vec3 ambientLightColor; 
+
+void main() {
+    float seed = vInstanceSeedTime.x;
+    float time = vInstanceSeedTime.y;
+    float frameTransition = vInstanceSeedTime.z;
+
+    // Sample the texture using the UV coordinates (for both frames)
+    vec4 texColor0 = texture2D(uMap, vUv * uFlipbookSize + vFlipbookUv0);
+    vec4 texColor1 = texture2D(uMap, vUv * uFlipbookSize + vFlipbookUv1);
+
+    vec4 texColor = mix(texColor0, texColor1, frameTransition);
+
+    vec4 alphaTex = texture2D(uAlphaMap, vec2(time, seed)); 
+    vec4 colorTex = texture2D(uColorMap, vec2(time, seed));
+
+    // Tint texture with our color
+    vec4 tintedColor = texColor * vec4(vInstanceColor, 1.0);
+
+    // Apply opacity to the texture alpha
+    vec4 opacityColor = tintedColor * vec4(1.0, 1.0, 1.0, uOpacity * vInstanceOpacity) * alphaTex.r;
+
+    //#ADDITIVE_INSERT
+
+    // Apply that weird color things sparkles have
+    vec4 finalColor = opacityColor;
+    finalColor.rgb = mix(opacityColor.rgb, opacityColor.rgb * colorTex.rgb, colorTex.a);
+
+    // Apply lighting
+    vec3 light = ambientLightColor;
+    #if NUM_DIR_LIGHTS > 0
+        for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
+            light += directionalLights[i].color;
+        }
+    #endif
+
+    finalColor = vec4(mix(finalColor.rgb * uBrightness, finalColor.rgb * light, uLightInfluence), finalColor.a);
+
+    gl_FragColor = finalColor;
+}
+`
+  ), particle_fragmentShader_additiveOld = particle_fragmentShaderOld.replace(
+    "//#ADDITIVE_INSERT",
+    /*glsl*/
+    `
+if (opacityColor.r + opacityColor.g + opacityColor.b <= 0.05) {
+    discard;
+}`
+  ), particle_fragmentShader = (
+    /*glsl*/
+    `
+//artibutes
+varying vec2 vUv;
+varying vec3 vInstanceColor;
+varying float vInstanceOpacity;
+varying vec3 vInstanceSeedTime;
+varying vec2 vFlipbookUv0;
+varying vec2 vFlipbookUv1;
+
+//textures
+uniform sampler2D uColorMap;
+uniform sampler2D uAlphaMap;
+uniform sampler2D uMap;
+
+//uniforms
+uniform float uLightInfluence;
+uniform float uOpacity;
+uniform vec2 uFlipbookSize;
+uniform float uLightEmission;
+uniform float uBrightness;
+
+//light uniforms
+#if NUM_DIR_LIGHTS > 0
+    struct DirectionalLight {
+    vec3 direction;
+    vec3 color;
+    };
+    uniform DirectionalLight directionalLights[NUM_DIR_LIGHTS]; 
+#endif
+
+uniform vec3 ambientLightColor; 
+
+void main() {
+    float seed = vInstanceSeedTime.x;
+    float time = vInstanceSeedTime.y;
+    float frameTransition = vInstanceSeedTime.z;
+
+    // Sample the texture using the UV coordinates (for both frames)
+    vec4 texColor0 = texture2D(uMap, vUv * uFlipbookSize + vFlipbookUv0);
+    vec4 texColor1 = texture2D(uMap, vUv * uFlipbookSize + vFlipbookUv1);
+
+    vec4 texColor = mix(texColor0, texColor1, frameTransition);
+
+    //new version of section below
+    vec4 alphaTex = texture2D(uAlphaMap, vec2(time, seed)); 
+    vec4 colorTex = texture2D(uColorMap, vec2(time, seed));
+
+    /*vec4 alphaTex = texture2D(uAlphaMap, vec2(time, seed)); 
+    vec4 colorTex = texture2D(uColorMap, vec2(time, seed));
+
+    // Tint texture with our color
+    vec4 tintedColor = texColor * vec4(vInstanceColor, 1.0);
+
+    // Apply opacity to the texture alpha
+    vec4 opacityColor = tintedColor * vec4(1.0, 1.0, 1.0, uOpacity * vInstanceOpacity) * alphaTex.r;
+
+    // Apply that weird color things sparkles have
+    vec4 finalColor = opacityColor;
+    finalColor.rgb = mix(opacityColor.rgb, opacityColor.rgb * colorTex.rgb, colorTex.a);*/
+
+    // Apply lighting
+    vec3 light = ambientLightColor;
+    #if NUM_DIR_LIGHTS > 0
+        for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
+            light += directionalLights[i].color;
+        }
+    #endif
+
+    float baseAlpha = texColor.a * (vInstanceOpacity * uOpacity) * alphaTex.r;
+
+    vec4 finalColor;
+    finalColor.rgb = texColor.rgb * colorTex.rgb * vInstanceColor;
+
+    //#ADDITIVE_INSERT
+
+    finalColor = vec4(mix(finalColor.rgb * vec3(uBrightness, uBrightness, uBrightness), finalColor.rgb * light, uLightInfluence), finalColor.a);
+
+    /*float brightness = dot(finalColor.rgb, vec3(0.299, 0.587, 0.114)); //kinda additive (but results in correct alpha)
+
+    finalColor.a = mix(baseAlpha, brightness, uLightEmission);*/
+
+    
+    finalColor.a = mix(baseAlpha, 0.0, uLightEmission); //true additive (but results in incorrect alpha)
+    
+
+    //encode both blend alpha (as most significant) and true alpha (as least significant), then unpack later on the cpu for thumbnail generation (this doesnt work we also render like everything else kinda forgot)
+    /*float blendAlpha = 1.0 - uLightEmission;
+
+    finalColor.a = floor(blendAlpha * 100.0) / 100.0 + baseAlpha / 100.0;*/
+
+    gl_FragColor = finalColor;
+
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+
+    gl_FragColor.rgb *= baseAlpha;
+}
+`
+  ), smoke_fragmentShader = (
+    /*glsl*/
+    `
+//artibutes
+varying vec2 vUv;
+varying vec3 vInstanceColor;
+varying float vInstanceOpacity;
+varying vec3 vInstanceSeedTime;
+
+//textures
+uniform sampler2D uColorMap;
+uniform sampler2D uAlphaMap;
+uniform sampler2D uMap;
+
+//uniforms
+uniform float uOpacity;
+
+//light uniforms
+#if NUM_DIR_LIGHTS > 0
+    struct DirectionalLight {
+    vec3 direction;
+    vec3 color;
+    };
+    uniform DirectionalLight directionalLights[NUM_DIR_LIGHTS]; 
+#endif
+
+uniform vec3 ambientLightColor; 
+
+void main() {
+    float seed = vInstanceSeedTime.x;
+    float time = vInstanceSeedTime.y;
+
+    // Sample the texture using the UV coordinates (for both frames)
+    vec4 texColor = texture2D(uMap, vUv);
+
+    float alphaValue = texture2D(uAlphaMap, vec2(time, seed)).r * uOpacity * vInstanceOpacity; 
+    vec4 colorTex = texture2D(uColorMap, vec2(time, seed)) * vec4(vInstanceColor, 1.0);
+
+    // Apply lighting
+    vec3 light = ambientLightColor;
+    #if NUM_DIR_LIGHTS > 0
+        for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
+            light += directionalLights[i].color;
+        }
+    #endif
+
+    vec4 finalColor;
+    finalColor.rgb = texColor.rgb * colorTex.rgb * light;
+    finalColor.a = texColor.a * alphaValue;
+
+    gl_FragColor = finalColor;
+
+    #include <tonemapping_fragment>
+	#include <colorspace_fragment>
+    #include <premultiplied_alpha_fragment>
+}
+`
+  ), sparkles2016_fragmentShader = (
+    /*glsl*/
+    `
+//artibutes
+varying vec2 vUv;
+varying vec3 vInstanceColor;
+varying vec3 vInstanceSeedTime;
+
+//textures
+uniform sampler2D uColorMap;
+uniform sampler2D uAlphaMap;
+uniform sampler2D uMap;
+
+void main() {
+    float seed = vInstanceSeedTime.x;
+    float time = vInstanceSeedTime.y;
+
+    // Sample the texture using the UV coordinates (for both frames)
+    vec4 texColor = texture2D(uMap, vUv);
+
+    float alphaValue = texture2D(uAlphaMap, vec2(time, seed)).r; 
+    vec4 colorTex = texture2D(uColorMap, vec2(time, seed));
+    colorTex.a = alphaValue;
+
+    vec4 finalColor;
+
+    if( texColor.a < 0.5f )
+	{
+		finalColor.rgb = colorTex.rgb * vInstanceColor * (2.0 * texColor.a);
+	}
+	else
+	{
+		finalColor.rgb = mix( colorTex.rgb * vInstanceColor, texColor.rgb, 2.0*texColor.a-1.0 );
+	}
+
+    finalColor.rgb *= colorTex.a;
+    finalColor.a = texColor.a * colorTex.a * 1.0;
+
+    gl_FragColor = finalColor;
+}
+`
+  ), basicParticle_fragmentShader = (
+    /*glsl*/
+    `
+//artibutes
+varying vec2 vUv;
+varying vec3 vInstanceColor;
+varying vec3 vInstanceSeedTime;
+
+//textures
+uniform sampler2D uColorMap;
+uniform sampler2D uAlphaMap;
+uniform sampler2D uMap;
+
+void main() {
+    float seed = vInstanceSeedTime.x;
+    float time = vInstanceSeedTime.y;
+
+    // Sample the texture using the UV coordinates (for both frames)
+    vec4 texColor = texture2D(uMap, vUv);
+
+    float alphaValue = texture2D(uAlphaMap, vec2(time, seed)).r; 
+    vec4 colorTex = texture2D(uColorMap, vec2(time, seed));
+    colorTex.a = alphaValue;
+
+    vec4 finalColor;
+    finalColor.rgb = (texColor.rgb + colorTex.rgb) * vInstanceColor;
+    finalColor.a = texColor.a * colorTex.a;
+
+    gl_FragColor = finalColor;
+
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    #include <premultiplied_alpha_fragment>
+}
+`
+  ), fire_fragmentShader = (
+    /*glsl*/
+    `
+//artibutes
+varying vec2 vUv;
+varying vec3 vInstanceColor;
+varying vec3 vInstanceSeedTime;
+
+//textures
+uniform sampler2D uColorMap;
+uniform sampler2D uAlphaMap;
+uniform sampler2D uMap;
+
+void main() {
+    float seed = vInstanceSeedTime.x;
+    float time = vInstanceSeedTime.y;
+
+    // Sample the texture using the UV coordinates (for both frames)
+    vec4 texColor = texture2D(uMap, vUv);
+
+    float alphaValue = texture2D(uAlphaMap, vec2(time, seed)).r; 
+    vec4 colorTex = vec4(1.0, 0.0, 0.0, 0.0);
+    colorTex.a = alphaValue;
+
+    vec4 finalColor;
+    finalColor.rgb = texColor.rgb * vInstanceColor;
+    finalColor.a = texColor.a * colorTex.a;
+
+    gl_FragColor = finalColor;
+
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    #include <premultiplied_alpha_fragment>
+}
+`
+  ), sparkles_fragmentShader = (
+    /*glsl*/
+    `
+//artibutes
+varying vec2 vUv;
+varying vec3 vInstanceColor;
+varying vec3 vInstanceSeedTime;
+
+//textures
+uniform sampler2D uColorMap;
+uniform sampler2D uAlphaMap;
+uniform sampler2D uMap;
+
+void main() {
+    float seed = vInstanceSeedTime.x;
+    float time = vInstanceSeedTime.y;
+
+    // Sample the texture using the UV coordinates (for both frames)
+    vec4 texColor = texture2D(uMap, vUv);
+
+    float alphaValue = texture2D(uAlphaMap, vec2(time, seed)).r; 
+    vec4 colorTex = texture2D(uColorMap, vec2(time, seed));
+    colorTex.a = alphaValue;
+
+    vec4 finalColor;
+
+    if( texColor.a < 0.5f )
+	{
+		finalColor.rgb = (colorTex.rgb + texColor.rgb) * vInstanceColor;
+	}
+	else
+	{
+		finalColor.rgb = mix( (colorTex.rgb + texColor.rgb) * vInstanceColor, texColor.rgb, 2.0*texColor.a-1.0 );
+	}
+
+    finalColor.a = texColor.a * colorTex.a * 1.0;
+
+    gl_FragColor = finalColor;
+
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    #include <premultiplied_alpha_fragment>
+}
+`
+  );
+  function randomBetween(min, max2) {
+    return Math.random() * (max2 - min) + min;
+  }
+  __name(randomBetween, "randomBetween");
+  function velocityFromSpread(speed, spread) {
+    let theta = spread.X, phi = spread.Y;
+    return new Vector3(
+      -speed * Math.sin(phi),
+      -speed * Math.cos(phi) * Math.sin(theta),
+      -speed * Math.cos(phi) * Math.cos(theta)
+    );
+  }
+  __name(velocityFromSpread, "velocityFromSpread");
+  function pingPong(t3, maxLength) {
+    let repeat = t3 % (2 * maxLength);
+    return maxLength - Math.abs(repeat - maxLength);
+  }
+  __name(pingPong, "pingPong");
+  var Particle = class {
+    static {
+      __name(this, "Particle");
+    }
+    lifetime;
+    time = 0;
+    position;
+    rotation;
+    velocity;
+    rotationSpeed;
+    seed = Math.random();
+    constructor(lifetime, position, rotation, velocity, rotationSpeed) {
+      this.lifetime = lifetime, this.position = position, this.rotation = rotation, this.velocity = velocity, this.rotationSpeed = rotationSpeed;
+    }
+    get intSeed() {
+      return Math.floor(this.seed * 1e6);
+    }
+    camDistance(renderScene) {
+      let cameraPos = new Vector3(...renderScene.camera.position.toArray()), particlePos = this.position;
+      return cameraPos.minus(particlePos).magnitude();
+    }
+    getMatrix(renderScene, size, orientation, squash) {
+      let camera = renderScene.camera, particlePos = new Vector3$1(...this.position.toVec3()), translation = new Matrix4().makeTranslation(particlePos), sizeX = squash > 0 ? size / (1 + squash) : size * (1 - squash), sizeY = squash > 0 ? size * (1 + squash) : size / (1 - squash), scale = new Matrix4().makeScale(sizeX, sizeY, 1);
+      switch (orientation) {
+        case ParticleOrientation.FacingCameraWorldUp: {
+          let cameraLookVector = new Vector3$1();
+          camera.getWorldDirection(cameraLookVector);
+          let rotationParticlePosMatrix = new Matrix4().lookAt(new Vector3$1(0, 0, 0), new Vector3$1(0, 1, 0), cameraLookVector), _pos = new Vector3$1(), _scale = new Vector3$1(), rotationQuat = new Quaternion();
+          rotationParticlePosMatrix.decompose(_pos, rotationQuat, _scale);
+          let rotation = new Matrix4().makeRotationFromQuaternion(rotationQuat), flatRotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 0, 1), rad(this.rotation)), offsetRotation = new Matrix4().makeRotationAxis(new Vector3$1(1, 0, 0), rad(-90)), offset2Rotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 1, 0), rad(180));
+          return translation.multiply(rotation).multiply(offsetRotation).multiply(offset2Rotation).multiply(flatRotation).multiply(scale);
+        }
+        case ParticleOrientation.VelocityPerpendicular: {
+          let normalizedVelocity = new Vector3$1(...this.velocity.normalize().toVec3()), rotationParticlePosMatrix = new Matrix4().lookAt(new Vector3$1(0, 0, 0), normalizedVelocity, new Vector3$1(0, 1, 0)), _pos = new Vector3$1(), _scale = new Vector3$1(), rotationQuat = new Quaternion();
+          rotationParticlePosMatrix.decompose(_pos, rotationQuat, _scale);
+          let rotation = new Matrix4().makeRotationFromQuaternion(rotationQuat), flatRotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 0, 1), rad(this.rotation));
+          return translation.multiply(rotation).multiply(flatRotation).multiply(scale);
+        }
+        case ParticleOrientation.VelocityParallel: {
+          let toCamera = new Vector3$1(0, 0, -1).applyQuaternion(camera.quaternion), vY = new Vector3$1(...this.velocity.toVec3()).normalize(), vX = new Vector3$1().crossVectors(toCamera.normalize(), vY).normalize(), vZ = new Vector3$1().crossVectors(vX, vY).normalize(), rotation = new Matrix4().set(
+            vX.x,
+            vY.x,
+            vZ.x,
+            0,
+            vX.y,
+            vY.y,
+            vZ.y,
+            0,
+            vX.z,
+            vY.z,
+            vZ.z,
+            0,
+            0,
+            0,
+            0,
+            1
+          ), flatRotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 0, 1), rad(this.rotation + 90));
+          return translation.multiply(rotation).multiply(flatRotation).multiply(scale);
+        }
+        case ParticleOrientation.FacingCamera:
+        default: {
+          let rotation = new Matrix4().makeRotationFromQuaternion(camera.quaternion), flatRotation = new Matrix4().makeRotationAxis(new Vector3$1(0, 0, 1), rad(this.rotation));
+          return translation.multiply(rotation).multiply(flatRotation).multiply(scale);
+        }
+      }
+    }
+    getFlipbookTransitionTime(total, framerate, mode, startRandom) {
+      let randomVal = new RNG(this.intSeed + 324).nextFloat(), offset = startRandom ? mathRandom(0, total - 1, randomVal) : 0;
+      switch (mode) {
+        case ParticleFlipbookMode.Loop:
+          return this.time * framerate - Math.floor(this.time * framerate);
+        case ParticleFlipbookMode.OneShot: {
+          let untilEnd = total - 1 - offset, currentTime = this.time / this.lifetime * untilEnd;
+          return 1 - (Math.round(currentTime) + 1 - (currentTime + 0.5));
+        }
+        case ParticleFlipbookMode.PingPong:
+          return this.time * framerate - Math.floor(this.time * framerate);
+        case ParticleFlipbookMode.Random:
+          return this.time * framerate - Math.floor(this.time * framerate);
+      }
+      return 0;
+    }
+    getFlipbookIndex(total, isNext, framerate, mode, startRandom) {
+      let randomVal = new RNG(this.intSeed + 324).nextFloat(), offset = startRandom ? mathRandom(0, total - 1, randomVal) : 0;
+      switch (mode) {
+        case ParticleFlipbookMode.Loop: {
+          offset += Math.floor(this.time * framerate), isNext && (offset += 1);
+          break;
+        }
+        case ParticleFlipbookMode.OneShot: {
+          let untilEnd = total - 1 - offset;
+          offset += Math.round(this.time / this.lifetime * untilEnd), isNext && (offset += 1);
+          break;
+        }
+        case ParticleFlipbookMode.PingPong: {
+          let frameCount = Math.floor(this.time * framerate);
+          isNext && (frameCount += 1), offset = pingPong(offset + frameCount, total - 1);
+          break;
+        }
+        case ParticleFlipbookMode.Random: {
+          let frameCount = Math.floor(this.time * framerate);
+          isNext && (frameCount += 1), offset += mathRandom(0, total - 1, new RNG(this.intSeed + 334 + frameCount * 13 % 1e5).nextFloat());
+          break;
+        }
+      }
+      return offset >= total && (mode !== ParticleFlipbookMode.OneShot ? offset %= total : offset = total - 1), offset;
+    }
+    tick(dt, drag, acceleration) {
+      this.time += specialClamp(dt, 0, this.lifetime), this.position = this.position.add(this.velocity.multiply(new Vector3(dt, dt, dt)));
+      let accMult = 0.5 * Math.pow(dt, 2);
+      this.position = this.position.add(acceleration.multiply(new Vector3(accMult, accMult, accMult))), this.velocity = this.velocity.add(acceleration.multiply(new Vector3(dt, dt, dt)));
+      let dragVal = Math.pow(2, -drag * dt);
+      this.velocity = this.velocity.multiply(new Vector3(dragVal, dragVal, dragVal)), this.rotation += this.rotationSpeed * dt;
+    }
+  }, EmitterShaderType = {
+    Particle: 0,
+    Smoke: 1,
+    Sparkles2016: 2,
+    BasicParticle: 3,
+    Fire: 4,
+    ParticleOld: 5,
+    Sparkles: 6
+  }, EmitterBlendType = {
+    PremultipliedAdditive: 0,
+    Additive: 1,
+    Normal: 2,
+    Add: 3
+  }, EmitterDesc = class extends DisposableDesc {
+    static {
+      __name(this, "EmitterDesc");
+    }
+    renderScene;
+    passedTime = 0;
+    lockedToPart = !1;
+    lifetime = new NumberRange(1, 1);
+    spreadAngle = new Vector2(0, 0);
+    speed = new NumberRange(1, 1);
+    rotation = new NumberRange(0, 0);
+    rotationSpeed = new NumberRange(0, 0);
+    localAcceleration = new Vector3(0, 0, 0);
+    acceleration = new Vector3(0, 0, 0);
+    drag = 0;
+    timeScale = 1;
+    orientation = ParticleOrientation.FacingCamera;
+    zOffset = 0;
+    offset = new Vector3();
+    shapeInOut = 0;
+    opacity = 1;
+    lightEmission = 1;
+    lightInfluence = 0;
+    blending = EmitterBlendType.PremultipliedAdditive;
+    brightness = 1;
+    color = new ColorSequence();
+    size = new NumberSequence();
+    squash = new NumberSequence([new NumberSequenceKeypoint(0, 0, 0)]);
+    transparency = new NumberSequence([new NumberSequenceKeypoint(0, 0, 0)]);
+    normalizeSizeKeypointTime = !0;
+    flipbookLayout = ParticleFlipbookLayout.None;
+    flipbookBlendFrames = !0;
+    flipbookFramerate = new NumberRange(1, 1);
+    flipbookMode = ParticleFlipbookMode.Loop;
+    flipbookSizeX = 1;
+    flipbookSizeY = 1;
+    flipbookStartRandom = !1;
+    //requires recompilation
+    rate = 10;
+    colorTexture;
+    alphaTexture;
+    texture;
+    shader = 0;
+    //results
+    instanceOpacityBuffer;
+    instanceColorBuffer;
+    instanceSeedTimeBuffer;
+    instanceFlipbookBuffer;
+    result;
+    resultMaterial;
+    particles = [];
+    initialParticleCount = 0;
+    constructor(renderScene) {
+      super(), this.renderScene = renderScene;
+    }
+    get maxCount() {
+      let calculatedMax = Math.max(Math.ceil(this.lifetime.Max * this.rate) * 2, 1);
+      return this.initialParticleCount + calculatedMax;
+    }
+    needsRegeneration(newDesc) {
+      return this.texture === newDesc.texture && this.alphaTexture === newDesc.alphaTexture && this.colorTexture === newDesc.colorTexture && this.rate === newDesc.rate && this.shader === newDesc.shader;
+    }
+    isSame(newDesc) {
+      return !this.needsRegeneration(newDesc) && this.lockedToPart === newDesc.lockedToPart && this.lifetime.isSame(newDesc.lifetime) && this.spreadAngle.isSame(newDesc.spreadAngle) && this.speed.isSame(newDesc.speed) && this.rotation.isSame(newDesc.rotation) && this.rotationSpeed.isSame(newDesc.rotationSpeed) && this.localAcceleration.isSame(newDesc.localAcceleration) && this.acceleration.isSame(newDesc.acceleration) && this.drag === newDesc.drag && this.timeScale === newDesc.timeScale && this.orientation === newDesc.orientation && this.zOffset === newDesc.zOffset && this.offset.isSame(newDesc.offset) && this.shapeInOut === newDesc.shapeInOut && this.opacity === newDesc.opacity && this.lightEmission === newDesc.lightEmission && this.lightInfluence === newDesc.lightInfluence && this.blending === newDesc.blending && this.color.isSame(newDesc.color) && this.size.isSame(newDesc.size) && this.squash.isSame(newDesc.squash) && this.transparency.isSame(newDesc.transparency) && this.normalizeSizeKeypointTime === newDesc.normalizeSizeKeypointTime && this.flipbookLayout === newDesc.flipbookLayout && this.flipbookBlendFrames === newDesc.flipbookBlendFrames && this.flipbookFramerate.isSame(newDesc.flipbookFramerate) && this.flipbookMode === newDesc.flipbookMode && this.flipbookSizeX === newDesc.flipbookSizeX && this.flipbookSizeY === newDesc.flipbookSizeY && this.flipbookStartRandom === newDesc.flipbookStartRandom && this.brightness === newDesc.brightness;
+    }
+    fromEmitterDesc(other) {
+      this.lockedToPart = other.lockedToPart, this.lifetime = other.lifetime.clone(), this.rate = other.rate, this.spreadAngle = other.spreadAngle.clone(), this.speed = other.speed.clone(), this.rotation = other.rotation.clone(), this.rotationSpeed = other.rotationSpeed.clone(), this.localAcceleration = other.localAcceleration.clone(), this.acceleration = other.acceleration.clone(), this.drag = other.drag, this.timeScale = other.timeScale, this.orientation = other.orientation, this.zOffset = other.zOffset, this.offset = other.offset.clone(), this.shapeInOut = other.shapeInOut, this.opacity = other.opacity, this.lightEmission = other.lightEmission, this.lightInfluence = other.lightInfluence, this.blending = other.blending, this.brightness = other.brightness, this.color = other.color.clone(), this.size = other.size.clone(), this.squash = other.squash.clone(), this.transparency = other.transparency.clone(), this.normalizeSizeKeypointTime = other.normalizeSizeKeypointTime, this.flipbookLayout = other.flipbookLayout, this.flipbookBlendFrames = other.flipbookBlendFrames, this.flipbookFramerate = other.flipbookFramerate.clone(), this.flipbookMode = other.flipbookMode, this.flipbookSizeX = other.flipbookSizeX, this.flipbookSizeY = other.flipbookSizeY, this.flipbookStartRandom = other.flipbookStartRandom;
+    }
+    dispose(renderer, scene) {
+      let mesh = this.result;
+      mesh && (this.disposeMesh(scene, mesh), this.disposeRenderLists(renderer));
+    }
+    getFlipbookSize() {
+      let flipbookSizeX = this.flipbookSizeX, flipbookSizeY = this.flipbookSizeY;
+      switch (this.flipbookLayout) {
+        case ParticleFlipbookLayout.None:
+          flipbookSizeX = 1, flipbookSizeY = 1;
+          break;
+        case ParticleFlipbookLayout.Grid2x2:
+          flipbookSizeX = 2, flipbookSizeY = 2;
+          break;
+        case ParticleFlipbookLayout.Grid4x4:
+          flipbookSizeX = 4, flipbookSizeY = 4;
+          break;
+        case ParticleFlipbookLayout.Grid8x8:
+          flipbookSizeX = 8, flipbookSizeY = 8;
+          break;
+        case ParticleFlipbookLayout.Custom:
+          break;
+      }
+      return [flipbookSizeX, flipbookSizeY];
+    }
+    async compileResult(renderer, scene) {
+      let originalResult = this.result, texturePromises = [
+        getTexture(this.texture),
+        getTexture(this.alphaTexture, NoColorSpace),
+        getTexture(this.colorTexture)
+      ], [mapToUse, alphaMapToUse, colorMapToUse] = await Promise.all(texturePromises);
+      mapToUse || (mapToUse = new DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1, RGBAFormat), mapToUse.needsUpdate = !0), alphaMapToUse || (alphaMapToUse = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, RGBAFormat), alphaMapToUse.needsUpdate = !0), colorMapToUse || (colorMapToUse = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, RGBAFormat), colorMapToUse.needsUpdate = !0);
+      let geometry = new PlaneGeometry(2, 2);
+      this.instanceColorBuffer = new InstancedBufferAttribute(new Float32Array(this.maxCount * 3), 3), geometry.setAttribute("instanceColor", this.instanceColorBuffer), this.instanceOpacityBuffer = new InstancedBufferAttribute(new Float32Array(this.maxCount), 1), geometry.setAttribute("instanceOpacity", this.instanceOpacityBuffer), this.instanceSeedTimeBuffer = new InstancedBufferAttribute(new Float32Array(this.maxCount * 3), 3), geometry.setAttribute("instanceSeedTime", this.instanceSeedTimeBuffer), this.instanceFlipbookBuffer = new InstancedBufferAttribute(new Float32Array(this.maxCount * 4), 4), geometry.setAttribute("instanceFlipbook", this.instanceFlipbookBuffer);
+      let [flipbookSizeX, flipbookSizeY] = this.getFlipbookSize(), fragmentShader2 = particle_fragmentShader;
+      switch (this.shader) {
+        case EmitterShaderType.Particle:
+          fragmentShader2 = particle_fragmentShader;
+          break;
+        case EmitterShaderType.Smoke:
+          fragmentShader2 = smoke_fragmentShader;
+          break;
+        case EmitterShaderType.Sparkles2016:
+          fragmentShader2 = sparkles2016_fragmentShader;
+          break;
+        case EmitterShaderType.BasicParticle:
+          fragmentShader2 = basicParticle_fragmentShader;
+          break;
+        case EmitterShaderType.Fire:
+          fragmentShader2 = fire_fragmentShader;
+          break;
+        case EmitterShaderType.ParticleOld:
+          fragmentShader2 = particle_fragmentShader_additiveOld;
+          break;
+        case EmitterShaderType.Sparkles:
+          fragmentShader2 = sparkles_fragmentShader;
+          break;
+      }
+      let material = new ShaderMaterial({
+        transparent: !0,
+        depthWrite: !1,
+        side: DoubleSide,
+        opacity: this.opacity,
+        lights: !0,
+        premultipliedAlpha: !0,
+        toneMapped: !0,
+        blending: this.blending === EmitterBlendType.PremultipliedAdditive || this.blending === EmitterBlendType.Add ? CustomBlending : this.blending === EmitterBlendType.Additive ? AdditiveBlending : NormalBlending,
+        blendSrc: OneFactor,
+        blendDst: this.blending === EmitterBlendType.Add ? OneFactor : OneMinusSrcAlphaFactor,
+        blendEquation: AddEquation,
+        blendSrcAlpha: OneMinusDstAlphaFactor,
+        blendDstAlpha: OneFactor,
+        blendEquationAlpha: AddEquation,
+        vertexShader: particle_vertexShader,
+        fragmentShader: fragmentShader2,
+        uniforms: UniformsUtils.merge([
+          UniformsLib.lights,
+          {
+            uMap: { value: mapToUse },
+            uAlphaMap: { value: alphaMapToUse },
+            uColorMap: { value: colorMapToUse },
+            uLightInfluence: { value: this.lightInfluence },
+            uLightEmission: { value: this.lightEmission },
+            uBrightness: { value: this.brightness },
+            uOpacity: { value: this.opacity },
+            uZOffset: { value: this.zOffset },
+            uFlipbookSize: { value: new Vector2$1(1 / flipbookSizeX, 1 / flipbookSizeY) }
+          }
+        ])
+      });
+      return this.resultMaterial = material, this.result = new InstancedMesh(geometry, material, this.maxCount), this.result.name = "Particles", this.result.frustumCulled = !1, originalResult && (this.disposeMesh(scene, originalResult), this.disposeRenderLists(renderer)), this.result;
+    }
+    emit(groupDesc, force = !1) {
+      if (this.particles.length >= this.maxCount || groupDesc.enabled === !1 && !force)
+        return;
+      let speed = randomBetween(this.speed.Min, this.speed.Max), spreadX = rad((Math.random() - 0.5) * 2 * Math.abs(this.spreadAngle.X)), spreadY = rad((Math.random() - 0.5) * 2 * Math.abs(this.spreadAngle.Y)), spread = new Vector2(spreadX, spreadY), velocityMultiplierScalar = 1;
+      this.shapeInOut === ParticleEmitterShapeInOut.Inward ? velocityMultiplierScalar = -1 : this.shapeInOut === ParticleEmitterShapeInOut.InAndOut && (velocityMultiplierScalar = Math.random() > 0.5 ? 1 : -1);
+      let velocityMultiplier = new Vector3$1(velocityMultiplierScalar, velocityMultiplierScalar, velocityMultiplierScalar), velocityFront = velocityFromSpread(speed, spread), worldVelocity = new Vector3$1(...velocityFront.toVec3()).multiply(velocityMultiplier).applyQuaternion(groupDesc.getNormalQuaternionForVelocity()).applyQuaternion(new Quaternion().setFromRotationMatrix(groupDesc.cframe.getTHREEMatrix())), worldVelocityRoblox = new Vector3(...worldVelocity.toArray()).add(groupDesc.parentVelocity), localPos = groupDesc.getRandomLocalPos();
+      localPos = localPos.add(this.offset);
+      let worldPos = groupDesc.toWorldSpace(localPos), particle = new Particle(
+        randomBetween(this.lifetime.Min, this.lifetime.Max),
+        worldPos,
+        randomBetween(this.rotation.Min, this.rotation.Max),
+        worldVelocityRoblox,
+        randomBetween(this.rotationSpeed.Min, this.rotationSpeed.Max)
+      );
+      this.particles.push(particle);
+    }
+    vectorLocalToWorld(pivot, vector) {
+      let localVectorCF = new CFrame(...vector.toVec3()), rotatedWorldCF = pivot.clone();
+      rotatedWorldCF.Position = [0, 0, 0];
+      let localVectorToWorldCF = rotatedWorldCF.multiply(localVectorCF);
+      return new Vector3(...localVectorToWorldCF.Position);
+    }
+    tick(dt, groupDesc) {
+      if (this.passedTime += dt * this.timeScale, this.lockedToPart)
+        for (let particle of this.particles) {
+          let particleCF = new CFrame(...particle.position.toVec3()), localParticleCF = groupDesc.lastCframe.inverse().multiply(particleCF), newParticleCF = groupDesc.cframe.multiply(localParticleCF), newParticleCFOnlyOrientation = newParticleCF.clone();
+          newParticleCFOnlyOrientation.Position = [0, 0, 0], particle.position = new Vector3(...newParticleCF.Position), particle.velocity = new Vector3(...newParticleCFOnlyOrientation.multiply(new CFrame(...particle.velocity.toVec3())).Position);
+        }
+      for (let particle of this.particles) {
+        let acceleration = this.lockedToPart ? new Vector3(0, 0, 0) : this.acceleration, localAccelerationToWorld = this.vectorLocalToWorld(groupDesc.cframe, this.localAcceleration);
+        this.lockedToPart && (localAccelerationToWorld = localAccelerationToWorld.add(this.vectorLocalToWorld(groupDesc.cframe, this.acceleration))), particle.tick(dt * this.timeScale, this.drag, acceleration.add(localAccelerationToWorld));
+      }
+      for (let i2 = this.particles.length - 1; i2 >= 0; i2--) {
+        let particle = this.particles[i2];
+        particle.time >= particle.lifetime && this.particles.splice(i2, 1);
+      }
+      for (this.passedTime = specialClamp(this.passedTime, 0, 5); this.passedTime >= 1 / this.rate; )
+        this.emit(groupDesc), this.passedTime -= 1 / this.rate;
+    }
+    updateResult(renderScene) {
+      if (!this.result || !this.instanceColorBuffer || !this.instanceOpacityBuffer || !this.instanceSeedTimeBuffer || !this.instanceFlipbookBuffer) return;
+      this.result.count = this.particles.length;
+      let [flipbookSizeX, flipbookSizeY] = this.getFlipbookSize(), flipbookTotal = flipbookSizeX * flipbookSizeY;
+      this.resultMaterial && (this.resultMaterial.uniforms.uOpacity.value = this.opacity, this.resultMaterial.uniforms.uZOffset.value = this.zOffset, this.resultMaterial.uniforms.uLightInfluence.value = this.lightInfluence, this.resultMaterial.uniforms.uLightEmission.value = this.lightEmission, this.resultMaterial.uniforms.uBrightness.value = this.brightness, this.resultMaterial.uniforms.uFlipbookSize.value.set(1 / flipbookSizeX, 1 / flipbookSizeY), this.resultMaterial.needsUpdate = !0);
+      for (let i2 = 0; i2 < this.result.count; i2++) {
+        let particle = this.particles[i2], time2 = particle.time, normalizedTime = particle.time / particle.lifetime, color2 = this.color.getValue(normalizedTime), linearColor = new Color(color2.R, color2.G, color2.B).convertSRGBToLinear(), size = Math.max(this.size.getValue(this.normalizeSizeKeypointTime ? normalizedTime : time2, particle.seed + 0), 0), squash = this.squash.getValue(this.normalizeSizeKeypointTime ? normalizedTime : time2, particle.seed + 2), opacity = 1 - this.transparency.getValue(normalizedTime, particle.seed + 1), flipbookFramerate = mathRandom(this.flipbookFramerate.Min, this.flipbookFramerate.Max, new RNG(particle.seed + 67).nextFloat()) || 1;
+        this.result.setMatrixAt(i2, particle.getMatrix(renderScene, size, this.orientation, squash)), this.instanceColorBuffer.setXYZ(i2, linearColor.r, linearColor.g, linearColor.b), this.instanceOpacityBuffer.setX(i2, opacity), this.instanceSeedTimeBuffer.setXYZ(i2, particle.seed, normalizedTime, particle.getFlipbookTransitionTime(flipbookTotal, flipbookFramerate, this.flipbookMode, this.flipbookStartRandom));
+        let flipbookFrame0 = particle.getFlipbookIndex(flipbookTotal, !1, flipbookFramerate, this.flipbookMode, this.flipbookStartRandom), flipbookFrame1 = this.flipbookBlendFrames ? particle.getFlipbookIndex(flipbookTotal, !0, flipbookFramerate, this.flipbookMode, this.flipbookStartRandom) : flipbookFrame0, column0 = flipbookFrame0 % flipbookSizeX, row0 = Math.floor(flipbookFrame0 / flipbookSizeX), column1 = flipbookFrame1 % flipbookSizeX, row1 = Math.floor(flipbookFrame1 / flipbookSizeX), u0 = column0 * 1 / flipbookSizeX, v0 = (flipbookSizeY - 1 - row0) * 1 / flipbookSizeY, u1 = column1 * 1 / flipbookSizeX, v1 = (flipbookSizeY - 1 - row1) * 1 / flipbookSizeY;
+        this.instanceFlipbookBuffer.setXYZW(i2, u0, v0, u1, v1);
+      }
+      this.result.instanceMatrix.needsUpdate = !0, this.instanceColorBuffer.needsUpdate = !0, this.instanceOpacityBuffer.needsUpdate = !0, this.instanceSeedTimeBuffer.needsUpdate = !0, this.instanceFlipbookBuffer.needsUpdate = !0;
+    }
+  }, EmitterGroupDesc = class extends RenderDesc {
+    static {
+      __name(this, "EmitterGroupDesc");
+    }
+    static classTypes = ["ParticleEmitter", "Sparkles", "Fire", "Smoke"];
+    lastTime = Date.now() / 1e3;
+    time = Date.now() / 1e3;
+    enabled = !0;
+    lowerBound = new Vector3(0, 0, 0);
+    higherBound = new Vector3(0, 0, 0);
+    lastCframe = new CFrame();
+    cframe = new CFrame();
+    emitterDir = NormalId.Top;
+    parentVelocity = new Vector3();
+    emitterDescs = [];
+    //special for emitter group
+    getRandomLocalPos() {
+      let totalSize = this.higherBound.minus(this.lowerBound), x3 = Math.random() * totalSize.X + this.lowerBound.X, y2 = Math.random() * totalSize.Y + this.lowerBound.Y, z2 = Math.random() * totalSize.Z + this.lowerBound.Z;
+      return new Vector3(x3, y2, z2);
+    }
+    toWorldSpace(vec) {
+      let vecAsCF = new CFrame(...vec.toVec3());
+      return new Vector3().fromVec3(this.cframe.multiply(vecAsCF).Position);
+    }
+    getRandomWorldPos() {
+      return this.toWorldSpace(this.getRandomLocalPos());
+    }
+    getNormalQuaternionForVelocity() {
+      switch (this.emitterDir) {
+        case NormalId.Right:
+          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(1, 0, 0));
+        case NormalId.Top:
+          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(0, 1, 0));
+        case NormalId.Back:
+          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(0, 0, 1));
+        case NormalId.Left:
+          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(-1, 0, 0));
+        case NormalId.Bottom:
+          return new Quaternion().setFromUnitVectors(new Vector3$1(0, 0, -1), new Vector3$1(0, -1, 0));
+        case NormalId.Front:
+        default:
+          return new Quaternion();
+      }
+    }
+    createEmitter(config) {
+      let emitter = new EmitterDesc(this.renderScene);
+      return Object.assign(emitter, config), emitter;
+    }
+    //inherited from RenderDesc
+    isSame(newDesc) {
+      return this.needsRegeneration(newDesc) ? !1 : this.time === newDesc.time;
+    }
+    needsRegeneration(newDesc) {
+      if (this.emitterDescs.length !== newDesc.emitterDescs.length)
+        return !0;
+      for (let i2 = 0; i2 < this.emitterDescs.length; i2++)
+        if (!this.emitterDescs[i2].needsRegeneration(newDesc.emitterDescs[i2]))
+          return !0;
+      return !1;
+    }
+    virtualFromRenderDesc(other) {
+      this.time = other.time, this.cframe = other.cframe, this.lowerBound = other.lowerBound, this.higherBound = other.higherBound, this.emitterDir = other.emitterDir, this.enabled = other.enabled;
+      for (let i2 = 0; i2 < this.emitterDescs.length; i2++)
+        this.emitterDescs[i2].fromEmitterDesc(other.emitterDescs[i2]);
+    }
+    virtualTransferFrom(other) {
+      if (this.emitterDescs.length === other.emitterDescs.length)
+        for (let i2 = 0; i2 < this.emitterDescs.length; i2++)
+          this.emitterDescs[i2].particles = other.emitterDescs[i2].particles, this.emitterDescs[i2].initialParticleCount = this.emitterDescs[i2].particles.length;
+    }
+    fromInstance(child) {
+      this.instance = child;
+      let parent = child.parent;
+      if (parent) {
+        if (parent.className === "Attachment") {
+          let attachmentW = new AttachmentWrapper(parent);
+          this.cframe = attachmentW.getWorldCFrame();
+        } else
+          this.cframe = parent.PropOrDefault("CFrame", this.cframe).clone();
+        if (this.lastCframe = this.cframe, parent.HasProperty("Size") || parent.HasProperty("size")) {
+          let size = parent.Prop("Size");
+          this.higherBound = size.multiply(new Vector3(0.5, 0.5, 0.5)), this.lowerBound = size.multiply(new Vector3(-0.5, -0.5, -0.5));
+        }
+        let lastParent = parent;
+        for (; lastParent; ) {
+          if (lastParent.IsA("BasePart")) {
+            let assembly = lastParent.w.GetAssembly();
+            this.parentVelocity = assembly.linearVelocity.clone();
+            break;
+          }
+          lastParent = lastParent.parent;
+        }
+      }
+      switch (this.enabled = child.PropOrDefault("Enabled", !0), child.className) {
+        case "ParticleEmitter":
+          this.fromParticleEmitter(child);
+          break;
+        case "Sparkles":
+          this.fromSparkles(child);
+          break;
+        case "Fire":
+          this.fromFire(child);
+          break;
+        case "Smoke":
+          this.fromSmoke(child);
+          break;
+      }
+    }
+    fromParticleEmitter(child) {
+      this.emitterDir = child.Prop("EmissionDirection");
+      let emitterDesc = new EmitterDesc(this.renderScene);
+      child.HasProperty("Lifetime") && (emitterDesc.lifetime = child.Prop("Lifetime")), child.HasProperty("Rate") && (emitterDesc.rate = child.Prop("Rate")), child.HasProperty("SpreadAngle") && (emitterDesc.spreadAngle = child.Prop("SpreadAngle")), child.HasProperty("ShapeInOut") && (emitterDesc.shapeInOut = child.Prop("ShapeInOut")), child.HasProperty("Speed") && (emitterDesc.speed = child.Prop("Speed")), child.HasProperty("Rotation") && (emitterDesc.rotation = child.Prop("Rotation")), child.HasProperty("RotSpeed") && (emitterDesc.rotationSpeed = child.Prop("RotSpeed")), child.HasProperty("Acceleration") && (emitterDesc.acceleration = child.Prop("Acceleration")), child.HasProperty("Drag") && (emitterDesc.drag = child.Prop("Drag")), child.HasProperty("TimeScale") && (emitterDesc.timeScale = child.Prop("TimeScale")), child.HasProperty("Size") && (emitterDesc.size = child.Prop("Size")), child.HasProperty("Squash") && (emitterDesc.squash = child.Prop("Squash")), child.HasProperty("Color") && (emitterDesc.color = child.Prop("Color")), child.HasProperty("Texture") && (emitterDesc.texture = child.Prop("Texture")), child.HasProperty("Transparency") && (emitterDesc.transparency = child.Prop("Transparency")), child.HasProperty("LightEmission") && (emitterDesc.lightEmission = child.Prop("LightEmission")), emitterDesc.blending = emitterDesc.lightEmission === 0 ? EmitterBlendType.Normal : EmitterBlendType.PremultipliedAdditive, child.HasProperty("LightInfluence") && (emitterDesc.lightInfluence = child.Prop("LightInfluence")), child.HasProperty("ZOffset") && (emitterDesc.zOffset = child.Prop("ZOffset")), child.HasProperty("Orientation") && (emitterDesc.orientation = child.Prop("Orientation")), child.HasProperty("LockedToPart") && (emitterDesc.lockedToPart = child.Prop("LockedToPart")), emitterDesc.brightness = child.PropOrDefault("Brightness", emitterDesc.brightness), emitterDesc.flipbookLayout = child.PropOrDefault("FlipbookLayout", emitterDesc.flipbookLayout), emitterDesc.flipbookBlendFrames = child.PropOrDefault("FlipbookBlendFrames", emitterDesc.flipbookBlendFrames), emitterDesc.flipbookFramerate = child.PropOrDefault("FlipbookFramerate", emitterDesc.flipbookFramerate), emitterDesc.flipbookMode = child.PropOrDefault("FlipbookMode", emitterDesc.flipbookMode), emitterDesc.flipbookSizeX = child.PropOrDefault("FlipbookSizeX", emitterDesc.flipbookSizeX), emitterDesc.flipbookSizeY = child.PropOrDefault("FlipbookSizeY", emitterDesc.flipbookSizeY), emitterDesc.flipbookStartRandom = child.PropOrDefault("FlipbookStartRandom", emitterDesc.flipbookStartRandom), this.emitterDescs.push(emitterDesc);
+    }
+    fromSparkles(child) {
+      this.lowerBound = new Vector3(-0.2, -0.2, -0.2), this.higherBound = new Vector3(0.2, 0.2, 0.2);
+      let color2 = child.PropOrDefault("SparkleColor", new Color3(144 / 255, 25 / 255, 255 / 255)).clone();
+      this.emitterDescs.push(this.createEmitter({
+        texture: "rbxasset://textures/particles/sparkles_main.dds",
+        alphaTexture: "rbxasset://textures/particles/common_alpha.dds",
+        colorTexture: "rbxasset://textures/particles/sparkles_color.dds",
+        drag: 0.2,
+        size: new NumberSequence([new NumberSequenceKeypoint(0, 0.37, 0), new NumberSequenceKeypoint(1, 0.37 + 0.65, 0)]),
+        speed: new NumberRange(5, 5),
+        rotation: new NumberRange(-90, 90),
+        rotationSpeed: new NumberRange(40, 100),
+        spreadAngle: new Vector2(100, 100),
+        rate: 30,
+        lifetime: new NumberRange(1.3, 1.3),
+        timeScale: child.PropOrDefault("TimeScale", 1),
+        color: ColorSequence.fromColor(color2),
+        shader: EmitterShaderType.Sparkles,
+        blending: EmitterBlendType.PremultipliedAdditive
+      })), this.emitterDescs.push(this.createEmitter({
+        texture: "rbxasset://textures/particles/sparkles_main.dds",
+        alphaTexture: "rbxasset://textures/particles/common_alpha.dds",
+        drag: 2,
+        size: new NumberSequence([new NumberSequenceKeypoint(0, 0.1, 0), new NumberSequenceKeypoint(1, 0.1 + 0.34, 0)]),
+        speed: new NumberRange(8, 8),
+        rotation: new NumberRange(-90, 90),
+        rotationSpeed: new NumberRange(-500, 500),
+        spreadAngle: new Vector2(150, 150),
+        rate: 5,
+        lifetime: new NumberRange(1.7, 1.7),
+        timeScale: child.PropOrDefault("TimeScale", 1),
+        color: ColorSequence.fromColor(color2),
+        offset: new Vector3(0, 4, 0),
+        shader: EmitterShaderType.Sparkles,
+        blending: EmitterBlendType.PremultipliedAdditive
+      }));
+    }
+    fromFire(child) {
+      let size = child.PropOrDefault("size_xml", 3) / 3.5, boundSize = size / 8, heat = child.PropOrDefault("heat_xml", 5), timeScale = child.PropOrDefault("TimeScale", 1), color2 = child.PropOrDefault("Color", new Color3(236 / 255, 139 / 255, 70 / 255)).clone(), secondaryColor = child.PropOrDefault("SecondaryColor", new Color3(106 / 255, 44 / 255, 13 / 255)).clone();
+      this.lowerBound = new Vector3(-boundSize, -boundSize, -boundSize), this.higherBound = new Vector3(boundSize, boundSize, boundSize);
+      let strongColor = color2.clone();
+      strongColor.R *= 4, strongColor.G *= 4, strongColor.B *= 4, this.emitterDescs.push(this.createEmitter({
+        texture: "rbxasset://textures/particles/fire_main.dds",
+        alphaTexture: "rbxasset://textures/particles/fire_alpha.dds",
+        drag: 0.4,
+        localAcceleration: new Vector3(0, 0.5 * (1 * size * size / 4 + 0.7 * heat), 0),
+        rotation: new NumberRange(-90, 90),
+        size: new NumberSequence([new NumberSequenceKeypoint(0, 1.1 * size, 0), new NumberSequenceKeypoint(2, 1.1 * size - 0.8 * size * 2, 0)]),
+        speed: new NumberRange(0.4 * (0.2 * size * size + 0.2 * heat), 0.4 * (0.2 * size * size + 0.2 * heat)),
+        rotationSpeed: new NumberRange(100, 100),
+        spreadAngle: new Vector2(10, 10),
+        rate: 65,
+        lifetime: new NumberRange(1, 2),
+        normalizeSizeKeypointTime: !1,
+        timeScale,
+        color: ColorSequence.fromColor(strongColor),
+        brightness: 1,
+        shader: EmitterShaderType.Particle,
+        blending: EmitterBlendType.PremultipliedAdditive
+      }));
+      let sparkSize = size * 0.2;
+      this.emitterDescs.push(this.createEmitter({
+        texture: "rbxasset://textures/particles/fire_sparks_main.dds",
+        alphaTexture: "rbxasset://textures/particles/common_alpha.dds",
+        colorTexture: "rbxasset://textures/particles/fire_sparks_color.dds",
+        drag: 0.4,
+        localAcceleration: new Vector3(0, 0.5 * (1 * size * size / 4 + 0.7 * heat), 0),
+        rotation: new NumberRange(-90, 90),
+        size: new NumberSequence([new NumberSequenceKeypoint(0, sparkSize, 0), new NumberSequenceKeypoint(2, sparkSize - sparkSize / 2 * 2, 0)]),
+        speed: new NumberRange(0.4 * (0.1 * size * size + 0.2 * heat), 0.4 * (0.1 * size * size + 0.2 * heat)),
+        rotationSpeed: new NumberRange(100, 100),
+        spreadAngle: new Vector2(10, 10),
+        rate: 65,
+        lifetime: new NumberRange(1, 2),
+        normalizeSizeKeypointTime: !1,
+        timeScale,
+        color: ColorSequence.fromColor(secondaryColor),
+        shader: EmitterShaderType.BasicParticle,
+        blending: EmitterBlendType.Add
+      }));
+    }
+    fromSmoke(child) {
+      let size = child.PropOrDefault("size_xml", 1), endSize = 10 + size, timeScale = child.PropOrDefault("TimeScale", 1), riseVelocity = child.PropOrDefault("riseVelocity_xml", 1), opacity = child.PropOrDefault("opacity_xml", 0.5), color2 = child.PropOrDefault("Color", new Color3(1, 1, 1)).clone();
+      this.emitterDescs.push(this.createEmitter({
+        texture: "rbxasset://textures/particles/smoke_main.dds",
+        alphaTexture: "rbxasset://textures/particles/common_alpha.dds",
+        drag: 0.1,
+        opacity,
+        acceleration: new Vector3(0, 0, 0.4),
+        size: new NumberSequence([new NumberSequenceKeypoint(0, size, 0), new NumberSequenceKeypoint(1, endSize, 0)]),
+        rotation: new NumberRange(-90, 90),
+        speed: new NumberRange(riseVelocity * 0.9, riseVelocity * 1),
+        rotationSpeed: new NumberRange(-20, 20),
+        spreadAngle: new Vector2(30, 30),
+        rate: 7,
+        lifetime: new NumberRange(5, 5),
+        timeScale,
+        color: ColorSequence.fromColor(color2),
+        blending: EmitterBlendType.Normal,
+        lightInfluence: 1,
+        lightEmission: 0,
+        shader: EmitterShaderType.Smoke
+      }));
+    }
+    dispose(renderer, scene) {
+      let meshes = this.results;
+      meshes && (this.disposeMeshes(scene, meshes), this.disposeRenderLists(renderer));
+    }
+    async compileResults(renderer, scene) {
+      let originalResults = this.results, resultPromises = [];
+      for (let emitterDesc of this.emitterDescs)
+        resultPromises.push(emitterDesc.compileResult(renderer, scene));
+      this.results = [];
+      let compiledResults = await Promise.all(resultPromises);
+      for (let compiledResult of compiledResults)
+        if (compiledResult instanceof Mesh)
+          this.results.push(compiledResult);
+        else
+          return this.disposeMeshes(scene, this.results), this.disposeRenderLists(renderer), compiledResult;
+      originalResults && (this.disposeMeshes(scene, originalResults), this.disposeRenderLists(renderer));
+      let startFull = this.renderScene.particlesStartFull || FLAGS.PARTICLES_START_FULL, startFullFramerate = this.renderScene.particlesStartFullFramerate;
+      if (startFull)
+        for (let emitterDesc of this.emitterDescs) {
+          for (let i2 = 0; i2 < Math.min(emitterDesc.lifetime.Max * 2 * startFullFramerate, startFull * startFullFramerate); i2++)
+            emitterDesc.tick(1 / startFullFramerate, this);
+          emitterDesc.updateResult(this.renderScene);
+        }
+      return this.results;
+    }
+    updateResults(forceDeltaTime) {
+      let dt = forceDeltaTime !== void 0 ? forceDeltaTime : specialClamp(this.time - this.lastTime, 0, 0.1) * FLAGS.RENDERER_DELTA_TIME_MULTIPLIER;
+      this.lastTime = this.time;
+      for (let emitterDesc of this.emitterDescs)
+        emitterDesc.tick(dt, this), emitterDesc.updateResult(this.renderScene);
+      this.lastCframe = this.cframe.clone();
+    }
+    moveLoose(vec) {
+      for (let emitterDesc of this.emitterDescs)
+        if (!emitterDesc.lockedToPart)
+          for (let particle of emitterDesc.particles)
+            particle.position = particle.position.add(new Vector3().fromVec3(vec));
+    }
+  }, __vite_glob_0_2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    EmitterGroupDesc
+  }, Symbol.toStringTag, { value: "Module" })), ParticleEmitterWrapper = class extends InstanceWrapper {
+    static {
+      __name(this, "ParticleEmitterWrapper");
+    }
+    static className = "ParticleEmitter";
+    static requiredProperties = [
+      "Name"
+    ];
+    setup() {
+      this.instance.HasProperty("Name") || this.instance.addProperty(new Property("Name", DataType.String), this.instance.className);
+    }
+    Emit(count = 16) {
+      let renderDescs = RBXRenderer.getRenderDescs(this.instance);
+      for (let renderDesc of renderDescs)
+        if (renderDesc instanceof EmitterGroupDesc)
+          for (let emitterDesc of renderDesc.emitterDescs)
+            for (let i2 = 0; i2 < count; i2++)
+              emitterDesc.emit(renderDesc, !0);
+    }
+  }, __vite_glob_0_23 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    ParticleEmitterWrapper
+  }, Symbol.toStringTag, { value: "Module" })), SoundWrapperData = class {
+    static {
+      __name(this, "SoundWrapperData");
+    }
+    audioContext;
+    gainNode;
+    buffer;
+    playingSource;
+  }, SoundWrapper = class extends InstanceWrapper {
+    static {
+      __name(this, "SoundWrapper");
+    }
+    static className = "Sound";
+    static requiredProperties = ["Name", "Looped", "Playing", "Volume", "_data"];
+    setup() {
+      this.instance.HasProperty("Name") || this.instance.addProperty(new Property("Name", DataType.String), this.instance.className), this.instance.HasProperty("Looped") || this.instance.addProperty(new Property("Looped", DataType.Bool), !1), this.instance.HasProperty("Playing") || this.instance.addProperty(new Property("Playing", DataType.Bool), !1), this.instance.HasProperty("Volume") || this.instance.addProperty(new Property("Volume", DataType.Float32), !1), this.instance.HasProperty("_data") || this.instance.addProperty(new Property("_data", DataType.NonSerializable), new SoundWrapperData());
+    }
+    get data() {
+      return this.instance.Prop("_data");
+    }
+    created() {
+      this.instance.Prop("Playing") && this.Play(), this.instance.Destroying.Connect(() => {
+        this.data.playingSource && this.Stop(), this.data.audioContext = void 0, this.data.gainNode = void 0, this.data.buffer = void 0;
+      }), this.instance.Changed.Connect(() => {
+        this._updateVolume();
+      });
+    }
+    _updateVolume() {
+      if (this.data.gainNode && this.instance.HasProperty("Volume")) {
+        let volume = this.instance.Prop("Volume");
+        this.data.gainNode.gain.value = volume;
+      }
+    }
+    setPlaying(value2) {
+      this.instance.setProperty("Playing", value2);
+    }
+    playSource() {
+      !this.data.audioContext || !this.data.gainNode || !this.data.buffer || (this.data.playingSource = this.data.audioContext.createBufferSource(), this.data.playingSource.buffer = this.data.buffer, this.data.playingSource.connect(this.data.gainNode), this.data.gainNode.connect(this.data.audioContext.destination), this._updateVolume(), this.data.playingSource.start(0), this.data.playingSource.onended = (() => {
+        this.instance.Prop("Looped") ? this.Play() : this.Stop();
+      }));
+    }
+    Play() {
+      if (FLAGS.AUDIO_ENABLED)
+        if (this.Stop(), this.setPlaying(!0), this.data.audioContext || (this.data.audioContext = new AudioContext()), this.data.gainNode || (this.data.gainNode = this.data.audioContext.createGain()), this.data.buffer)
+          this.data.buffer && this.playSource();
+        else {
+          let audioUrl;
+          this.instance.HasProperty("SoundId") ? audioUrl = this.instance.Prop("SoundId") : this.instance.HasProperty("AudioContent") && (audioUrl = this.instance.Prop("AudioContent").uri), audioUrl && audioUrl.length > 0 && API.Asset.GetAssetBuffer(audioUrl).then((responseBuffer) => {
+            if (responseBuffer instanceof Response || !this.data.audioContext) return;
+            let buffer2 = responseBuffer.slice(0);
+            this.data.audioContext.decodeAudioData(buffer2).then((decodedData) => {
+              !this.data.audioContext || !this.data.gainNode || (this.data.buffer = decodedData, this.playSource());
+            });
+          });
+        }
+    }
+    Stop() {
+      this.setPlaying(!1), this.data.playingSource && (this.data.playingSource.stop(), this.data.playingSource = void 0);
+    }
+  }, __vite_glob_0_25 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    SoundWrapper
+  }, Symbol.toStringTag, { value: "Module" })), ScriptWrapperData = class {
+    static {
+      __name(this, "ScriptWrapperData");
+    }
+    shouldStop = !1;
+  }, ScriptWrapper = class extends InstanceWrapper {
+    static {
+      __name(this, "ScriptWrapper");
+    }
+    static className = "Script";
+    static requiredProperties = ["Name", "_data"];
+    setup() {
+      this.instance.HasProperty("Name") || this.instance.addProperty(new Property("Name", DataType.String), this.instance.className), this.instance.HasProperty("_data") || this.instance.addProperty(new Property("_data", DataType.NonSerializable), new ScriptWrapperData());
+    }
+    get data() {
+      return this.instance.Prop("_data");
+    }
+    created() {
+      this.Run();
+    }
+    Run() {
+      switch (this.instance.Prop("Name")) {
+        case "ChickenSounds":
+        case "HarmonicaSounds":
+        case "SoundPlayer":
+          this.SoundPlayer(this.instance);
+          break;
+        case "HatScript2.0":
+          this.HatScript20(this.instance);
+          break;
+        case "TrailTestRoAvatar":
+          this.TrailTestRoAvatar(this.instance);
+          break;
+      }
+    }
+    //Scripts
+    async SoundPlayer(script) {
+      let Handle;
+      if (script.parent && script.parent.Prop("Name") === "Handle" ? Handle = script.parent : script.parent && script.parent.FindFirstChild("Handle") && (Handle = script.parent.FindFirstChild("Handle")), !Handle) return;
+      let Hat = Handle.parent;
+      if (!Hat) return;
+      let Sounds = [];
+      for (let child of Handle.GetDescendants())
+        child.className === "Sound" && Sounds.push(child);
+      function IsBeingWorn() {
+        return Hat?.parent?.FindFirstChild("Humanoid");
+      }
+      __name(IsBeingWorn, "IsBeingWorn");
+      let maxTime = 20;
+      for (script.Prop("Name") === "SoundPlayer" && (maxTime = 15); ; ) {
+        if (await Wait(mathRandom(5, maxTime)), this.instance.destroyed || this.data.shouldStop) return;
+        if (IsBeingWorn()) {
+          let index = mathRandom(0, Sounds.length - 1), Sound = Sounds[index];
+          new SoundWrapper(Sound).Play();
+        }
+      }
+    }
+    async HatScript20(script) {
+      let now = /* @__PURE__ */ new Date(), month = now.getMonth(), day = now.getDay(), data = this.data, hw, tg, xm, bd, pt, vt, af;
+      month == 10 && day > 21 ? hw = !0 : month == 11 && day > 19 ? tg = !0 : month == 12 && day > 17 && day < 28 ? xm = !0 : month == 9 && day == 1 ? bd = !0 : month == 3 && day > 11 && day < 20 ? pt = !0 : month == 2 && day > 8 && day < 17 ? vt = !0 : month == 4 && day == 1 && (af = !0);
+      let emitter = script.parent?.Child("ParticleEmitter"), burst = script.parent?.Child("Burst");
+      async function snowBlower() {
+        let snow1 = script.parent?.Child("Snowflake1"), snow2 = script.parent?.Child("Snowflake2");
+        for (; ; )
+          if (await Wait(Math.random() * 5), script.destroyed || data.shouldStop || (snow1?.setProperty("Enabled", !1), snow2?.setProperty("Enabled", !0), await Wait(Math.random() * 5), script.destroyed || data.shouldStop) || (snow1?.setProperty("Enabled", !0), snow2?.setProperty("Enabled", !1), Math.random() > 0.97 && (snow1?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop || ((snow1?.w).Emit(22), await Wait(Math.random()), script.destroyed || data.shouldStop) || ((snow2?.w).Emit(22), await Wait(2), script.destroyed || data.shouldStop))))
+            return;
+      }
+      __name(snowBlower, "snowBlower");
+      async function leafBlower() {
+        let leaf1 = script.parent?.Child("Leaf1"), leaf2 = script.parent?.Child("Leaf2");
+        for (; ; )
+          if (await Wait(Math.random() * 5), script.destroyed || data.shouldStop || (leaf1?.setProperty("Enabled", !1), leaf2?.setProperty("Enabled", !0), await Wait(Math.random() * 5), script.destroyed || data.shouldStop) || (leaf1?.setProperty("Enabled", !0), leaf2?.setProperty("Enabled", !1), Math.random() > 0.97 && (leaf1?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop || ((leaf1?.w).Emit(22), await Wait(Math.random()), script.destroyed || data.shouldStop) || ((leaf2?.w).Emit(22), await Wait(2), script.destroyed || data.shouldStop))))
+            return;
+      }
+      __name(leafBlower, "leafBlower");
+      async function cloverBlower() {
+        let leaf1 = script.parent?.Child("Clover1"), leaf2 = script.parent?.Child("Clover2");
+        for (; ; )
+          if (await Wait(Math.random() * 5), script.destroyed || data.shouldStop || (leaf1?.setProperty("Enabled", !1), leaf2?.setProperty("Enabled", !0), await Wait(Math.random() * 5), script.destroyed || data.shouldStop) || (leaf1?.setProperty("Enabled", !0), leaf2?.setProperty("Enabled", !1), Math.random() > 0.97 && (leaf1?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop || ((leaf1?.w).Emit(22), await Wait(Math.random()), script.destroyed || data.shouldStop) || ((leaf2?.w).Emit(22), await Wait(2), script.destroyed || data.shouldStop))))
+            return;
+      }
+      for (__name(cloverBlower, "cloverBlower"), hw ? (emitter?.setProperty("Enabled", !1), emitter = script.parent?.Child("Hallow"), script.parent?.parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://6991166143") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://6991166143")) : tg ? (script.parent?.parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://6991393806") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://6991393806"), leafBlower()) : xm ? (emitter?.setProperty("Enabled", !1), emitter = script.parent?.Child("Snowflake3"), snowBlower()) : bd ? (emitter?.setProperty("Enabled", !1), emitter = script.parent?.Child("Confetti"), script.parent?.parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://2399316028") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://2399316028")) : pt ? (script.Parent?.Parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://2399447918") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://2399447918"), cloverBlower()) : vt ? (emitter?.setProperty("Enabled", !1), emitter = script.Parent?.Child("Heart"), script.Parent?.Parent?.IsA("MeshPart") ? script.parent?.parent?.setProperty("TextureID", "rbxassetid://2399448372") : script.parent?.parent?.Child("Mesh")?.setProperty("TextureId", "rbxassetid://2399448372")) : af && (emitter?.setProperty("Enabled", !1), emitter = script.Parent?.Child("Hats"), script.Parent?.Child("Smokescreen")?.setProperty("Enabled", !0), script.Parent?.Parent?.setProperty("Transparency", 1)); ; ) {
+        if (await Wait(1.3), script.destroyed || data.shouldStop || (emitter?.setProperty("Enabled", !1), await Wait(0.8), script.destroyed || data.shouldStop)) return;
+        emitter?.setProperty("Enabled", !0);
+        let rando = Math.random();
+        if (rando > 0.97) {
+          if (emitter?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop || (burst?.setProperty("Enabled", !0), await Wait(2), script.destroyed || data.shouldStop)) return;
+          burst?.setProperty("Enabled", !1), emitter?.setProperty("Enabled", !0);
+        } else if (rando > 0.969) {
+          if (emitter?.setProperty("Enabled", !1), await Wait(4), script.destroyed || data.shouldStop) return;
+          for (let v2 of script.Parent?.GetChildren() || [])
+            if (v2.IsA("ParticleEmitter") && (v2.w.Emit(mathRandom(6, 10)), await Wait(0.5), script.destroyed || data.shouldStop))
+              return;
+          if (await Wait(2), script.destroyed || data.shouldStop) return;
+          emitter?.setProperty("Enabled", !0);
+        }
+      }
+    }
+    async TrailTestRoAvatar(script) {
+      await Wait(1);
+      let part = script.parent;
+      if (part) {
+        let ogCF = part.Prop("CFrame").clone();
+        for (; ; ) {
+          if (script.destroyed || this.data.shouldStop) return;
+          let newCF = ogCF.clone(), val = Date.now() / 1e3 % 3 / 3 * 2 * Math.PI, xAdd = Math.sin(val) * 2, zAdd = Math.cos(val) * 2;
+          newCF.Position[0] += xAdd, newCF.Position[2] += zAdd, part.setProperty("CFrame", newCF), await Wait(1 / 60);
+        }
+      }
+    }
+  }, __vite_glob_0_24 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    ScriptWrapper
+  }, Symbol.toStringTag, { value: "Module" })), ToolWrapper = class extends InstanceWrapper {
+    static {
+      __name(this, "ToolWrapper");
+    }
+    static className = "Tool";
+    static requiredProperties = [
+      "Name",
+      "Grip"
+    ];
+    setup() {
+      this.instance.HasProperty("Name") || this.instance.addProperty(new Property("Name", DataType.String), this.instance.className), this.instance.HasProperty("Grip") || this.instance.addProperty(new Property("Grip", DataType.CFrame), new CFrame());
+    }
+    created() {
+      this.instance.AncestryChanged.Connect(() => {
+        this.createWeld();
+      });
+    }
+    //doing this is actually inaccurate because tools dont create welds, but its easier
+    createWeld() {
+      let handle = this.instance.FindFirstChild("Handle"), rig = this.instance.parent, grip = this.instance.PropOrDefault("Grip", new CFrame()).clone();
+      if (handle) {
+        let oldToolWeld = handle.FindFirstChild("ToolWeld_GripRoAvatar");
+        oldToolWeld && oldToolWeld.Destroy();
+      }
+      let humanoid = rig?.FindFirstChildOfClass("Humanoid");
+      if (handle && rig && rig.className === "Model" && humanoid) {
+        let rightHand = rig.FindFirstChild("RightHand") || rig.FindFirstChild("Right Arm");
+        if (rightHand) {
+          for (let child of rightHand.GetDescendants())
+            if (child.Prop("Name") === "RightGripAttachment") {
+              let rightGripAttCF = child.PropOrDefault("CFrame", new CFrame()).clone();
+              humanoid.Prop("RigType") === HumanoidRigType.R6 && (rightGripAttCF.Orientation[0] -= 90);
+              let weld = new Instance("Weld");
+              weld.addProperty(new Property("Name", DataType.String), "ToolWeld_GripRoAvatar"), weld.addProperty(new Property("Archivable", DataType.Bool), !0), weld.addProperty(new Property("C0", DataType.CFrame), rightGripAttCF), weld.addProperty(new Property("C1", DataType.CFrame), grip), weld.addProperty(new Property("Part0", DataType.Referent), child.parent), weld.addProperty(new Property("Part1", DataType.Referent), handle), weld.addProperty(new Property("Active", DataType.Bool), !0), weld.addProperty(new Property("Enabled", DataType.Bool), !1), weld.setParent(handle), weld.setProperty("Enabled", !0);
+            }
+        }
+      }
+    }
+  }, __vite_glob_0_26 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    ToolWrapper
+  }, Symbol.toStringTag, { value: "Module" })), UnionOperationWrapper = class extends BasePartWrapper {
+    static {
+      __name(this, "UnionOperationWrapper");
+    }
+    static className = "UnionOperation";
+    static requiredProperties = [
+      ...super.requiredProperties
+    ];
+    setup() {
+      super.setup();
+    }
+  }, __vite_glob_0_27 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    UnionOperationWrapper
+  }, Symbol.toStringTag, { value: "Module" })), WedgePartWrapper = class extends BasePartWrapper {
+    static {
+      __name(this, "WedgePartWrapper");
+    }
+    static className = "WedgePart";
+  }, __vite_glob_0_28 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    WedgePartWrapper
+  }, Symbol.toStringTag, { value: "Module" })), WeldWrapper = class extends JointInstanceWrapper {
+    static {
+      __name(this, "WeldWrapper");
+    }
+    static className = "Weld";
+  }, __vite_glob_0_29 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    WeldWrapper
+  }, Symbol.toStringTag, { value: "Module" })), modules$1 = /* @__PURE__ */ Object.assign({ "./instance/Accessory.ts": __vite_glob_0_0$1, "./instance/AccessoryDescription.ts": __vite_glob_0_1$1, "./instance/AnimationConstraint.ts": __vite_glob_0_2$1, "./instance/Animator.ts": __vite_glob_0_3$1, "./instance/Attachment.ts": __vite_glob_0_4, "./instance/BasePart.ts": __vite_glob_0_5$1, "./instance/BodyColors.ts": __vite_glob_0_6, "./instance/BodyPartDescription.ts": __vite_glob_0_7, "./instance/Bone.ts": __vite_glob_0_8, "./instance/Camera.ts": __vite_glob_0_9, "./instance/Constraint.ts": __vite_glob_0_10, "./instance/Decal.ts": __vite_glob_0_11, "./instance/FaceControls.ts": __vite_glob_0_12, "./instance/HumanoidDescription.ts": __vite_glob_0_13, "./instance/InstanceWrapper.ts": __vite_glob_0_14, "./instance/JointInstance.ts": __vite_glob_0_15, "./instance/MakeupDescription.ts": __vite_glob_0_16, "./instance/ManualWeld.ts": __vite_glob_0_17, "./instance/MeshPart.ts": __vite_glob_0_18, "./instance/Model.ts": __vite_glob_0_19, "./instance/Motor.ts": __vite_glob_0_20, "./instance/Motor6D.ts": __vite_glob_0_21, "./instance/Part.ts": __vite_glob_0_22, "./instance/ParticleEmitter.ts": __vite_glob_0_23, "./instance/Script.ts": __vite_glob_0_24, "./instance/Sound.ts": __vite_glob_0_25, "./instance/Tool.ts": __vite_glob_0_26, "./instance/UnionOperation.ts": __vite_glob_0_27, "./instance/WedgePart.ts": __vite_glob_0_28, "./instance/Weld.ts": __vite_glob_0_29 });
+  function RegisterWrappers() {
+    for (let module of Object.values(modules$1))
+      for (let exprt of Object.values(module)) {
+        let prototype = Object.getPrototypeOf(exprt);
+        for (; prototype; ) {
+          if (prototype === InstanceWrapper) {
+            exprt.register();
+            break;
+          }
+          prototype = Object.getPrototypeOf(prototype);
+        }
+      }
+  }
+  __name(RegisterWrappers, "RegisterWrappers");
+  var attachmentGeometry = new SphereGeometry(0.125, 16, 8), AttachmentDesc = class extends RenderDesc {
+    static {
+      __name(this, "AttachmentDesc");
+    }
+    static classTypes = ["Attachment"];
+    visible = !1;
+    cframe = new CFrame();
+    isSame(other) {
+      return this.visible === other.visible && this.cframe.isSame(other.cframe);
+    }
+    needsRegeneration(newDesc) {
+      return this.visible !== newDesc.visible;
+    }
+    virtualFromRenderDesc(other) {
+      this.cframe = other.cframe.clone();
+    }
+    fromInstance(child) {
+      let attachmentW = new AttachmentWrapper(child);
+      this.cframe = attachmentW.getWorldCFrame(), this.visible = child.PropOrDefault("Visible", this.visible) || FLAGS.ALWAYS_SHOW_ATTACHMENTS;
+    }
+    async compileResults() {
+      if (this.results = [], this.visible) {
+        let mesh = new Mesh(attachmentGeometry, new MeshLambertMaterial({ color: 65280 }));
+        mesh.name = this.instance ? this.instance.PropOrDefault("Name", "Unknown") + "_Att" : "Unknown_Att", this.results.push(mesh);
+      }
+      return this.updateResults(), this.results;
+    }
+    updateResults() {
+      if (this.results)
+        for (let attachment of this.results) {
+          let resultCF = this.cframe;
+          setTHREEObjectCF(attachment, resultCF);
+        }
+    }
+    dispose(_renderer, scene) {
+      if (this.results)
+        for (let result of this.results)
+          scene.remove(result);
+    }
+  }, __vite_glob_0_0 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    AttachmentDesc
+  }, Symbol.toStringTag, { value: "Module" })), beam_vertexShader = (
+    /*glsl*/
+    `
+varying vec2 vUv;
+varying vec4 vColor;
+
+void main() {
+    vUv = uv;
+    vColor = color;
+
+    vec4 modelViewPosition = modelViewMatrix * vec4(position, 1.0);
+
+    gl_Position = projectionMatrix * modelViewPosition;
+}
+`
+  ), beam_fragmentShader = (
+    /*glsl*/
+    `
+//artibutes
+varying vec2 vUv;
+varying vec4 vColor;
+
+//textures
+uniform sampler2D uMap;
+
+//uniforms
+uniform float uLightInfluence;
+uniform float uLightEmission;
+uniform float uBrightness;
+
+//light uniforms
+#if NUM_DIR_LIGHTS > 0
+    struct DirectionalLight {
+    vec3 direction;
+    vec3 color;
+    };
+    uniform DirectionalLight directionalLights[NUM_DIR_LIGHTS]; 
+#endif
+
+uniform vec3 ambientLightColor; 
+
+void main() {
+    // Sample the texture using the UV coordinates
+    vec4 texColor = texture2D(uMap, vUv);
+
+    // Apply lighting
+    vec3 light = ambientLightColor;
+    #if NUM_DIR_LIGHTS > 0
+        for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
+            light += directionalLights[i].color * 0.2; //otherwise directional lights affect it WAY too much
+        }
+    #endif
+
+    float baseAlpha = texColor.a * vColor.a;
+
+    vec4 finalColor;
+    finalColor.rgb = texColor.rgb * vColor.rgb;
+
+    //#ADDITIVE_INSERT
+
+    finalColor = vec4(mix(finalColor.rgb * vec3(uBrightness, uBrightness, uBrightness), finalColor.rgb * light, uLightInfluence), finalColor.a);
+
+    /*float brightness = dot(finalColor.rgb, vec3(0.299, 0.587, 0.114)); //kinda additive (but results in correct alpha)
+
+    finalColor.a = mix(baseAlpha, brightness, uLightEmission);*/
+
+    
+    finalColor.a = mix(baseAlpha, 0.0, uLightEmission); //true additive (but results in incorrect alpha)
+
+    //encode both blend alpha (as most significant) and true alpha (as least significant), then unpack later on the cpu for thumbnail generation (this doesnt work we also render like everything else kinda forgot)
+    /*float blendAlpha = 1.0 - uLightEmission;
+
+    finalColor.a = floor(blendAlpha * 100.0) / 100.0 + baseAlpha / 100.0;*/
+
+    gl_FragColor = finalColor;
+
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+
+    gl_FragColor.rgb *= baseAlpha;
+}
+`
+  ), BeamDesc = class extends RenderDesc {
+    static {
+      __name(this, "BeamDesc");
+    }
+    static classTypes = ["Beam"];
+    lastTime = Date.now() / 1e3;
+    time = Date.now() / 1e3;
+    passedLength = 0;
+    enabled = !0;
+    lightEmission = 0;
+    //blends between normal -> additive blending
+    lightInfluence = 1;
+    texture;
+    textureLength = 1;
+    textureMode = TextureMode.Stretch;
+    //static behaves identically to wrap
+    textureSpeed = 1;
+    brightness = 1;
+    color = ColorSequence.fromColor(new Color3(1, 1, 1));
+    transparency = new NumberSequence([new NumberSequenceKeypoint(0, 0.5), new NumberSequenceKeypoint(1, 0.5)]);
+    zOffset = 0;
+    //this moves its world position based on camera direction
+    cframe0 = new CFrame();
+    cframe1 = new CFrame();
+    curveSize0 = 0;
+    curveSize1 = 1;
+    width0 = 1;
+    width1 = 1;
+    faceCamera = !1;
+    segments = 10;
+    //results
+    results = [];
+    isSame(newDesc) {
+      return this.time === newDesc.time && this.enabled === newDesc.enabled && this.lightEmission === newDesc.lightEmission && this.lightInfluence === newDesc.lightInfluence && this.texture === newDesc.texture && this.textureLength === newDesc.textureLength && this.textureMode === newDesc.textureMode && this.textureSpeed === newDesc.textureSpeed && this.color.isSame(newDesc.color) && this.transparency.isSame(newDesc.transparency) && this.zOffset === newDesc.zOffset && this.cframe0.isSame(newDesc.cframe0) && this.cframe1.isSame(newDesc.cframe1) && this.curveSize0 === newDesc.curveSize0 && this.curveSize1 === newDesc.curveSize1 && this.width0 === newDesc.width0 && this.width1 === newDesc.width1 && this.faceCamera === newDesc.faceCamera && this.segments === newDesc.segments && this.brightness === newDesc.brightness;
+    }
+    needsRegeneration(newDesc) {
+      return this.enabled !== newDesc.enabled || this.texture !== newDesc.texture || this.segments !== newDesc.segments;
+    }
+    virtualFromRenderDesc(newDesc) {
+      this.time = newDesc.time, this.lightEmission = newDesc.lightEmission, this.lightInfluence = newDesc.lightInfluence, this.textureLength = newDesc.textureLength, this.textureMode = newDesc.textureMode, this.textureSpeed = newDesc.textureSpeed, this.brightness = newDesc.brightness, this.color = newDesc.color.clone(), this.transparency = newDesc.transparency.clone(), this.zOffset = newDesc.zOffset, this.cframe0 = newDesc.cframe0.clone(), this.cframe1 = newDesc.cframe1.clone(), this.curveSize0 = newDesc.curveSize0, this.curveSize1 = newDesc.curveSize1, this.width0 = newDesc.width0, this.width1 = newDesc.width1, this.faceCamera = newDesc.faceCamera;
+    }
+    virtualTransferFrom(oldDesc) {
+      this.passedLength = oldDesc.passedLength;
+    }
+    fromInstance(child) {
+      if (this.enabled = child.PropOrDefault("Enabled", this.enabled), this.lightEmission = child.PropOrDefault("LightEmission", this.lightEmission), this.lightInfluence = child.PropOrDefault("LightInfluence", this.lightInfluence), this.texture = child.PropOrDefault("Texture", this.texture), !this.texture) {
+        let textureContent = child.PropOrDefault("TextureContent", void 0);
+        textureContent && (this.texture = textureContent.uri);
+      }
+      this.textureLength = child.PropOrDefault("TextureLength", this.textureLength), this.textureMode = child.PropOrDefault("TextureMode", this.textureMode), this.textureSpeed = child.PropOrDefault("TextureSpeed", this.textureSpeed), this.brightness = child.PropOrDefault("Brightness", this.brightness), this.color = child.PropOrDefault("Color", this.color), this.transparency = child.PropOrDefault("Transparency", this.transparency), this.zOffset = child.PropOrDefault("ZOffset", this.zOffset);
+      let att0 = child.PropOrDefault("Attachment0", void 0);
+      if (att0 && att0.IsA("Attachment")) {
+        let att0W = att0.w;
+        this.cframe0 = att0W.getWorldCFrame();
+      }
+      let att1 = child.PropOrDefault("Attachment1", void 0);
+      if (att1 && att1.IsA("Attachment")) {
+        let att1W = att1.w;
+        this.cframe1 = att1W.getWorldCFrame();
+      }
+      this.curveSize0 = child.PropOrDefault("CurveSize0", this.curveSize0), this.curveSize1 = child.PropOrDefault("CurveSize1", this.curveSize1), this.width0 = child.PropOrDefault("Width0", this.width0), this.width1 = child.PropOrDefault("Width1", this.width1), this.faceCamera = child.PropOrDefault("FaceCamera", this.faceCamera), this.segments = child.PropOrDefault("Segments", this.segments), FLAGS.BEAMS_ENABLED || (this.enabled = !1);
+    }
+    async compileResults(renderer, scene) {
+      let originalResults = this.results;
+      if (this.results = [], this.enabled) {
+        let textureResult;
+        this.texture && (textureResult = await getTexture(this.texture), textureResult && (textureResult.wrapT = RepeatWrapping)), textureResult || (textureResult = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, RGBAFormat), textureResult.colorSpace = SRGBColorSpace, textureResult.needsUpdate = !0);
+        let material = new ShaderMaterial({
+          side: DoubleSide,
+          vertexColors: !0,
+          transparent: !0,
+          depthWrite: !1,
+          lights: !0,
+          premultipliedAlpha: !0,
+          toneMapped: !0,
+          blending: CustomBlending,
+          blendSrc: OneFactor,
+          blendDst: OneMinusSrcAlphaFactor,
+          blendEquation: AddEquation,
+          blendSrcAlpha: OneMinusDstAlphaFactor,
+          blendDstAlpha: OneFactor,
+          blendEquationAlpha: AddEquation,
+          vertexShader: beam_vertexShader,
+          fragmentShader: beam_fragmentShader,
+          uniforms: UniformsUtils.merge([
+            UniformsLib.lights,
+            {
+              uMap: { value: textureResult },
+              uLightInfluence: { value: this.lightInfluence },
+              uLightEmission: { value: this.lightEmission },
+              uBrightness: { value: this.brightness }
+            }
+          ])
+        }), geometry = new PlaneGeometry(1, 1, this.segments, 1), colorValues = new Float32Array((this.segments + 1) * 2 * 4).fill(0);
+        geometry.setAttribute("color", new BufferAttribute(colorValues, 4));
+        let mesh = new Mesh(geometry, material);
+        mesh.name = this.instance ? this.instance.PropOrDefault("Name", "Unknown") + "_Beam" : "Unknown_Beam", this.results.push(mesh);
+      }
+      return originalResults && (this.disposeMeshes(scene, originalResults), this.disposeRenderLists(renderer)), this.updateResults(), this.results;
+    }
+    updateResults() {
+      if (!this.results) return;
+      let deltaTime = this.time - this.lastTime;
+      this.passedLength += deltaTime * this.textureSpeed;
+      let camera = this.renderScene.camera, toCamera = new Vector3$1(0, 0, -1).applyQuaternion(camera.quaternion), v0 = new Vector3$1(...this.cframe0.Position), v1 = new Vector3$1(...this.cframe0.multiply(new CFrame(this.curveSize0, 0, 0)).Position), v2 = new Vector3$1(...this.cframe1.multiply(new CFrame(-this.curveSize1, 0, 0)).Position), v3 = new Vector3$1(...this.cframe1.Position), curve = new CubicBezierCurve3(v0, v1, v2, v3), curveLength = curve.getLength();
+      for (let result of this.results) {
+        let resultMaterial = result.material;
+        resultMaterial && (resultMaterial.uniforms.uLightInfluence.value = this.lightInfluence, resultMaterial.uniforms.uLightEmission.value = this.lightEmission, resultMaterial.uniforms.uBrightness.value = this.brightness, resultMaterial.needsUpdate = !0);
+        let resultGeometry = result.geometry, positions = resultGeometry.getAttribute("position");
+        for (let i2 = 0; i2 < positions.count; i2++) {
+          let normSide = i2 < positions.count / 2 ? 0.5 : -0.5, t3 = i2 % (positions.count / 2) / (positions.count / 2 - 1), side = normSide * lerp(this.width0, this.width1, t3), prevT = specialClamp(t3 - 1e-3, 0, 1), nextT = specialClamp(prevT + 1e-3, 0, 1), prevPos = curve.getPointAt(prevT), nextPos = curve.getPointAt(nextT), finalMatrix;
+          if (this.faceCamera) {
+            let vZ = new Vector3$1().subVectors(nextPos, prevPos).normalize(), vX = toCamera.clone().negate().normalize(), vY = new Vector3$1().crossVectors(vZ, vX).normalize();
+            vX = new Vector3$1().crossVectors(vY, vZ).normalize();
+            let rotation = new Matrix4().set(
+              vX.x,
+              vY.x,
+              vZ.x,
+              0,
+              vX.y,
+              vY.y,
+              vZ.y,
+              0,
+              vX.z,
+              vY.z,
+              vZ.z,
+              0,
+              0,
+              0,
+              0,
+              1
+            );
+            finalMatrix = new Matrix4().makeTranslation(prevPos).multiply(rotation);
+          } else {
+            let vZ = new Vector3$1().subVectors(nextPos, prevPos).normalize(), vY = new Vector3$1(...lerpCFrame(this.cframe0, this.cframe1, t3).upVector()), vX = new Vector3$1().crossVectors(vZ, vY);
+            vY = new Vector3$1().crossVectors(vZ, vX);
+            let rotation = new Matrix4().set(
+              vX.x,
+              vY.x,
+              vZ.x,
+              0,
+              vX.y,
+              vY.y,
+              vZ.y,
+              0,
+              vX.z,
+              vY.z,
+              vZ.z,
+              0,
+              0,
+              0,
+              0,
+              1
+            );
+            finalMatrix = new Matrix4().makeTranslation(prevPos).multiply(rotation);
+          }
+          let sideCF = new CFrame().fromMatrix(finalMatrix.toArray()).multiply(new CFrame(0, side, 0));
+          positions.setXYZ(i2, ...sideCF.Position);
+        }
+        let colors = resultGeometry.getAttribute("color");
+        for (let i2 = 0; i2 < colors.count; i2++) {
+          let t3 = i2 % (colors.count / 2) / (colors.count / 2 - 1), color2 = this.color.getValue(t3).clone(), transparencyValue = this.transparency.getValue(t3, 0), srgbColor = new Color();
+          srgbColor.set(color2.R, color2.G, color2.B), srgbColor = srgbColor.convertSRGBToLinear(), color2.R = srgbColor.r, color2.G = srgbColor.g, color2.B = srgbColor.b, colors.setXYZW(i2, color2.R, color2.G, color2.B, 1 - transparencyValue);
+        }
+        let uvs = resultGeometry.getAttribute("uv");
+        if (this.textureMode === TextureMode.Stretch)
+          for (let i2 = 0; i2 < uvs.count; i2++) {
+            let t3 = i2 % (colors.count / 2) / (colors.count / 2 - 1), normSide = i2 < positions.count / 2 ? 1 : 0;
+            uvs.setXY(i2, normSide, (1 - t3 + this.passedLength) * this.textureLength);
+          }
+        else
+          for (let i2 = 0; i2 < uvs.count; i2++) {
+            let t3 = i2 % (colors.count / 2) / (colors.count / 2 - 1), normSide = i2 < positions.count / 2 ? 1 : 0;
+            uvs.setXY(i2, normSide, (1 - t3 + this.passedLength / curveLength) * curveLength / this.textureLength);
+          }
+        positions.needsUpdate = !0, colors.needsUpdate = !0, uvs.needsUpdate = !0;
+        let resultCF = new CFrame();
+        resultCF.Position = multiply(toCamera.clone().negate().normalize().toArray(), [this.zOffset, this.zOffset, this.zOffset]), setTHREEObjectCF(result, resultCF);
+      }
+      this.lastTime = this.time;
+    }
+    dispose(_renderer, scene) {
+      if (this.results)
+        for (let result of this.results)
+          scene.remove(result);
+    }
+  }, __vite_glob_0_1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    BeamDesc
+  }, Symbol.toStringTag, { value: "Module" }));
+  function disposeLight(scene, light) {
+    light.shadow && light.shadow.map && light.shadow.map.dispose(), scene.remove(light);
+  }
+  __name(disposeLight, "disposeLight");
+  var LightDesc = class extends RenderDesc {
+    static {
+      __name(this, "LightDesc");
+    }
+    static classTypes = ["PointLight", "SpotLight", "SurfaceLight"];
+    enabled = !0;
+    cframe = new CFrame();
+    shadows = !1;
+    color = new Color3(1, 1, 1);
+    brightness = 1;
+    range = 8;
+    lightType = "point";
+    //spot and face only
+    angle = 90;
+    face = NormalId.Front;
+    isSame(other) {
+      return this.enabled === other.enabled && this.shadows === other.shadows && this.color.isSame(other.color) && this.brightness === other.brightness && this.range === other.range && this.lightType === other.lightType && this.angle === other.angle && this.face === other.face && this.cframe.isSame(other.cframe);
+    }
+    needsRegeneration(newDesc) {
+      return this.lightType !== newDesc.lightType;
+    }
+    virtualFromRenderDesc(other) {
+      this.enabled = other.enabled, this.shadows = other.shadows, this.color = other.color.clone(), this.brightness = other.brightness, this.range = other.range, this.angle = other.angle, this.face = other.face, this.cframe = other.cframe.clone();
+    }
+    fromInstance(child) {
+      switch (child.className) {
+        case "PointLight":
+          this.lightType = "point";
+          break;
+        case "SpotLight":
+          this.lightType = "spot";
+          break;
+        case "SurfaceLight":
+          this.lightType = "surface";
+          break;
+      }
+      if (child.parent)
+        if (child.parent.className === "Attachment") {
+          let attachmentW = new AttachmentWrapper(child.parent);
+          this.cframe = attachmentW.getWorldCFrame();
+        } else
+          this.cframe = child.parent.PropOrDefault("CFrame", this.cframe).clone();
+      this.enabled = child.PropOrDefault("Enabled", this.enabled), this.color = child.PropOrDefault("Color", this.color), this.brightness = child.PropOrDefault("Brightness", this.brightness), this.range = child.PropOrDefault("Range", this.range), this.angle = child.PropOrDefault("Angle", this.angle), this.face = child.PropOrDefault("Face", this.face);
+    }
+    async compileResults(_renderer, scene) {
+      if (this.results)
+        for (let light of this.results)
+          disposeLight(scene, light);
+      switch (this.results = [], this.lightType) {
+        case "point": {
+          let pointLight = new PointLight();
+          pointLight.name = this.instance?.PropOrDefault("Name", void 0) || this.instance?.className || "Light", this.results.push(
+            pointLight
+            /*, pointLightHelper*/
+          );
+          break;
+        }
+        case "spot":
+        case "surface": {
+          let spotLight = new SpotLight();
+          spotLight.add(spotLight.target), spotLight.name = this.instance?.PropOrDefault("Name", void 0) || this.instance?.className || "Light", this.results.push(spotLight);
+          break;
+        }
+      }
+      return this.updateResults(), this.results;
+    }
+    updateResults() {
+      if (this.results) {
+        for (let light of this.results)
+          if (light instanceof PointLight || light instanceof SpotLight) {
+            light.decay = 0.4, light.visible = this.enabled, light.intensity = this.brightness * 4, light.distance = this.range + 0.5, light.castShadow = this.shadows, light.shadow.intensity = 0.5, light.color = new Color().setRGB(this.color.R, this.color.G, this.color.B, SRGBColorSpace);
+            let resultCF = this.cframe, targetCF = new CFrame();
+            if (light instanceof SpotLight) {
+              switch (light.angle = rad(this.angle), this.face) {
+                case NormalId.Front:
+                  targetCF.Position = [0, 0, -1];
+                  break;
+                case NormalId.Back:
+                  targetCF.Position = [0, 0, 1];
+                  break;
+                case NormalId.Right:
+                  targetCF.Position = [1, 0, 0];
+                  break;
+                case NormalId.Left:
+                  targetCF.Position = [-1, 0, 0];
+                  break;
+                case NormalId.Top:
+                  targetCF.Position = [0, 1, 0];
+                  break;
+                case NormalId.Bottom:
+                  targetCF.Position = [0, -1, 0];
+                  break;
+              }
+              light.target.position.set(...targetCF.Position);
+            }
+            setTHREEObjectCF(light, resultCF);
+          }
+      }
+    }
+    dispose(_renderer, scene) {
+      if (this.results)
+        for (let result of this.results)
+          disposeLight(scene, result);
+    }
+  }, __vite_glob_0_3 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    LightDesc
+  }, Symbol.toStringTag, { value: "Module" })), TrailSegment = class {
+    static {
+      __name(this, "TrailSegment");
+    }
+    cframe;
+    length;
+    time = 0;
+    constructor(cf, length) {
+      this.cframe = cf, this.length = length;
+    }
+  }, TrailDesc = class extends RenderDesc {
+    static {
+      __name(this, "TrailDesc");
+    }
+    static classTypes = ["Trail"];
+    lastTime = Date.now() / 1e3;
+    time = Date.now() / 1e3;
+    segmentTime = 0;
+    enabled = !0;
+    lightEmission = 0;
+    //blends between normal -> additive blending
+    lightInfluence = 1;
+    texture;
+    textureLength = 1;
+    textureMode = TextureMode.Stretch;
+    brightness = 1;
+    color = ColorSequence.fromColor(new Color3(1, 1, 1));
+    transparency = new NumberSequence([new NumberSequenceKeypoint(0, 0.5), new NumberSequenceKeypoint(1, 0.5)]);
+    widthScale = new NumberSequence([new NumberSequenceKeypoint(0, 1), new NumberSequenceKeypoint(1, 1)]);
+    cframe0 = new CFrame();
+    cframe1 = new CFrame();
+    lifetime = 1;
+    maxLength = 0;
+    minLength = 0.1;
+    faceCamera = !1;
+    //results
+    results = [];
+    segments = [];
+    get maxSegments() {
+      let maxLength = this.maxLength === 0 ? 9999 : this.maxLength;
+      return Math.ceil(Math.min(this.lifetime * FLAGS.TRAIL_FPS, maxLength / this.minLength)) + 2;
+    }
+    isSame(newDesc) {
+      return this.time === newDesc.time && this.enabled === newDesc.enabled && this.lightEmission === newDesc.lightEmission && this.lightInfluence === newDesc.lightInfluence && this.texture === newDesc.texture && this.textureLength === newDesc.textureLength && this.textureMode === newDesc.textureMode && this.color.isSame(newDesc.color) && this.transparency.isSame(newDesc.transparency) && this.widthScale.isSame(newDesc.widthScale) && this.cframe0.isSame(newDesc.cframe0) && this.cframe1.isSame(newDesc.cframe1) && this.faceCamera === newDesc.faceCamera && this.lifetime === newDesc.lifetime && this.maxLength === newDesc.maxLength && this.minLength === newDesc.minLength && this.brightness === newDesc.brightness;
+    }
+    needsRegeneration(newDesc) {
+      return this.enabled !== newDesc.enabled || this.texture !== newDesc.texture || this.lifetime !== newDesc.lifetime;
+    }
+    virtualFromRenderDesc(newDesc) {
+      this.time = newDesc.time, this.lightEmission = newDesc.lightEmission, this.lightInfluence = newDesc.lightInfluence, this.textureLength = newDesc.textureLength, this.textureMode = newDesc.textureMode, this.brightness = newDesc.brightness, this.color = newDesc.color.clone(), this.transparency = newDesc.transparency.clone(), this.widthScale = newDesc.widthScale.clone(), this.cframe0 = newDesc.cframe0.clone(), this.cframe1 = newDesc.cframe1.clone(), this.lifetime = newDesc.lifetime, this.maxLength = newDesc.maxLength, this.minLength = newDesc.minLength, this.faceCamera = newDesc.faceCamera;
+    }
+    virtualTransferFrom(oldDesc) {
+      this.segmentTime = oldDesc.segmentTime, this.segments = oldDesc.segments;
+    }
+    fromInstance(child) {
+      if (this.enabled = child.PropOrDefault("Enabled", this.enabled), this.lightEmission = child.PropOrDefault("LightEmission", this.lightEmission), this.lightInfluence = child.PropOrDefault("LightInfluence", this.lightInfluence), this.texture = child.PropOrDefault("Texture", this.texture), !this.texture) {
+        let textureContent = child.PropOrDefault("TextureContent", void 0);
+        textureContent && (this.texture = textureContent.uri);
+      }
+      this.textureLength = child.PropOrDefault("TextureLength", this.textureLength), this.textureMode = child.PropOrDefault("TextureMode", this.textureMode), this.brightness = child.PropOrDefault("Brightness", this.brightness), this.color = child.PropOrDefault("Color", this.color), this.transparency = child.PropOrDefault("Transparency", this.transparency), this.widthScale = child.PropOrDefault("WidthScale", this.widthScale);
+      let att0 = child.PropOrDefault("Attachment0", void 0);
+      if (att0 && att0.IsA("Attachment")) {
+        let att0W = att0.w;
+        this.cframe0 = att0W.getWorldCFrame();
+      }
+      let att1 = child.PropOrDefault("Attachment1", void 0);
+      if (att1 && att1.IsA("Attachment")) {
+        let att1W = att1.w;
+        this.cframe1 = att1W.getWorldCFrame();
+      }
+      this.lifetime = child.PropOrDefault("Lifetime", this.lifetime), this.maxLength = child.PropOrDefault("MaxLength", this.maxLength), this.minLength = child.PropOrDefault("MinLength", this.minLength), this.faceCamera = child.PropOrDefault("FaceCamera", this.faceCamera), FLAGS.BEAMS_ENABLED || (this.enabled = !1);
+    }
+    async compileResults(renderer, scene) {
+      let originalResults = this.results;
+      if (this.results = [], this.enabled) {
+        let textureResult;
+        this.texture && (textureResult = await getTexture(this.texture), textureResult && (textureResult.wrapT = RepeatWrapping)), textureResult || (textureResult = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, RGBAFormat), textureResult.colorSpace = SRGBColorSpace, textureResult.needsUpdate = !0);
+        let material = new ShaderMaterial({
+          side: DoubleSide,
+          vertexColors: !0,
+          transparent: !0,
+          depthWrite: !1,
+          lights: !0,
+          premultipliedAlpha: !0,
+          toneMapped: !0,
+          blending: CustomBlending,
+          blendSrc: OneFactor,
+          blendDst: OneMinusSrcAlphaFactor,
+          blendEquation: AddEquation,
+          blendSrcAlpha: OneMinusDstAlphaFactor,
+          blendDstAlpha: OneFactor,
+          blendEquationAlpha: AddEquation,
+          vertexShader: beam_vertexShader,
+          fragmentShader: beam_fragmentShader,
+          uniforms: UniformsUtils.merge([
+            UniformsLib.lights,
+            {
+              uMap: { value: textureResult },
+              uLightInfluence: { value: this.lightInfluence },
+              uLightEmission: { value: this.lightEmission },
+              uBrightness: { value: this.brightness }
+            }
+          ])
+        }), geometry = new PlaneGeometry(1, 1, this.maxSegments, 1), colorValues = new Float32Array((this.maxSegments + 1) * 2 * 4).fill(1);
+        geometry.setAttribute("color", new BufferAttribute(colorValues, 4));
+        let mesh = new Mesh(geometry, material);
+        mesh.frustumCulled = !1, mesh.name = this.instance ? this.instance.PropOrDefault("Name", "Unknown") + "_Trail" : "Unknown_Trail", this.results.push(mesh);
+      }
+      return originalResults && (this.disposeMeshes(scene, originalResults), this.disposeRenderLists(renderer)), this.updateResults(), this.results;
+    }
+    calculateSegmentCFrame() {
+      let newCF = lerpCFrame(this.cframe0, this.cframe1, 0.5);
+      return newCF = CFrame.lookAt(newCF.Position, this.cframe0.Position), newCF;
+    }
+    addSegment() {
+      let newCF = this.calculateSegmentCFrame(), newLength = distance(this.cframe0.Position, this.cframe1.Position), lastSegment = this.segments[0];
+      if (lastSegment && distance(lastSegment.cframe.Position, newCF.Position) <= this.minLength)
+        return;
+      let newSegment = new TrailSegment(newCF, newLength);
+      newSegment.time = this.segmentTime, this.segments.unshift(newSegment);
+    }
+    getSegmentCFrame(i2) {
+      if (i2 <= 0)
+        return this.calculateSegmentCFrame();
+      {
+        let segment = this.segments[specialClamp(i2 - 1, 0, this.segments.length - 1)];
+        return segment ? segment.cframe : this.calculateSegmentCFrame();
+      }
+    }
+    getSegmentLength(i2) {
+      if (i2 <= 0)
+        return distance(this.cframe0.Position, this.cframe1.Position);
+      {
+        let segment = this.segments[specialClamp(i2 - 1, 0, this.segments.length - 1)];
+        return segment ? segment.length : 0;
+      }
+    }
+    getSegmentTime(i2) {
+      if (i2 <= 0)
+        return this.segmentTime;
+      {
+        let segment = this.segments[specialClamp(i2 - 1, 0, this.segments.length - 1)];
+        return segment ? segment.time : this.segmentTime;
+      }
+    }
+    updateResults() {
+      if (!this.results) return;
+      let deltaTime = this.time - this.lastTime;
+      this.segmentTime += deltaTime;
+      let requiredSegmentTime = 1 / FLAGS.TRAIL_FPS;
+      for (let segment of this.segments)
+        segment.time += deltaTime;
+      let lastSegmentCF;
+      for (let i2 = 0; i2 < this.segments.length; i2++) {
+        let totalLength = 0, segment = this.segments[i2];
+        if (segment.time >= this.lifetime || totalLength > this.maxLength) {
+          this.segments.splice(i2, this.segments.length - i2);
+          break;
+        }
+        if (lastSegmentCF) {
+          let diff = distance(lastSegmentCF.Position, segment.cframe.Position);
+          totalLength += diff;
+        }
+        lastSegmentCF = segment.cframe;
+      }
+      this.segmentTime >= requiredSegmentTime && (this.addSegment(), this.segmentTime = 0);
+      for (let result of this.results) {
+        let resultMaterial = result.material, resultGeometry = result.geometry;
+        resultMaterial && (resultMaterial.uniforms.uLightInfluence.value = this.lightInfluence, resultMaterial.uniforms.uLightEmission.value = this.lightEmission, resultMaterial.uniforms.uBrightness.value = this.brightness, resultMaterial.needsUpdate = !0);
+        let positions = resultGeometry.getAttribute("position");
+        for (let i2 = 0; i2 < positions.count; i2++) {
+          let index = Math.floor(i2 % (positions.count / 2)), segmentLength = this.getSegmentLength(index), segmentCF = this.getSegmentCFrame(index), normSide = i2 < positions.count / 2 ? 0.5 : -0.5, t3 = this.getSegmentTime(index) / this.lifetime, side = normSide * segmentLength * this.widthScale.getValue(t3, 0), sideCF = segmentCF.multiply(new CFrame(0, 0, side));
+          positions.setXYZ(i2, ...sideCF.Position);
+        }
+        let colors = resultGeometry.getAttribute("color");
+        for (let i2 = 0; i2 < colors.count; i2++) {
+          let index = Math.floor(i2 % (positions.count / 2)), t3 = this.getSegmentTime(index) / this.lifetime, color2 = this.color.getValue(t3), transparencyValue = this.transparency.getValue(t3, 0), srgbColor = new Color();
+          srgbColor.set(color2.R, color2.G, color2.B), srgbColor = srgbColor.convertSRGBToLinear(), color2.R = srgbColor.r, color2.G = srgbColor.g, color2.B = srgbColor.b, colors.setXYZW(i2, color2.R, color2.G, color2.B, 1 - transparencyValue);
+        }
+        let uvs = resultGeometry.getAttribute("uv");
+        for (let i2 = 0; i2 < uvs.count; i2++) {
+          let t3 = Math.floor(i2 % (positions.count / 2)) / this.segments.length, normSide = i2 < positions.count / 2 ? 1 : 0;
+          uvs.setXY(i2, normSide, (1 - t3) * this.textureLength);
+        }
+        positions.needsUpdate = !0, colors.needsUpdate = !0, uvs.needsUpdate = !0;
+      }
+      this.lastTime = this.time;
+    }
+    moveLoose(vec) {
+      for (let segment of this.segments)
+        segment.cframe.Position = add(segment.cframe.Position, vec);
+    }
+    dispose(_renderer, scene) {
+      if (this.results)
+        for (let result of this.results)
+          scene.remove(result);
+    }
+  }, __vite_glob_0_5 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    TrailDesc
+  }, Symbol.toStringTag, { value: "Module" })), modules = /* @__PURE__ */ Object.assign({ "./attachmentDesc.ts": __vite_glob_0_0, "./beamDesc.ts": __vite_glob_0_1, "./emitterGroupDesc.ts": __vite_glob_0_2, "./lightDesc.ts": __vite_glob_0_3, "./objectDesc.ts": __vite_glob_0_4$1, "./trailDesc.ts": __vite_glob_0_5 });
+  function RegisterRenderDescs() {
+    for (let module of Object.values(modules))
+      for (let exprt of Object.values(module)) {
+        let prototype = Object.getPrototypeOf(exprt);
+        for (; prototype; ) {
+          if (prototype === RenderDesc) {
+            exprt.register();
+            break;
+          }
+          prototype = Object.getPrototypeOf(prototype);
+        }
+      }
+  }
+  __name(RegisterRenderDescs, "RegisterRenderDescs");
+  function disposeMesh(scene, mesh) {
+    if (mesh.material) {
+      let materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (let material of materials) {
+        for (let key of Object.keys(material)) {
+          let value2 = material[key];
+          value2 instanceof Texture && value2.dispose();
+        }
+        if (material instanceof ShaderMaterial) {
+          let uniforms = material.uniforms;
+          for (let key of Object.keys(uniforms)) {
+            let value2 = uniforms[key].value;
+            value2 instanceof Texture && value2.dispose();
+          }
+        }
+        material.dispose();
+      }
+    }
+    mesh.geometry && mesh.geometry.dispose(), scene.remove(mesh);
+  }
+  __name(disposeMesh, "disposeMesh");
+  var RBXRenderer = class _RBXRenderer {
     static {
       __name(this, "RBXRenderer");
     }
@@ -77194,7 +77963,9 @@ layout(location = 0) out highp vec4 neuralFragColor;
       return _RBXRenderer.firstScene.controls;
     }
     static renderer;
-    /**Can be used to disable post processing even when FLAGS.USE_POST_PROCESSING = true */
+    /**
+     * @deprecated Renders wihout the effectComposer, which is no longer intended behavior as it leads to incorrect color management, instead create a new effect composer
+    */
     static usePostProcessing = !0;
     static resolution = [420, 420];
     static backgroundColor = 2829619;
@@ -77204,7 +77975,7 @@ layout(location = 0) out highp vec4 neuralFragColor;
     }
     /**@deprecated Use backgroundColor instead */
     static set backgroundColorHex(val) {
-      this.backgroundColor = val;
+      _RBXRenderer.backgroundColor = val;
     }
     static backgroundTransparent = !1;
     static createLoadingIcon = !0;
@@ -77309,9 +78080,14 @@ layout(location = 0) out highp vec4 neuralFragColor;
         _RBXRenderer.loadingIcon ? _RBXRenderer.loadingIcon.style.opacity = newIsLoading ? "1" : "0" : onLoadConnection.Disconnect();
       });
     }
-    static addScene() {
+    /**
+     * 
+     * @param includeEffectComposer Only ever set this to false if you know you will be rendering to a RenderTarget (for example thumbnail generation), otherwise color handling is incorrect
+     * @returns 
+     */
+    static addScene(includeEffectComposer = !0) {
       let renderScene = new RBXRendererScene();
-      return _RBXRenderer.scenes.push(renderScene), renderScene;
+      return includeEffectComposer && (_RBXRenderer.renderer ? _RBXRenderer.createEffectComposer(renderScene, !1) : renderScene.queueEffectComposerCreation = !0), _RBXRenderer.scenes.push(renderScene), renderScene;
     }
     /**Fully sets up renderer with scene, camera and frame rendering
      * @returns success
@@ -77330,7 +78106,10 @@ layout(location = 0) out highp vec4 neuralFragColor;
     }
     /**Sets up the THREE.js renderer */
     static create(canvas) {
-      _RBXRenderer.renderer = new WebGLRenderer({ antialias: !0, alpha: !0, premultipliedAlpha: !1, canvas }), _RBXRenderer.renderer && _RBXRenderer.renderer.setClearColor(new Color(0, 0, 0), 0), _RBXRenderer.renderer.outputColorSpace = SRGBColorSpace, _RBXRenderer.renderer.shadowMap.enabled = !0, _RBXRenderer.renderer.shadowMap.type = PCFShadowMap, _RBXRenderer.renderer.setPixelRatio(globalThis.devicePixelRatio * 1 || 1), _RBXRenderer.renderer.setSize(..._RBXRenderer.resolution), _RBXRenderer.renderer.domElement.setAttribute("id", "OutfitInfo-outfit-image-3d"), _RBXRenderer.canvasContainer.appendChild(_RBXRenderer.renderer.domElement), _RBXRenderer.createLoadingIcon && !_RBXRenderer.loadingIcon && _RBXRenderer.createLoadingIconHTML(), FLAGS.USE_POST_PROCESSING && _RBXRenderer.createEffectComposer(), _RBXRenderer.setupLostContextHandler();
+      _RBXRenderer.renderer = new WebGLRenderer({ antialias: !0, alpha: !0, premultipliedAlpha: !0, canvas }), _RBXRenderer.renderer && _RBXRenderer.renderer.setClearColor(new Color(0, 0, 0), 0), _RBXRenderer.renderer.outputColorSpace = SRGBColorSpace, _RBXRenderer.renderer.shadowMap.enabled = !0, _RBXRenderer.renderer.shadowMap.type = PCFShadowMap, _RBXRenderer.renderer.setPixelRatio(globalThis.devicePixelRatio * 1 || 1), _RBXRenderer.renderer.setSize(..._RBXRenderer.resolution), _RBXRenderer.renderer.domElement.setAttribute("id", "OutfitInfo-outfit-image-3d"), _RBXRenderer.canvasContainer.appendChild(_RBXRenderer.renderer.domElement), _RBXRenderer.createLoadingIcon && !_RBXRenderer.loadingIcon && _RBXRenderer.createLoadingIconHTML(), _RBXRenderer.createEffectComposer(_RBXRenderer.firstScene, FLAGS.USE_POST_PROCESSING);
+      for (let scene of _RBXRenderer.scenes)
+        scene !== _RBXRenderer.firstScene && scene.queueEffectComposerCreation && (scene.queueEffectComposerCreation = !1, _RBXRenderer.createEffectComposer(scene, !1));
+      _RBXRenderer.setupLostContextHandler();
     }
     static setupLostContextHandler() {
       _RBXRenderer.renderer && _RBXRenderer.renderer.domElement.addEventListener("webglcontextlost", (e) => {
@@ -77339,7 +78118,7 @@ layout(location = 0) out highp vec4 neuralFragColor;
           _RBXRenderer.renderer?.domElement && _RBXRenderer.canvasContainer.replaceChild(newCanvas, _RBXRenderer.renderer.domElement), _RBXRenderer.renderer?.dispose(), _RBXRenderer.create(newCanvas);
           for (let renderScene of _RBXRenderer.scenes) {
             let controls2 = renderScene.controls;
-            controls2 && (controls2.dispose(), controls2.domElement = newCanvas, controls2.connect(newCanvas));
+            controls2 && (controls2.dispose(), controls2.domElement = newCanvas, controls2.connect(newCanvas)), renderScene.effectComposer && _RBXRenderer.createEffectComposer(renderScene, renderScene.hasPostProcessing);
             for (let renderDesc of renderScene.renderDescs.values())
               if (renderDesc instanceof ObjectDesc) {
                 let materialDesc = renderDesc.materialDesc, composeType = materialDesc.getComposeType("color");
@@ -77420,9 +78199,9 @@ layout(location = 0) out highp vec4 neuralFragColor;
     }
     static renderScene(renderScene, autoClear = !0) {
       if (!_RBXRenderer.renderer || !renderScene.shouldAnimate) return;
-      _RBXRenderer.renderer.autoClear = autoClear, autoClear || _RBXRenderer.renderer.clearDepth(), renderScene.effectComposer && this.usePostProcessing || _RBXRenderer.renderer.setRenderTarget(null);
+      _RBXRenderer.renderer.autoClear = autoClear, autoClear || _RBXRenderer.renderer.clearDepth(), renderScene.effectComposer && _RBXRenderer.usePostProcessing || _RBXRenderer.renderer.setRenderTarget(null);
       let [x3, y2] = [0, 0], [width, height] = _RBXRenderer.resolution;
-      renderScene.viewport && (x3 = renderScene.viewport[0], y2 = renderScene.viewport[1], width = renderScene.viewport[2], height = renderScene.viewport[3]), FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE && (width *= 2, height *= 2), _RBXRenderer.renderer.setViewport(x3, y2, width, height), renderScene.scissor ? (_RBXRenderer.renderer.setScissorTest(!0), _RBXRenderer.renderer.setScissor(...renderScene.scissor)) : _RBXRenderer.renderer.setScissorTest(!1), renderScene.camera.aspect = width / height, renderScene.camera.updateProjectionMatrix(), width > 0 && height > 0 && (renderScene.effectComposer && this.usePostProcessing ? renderScene.effectComposer.render() : _RBXRenderer.renderer.render(renderScene.scene, renderScene.camera)), _RBXRenderer.renderer.autoClear = !0;
+      renderScene.viewport && (x3 = renderScene.viewport[0], y2 = renderScene.viewport[1], width = renderScene.viewport[2], height = renderScene.viewport[3]), FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE && (width *= 2, height *= 2), _RBXRenderer.renderer.setViewport(x3, y2, width, height), renderScene.scissor ? (_RBXRenderer.renderer.setScissorTest(!0), _RBXRenderer.renderer.setScissor(...renderScene.scissor)) : _RBXRenderer.renderer.setScissorTest(!1), renderScene.camera.aspect = width / height, renderScene.camera.updateProjectionMatrix(), width > 0 && height > 0 && (renderScene.effectComposer && _RBXRenderer.usePostProcessing ? renderScene.effectComposer.render() : _RBXRenderer.renderer.render(renderScene.scene, renderScene.camera)), _RBXRenderer.renderer.autoClear = !0;
     }
     /**
      * @deprecated use createEffectComposer()
@@ -77430,25 +78209,41 @@ layout(location = 0) out highp vec4 neuralFragColor;
     static _createEffectComposer(renderScene = _RBXRenderer.firstScene) {
       _RBXRenderer.createEffectComposer(renderScene);
     }
-    static createEffectComposer(renderScene = _RBXRenderer.firstScene) {
+    /**
+     * Scenes now always have an effectComposer, to add post processing use the dedicated function RBXRendererScene.addPostProcessing()
+     * 
+     * This function disposes the original effectComposer and creates a new one, which adds a little overhead (probably) though it still adds post processing for backwards compatibility
+     */
+    static createEffectComposer(renderScene = _RBXRenderer.firstScene, includePostProcessing = !0) {
       if (!_RBXRenderer.renderer) return;
-      renderScene.effectComposer && renderScene.effectComposer.dispose(), renderScene.effectComposer = new EffectComposer(_RBXRenderer.renderer, {
+      if (renderScene.effectComposer && renderScene.effectComposer.dispose(), renderScene.hasPostProcessing = includePostProcessing, renderScene.effectComposer = new EffectComposer(_RBXRenderer.renderer, {
         frameBufferType: HalfFloatType,
-        multisampling: 0
-      }), renderScene.effectComposer.addPass(new RenderPass(renderScene.scene, renderScene.camera));
-      let n8aoPass = new $87431ee93b037844$export$2489f9981ab0fa82(renderScene.scene, renderScene.camera, FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? 840 : 420, FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? 840 : 420);
-      n8aoPass.configuration.aoRadius = 0.2, renderScene.n8aoPass = n8aoPass, renderScene.effectComposer.addPass(n8aoPass), renderScene.effectComposer.addPass(new EffectPass(renderScene.camera, new SMAAEffect({
-        preset: SMAAPreset.ULTRA
-      }))), renderScene.effectComposer.addPass(new EffectPass(renderScene.camera, new BloomEffect({
-        blendFunction: BlendFunction.ADD,
-        mipmapBlur: !0,
-        luminanceThreshold: 0.95,
-        luminanceSmoothing: 0.2,
-        intensity: 0.5,
-        radius: 0.5
-      })));
+        multisampling: renderScene._msaa,
+        alpha: !0
+      }), renderScene.effectComposer.addPass(new RenderPass(renderScene.scene, renderScene.camera)), includePostProcessing) {
+        let n8aoPass = new $87431ee93b037844$export$2489f9981ab0fa82(renderScene.scene, renderScene.camera, FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? 840 : 420, FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? 840 : 420);
+        n8aoPass.configuration.aoRadius = 0.2, renderScene.n8aoPass = n8aoPass, renderScene.effectComposer.addPass(n8aoPass);
+        let effectPass = new EffectPass(
+          renderScene.camera,
+          new SMAAEffect({
+            preset: SMAAPreset.ULTRA
+          }),
+          new BloomEffect({
+            blendFunction: BlendFunction.ADD,
+            mipmapBlur: !0,
+            luminanceThreshold: 0.95,
+            luminanceSmoothing: 0.2,
+            intensity: 0.5,
+            radius: 0.5
+          })
+        );
+        renderScene.effectPass = effectPass, renderScene.effectComposer.addPass(effectPass);
+      } else {
+        let effectPass = new EffectPass(renderScene.camera);
+        renderScene.effectPass = effectPass, renderScene.effectComposer.addPass(effectPass);
+      }
       let [width, height] = _RBXRenderer.resolution;
-      FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? renderScene.n8aoPass.setSize(width * 2, height * 2) : renderScene.n8aoPass.setSize(width, height), FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? renderScene.effectComposer.setSize(width * 2, height * 2, !1) : renderScene.effectComposer.setSize(width, height, !1);
+      includePostProcessing && (FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? renderScene.n8aoPass.setSize(width * 2, height * 2) : renderScene.n8aoPass.setSize(width, height)), FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? renderScene.effectComposer.setSize(width * 2, height * 2, !1) : renderScene.effectComposer.setSize(width, height, !1);
     }
     /**Removes an instance from the renderer */
     static removeInstance(instance2, renderScene = _RBXRenderer.firstScene) {
@@ -77468,6 +78263,13 @@ layout(location = 0) out highp vec4 neuralFragColor;
       }
       return renderDescs;
     }
+    static _addSkeletonToResult(result, newDesc, renderScene) {
+      if (result instanceof SkinnedMesh && newDesc instanceof ObjectDesc) {
+        let skeleton = newDesc.skeletonDesc?.skeleton;
+        skeleton && (result.bindMode = "detached", newDesc.skeletonDesc && (FLAGS.USE_LOCAL_SKELETONDESC ? result.add(newDesc.skeletonDesc.rootBone) : renderScene.scene.add(newDesc.skeletonDesc.rootBone)), result.bind(skeleton), renderScene.scene.add(result));
+      } else
+        renderScene.scene.add(result);
+    }
     static _addRenderDesc(instance2, auth, DescClass, renderScene) {
       if (!_RBXRenderer.renderer) return;
       let oldDesc = renderScene.renderDescs.get(instance2), newDesc = new DescClass(renderScene);
@@ -77476,11 +78278,7 @@ layout(location = 0) out highp vec4 neuralFragColor;
           if (newDesc.updateResults(), renderScene.renderDescs.get(instance2) && _RBXRenderer.renderer) {
             oldDesc?.dispose(_RBXRenderer.renderer, renderScene.scene);
             for (let result of results)
-              if (result instanceof SkinnedMesh && newDesc instanceof ObjectDesc) {
-                let skeleton = newDesc.skeletonDesc?.skeleton;
-                skeleton && (result.bindMode = "detached", newDesc.skeletonDesc && (FLAGS.USE_LOCAL_SKELETONDESC ? result.add(newDesc.skeletonDesc.rootBone) : renderScene.scene.add(newDesc.skeletonDesc.rootBone)), result.bind(skeleton), renderScene.scene.add(result));
-              } else
-                renderScene.scene.add(result);
+              _RBXRenderer._addSkeletonToResult(result, newDesc, renderScene);
             renderScene.isRenderingMesh.set(instance2, !1), _RBXRenderer.addInstance(instance2, auth, renderScene);
           } else _RBXRenderer.renderer && newDesc.dispose(_RBXRenderer.renderer, renderScene.scene);
         else
@@ -77500,7 +78298,7 @@ layout(location = 0) out highp vec4 neuralFragColor;
     static setRendererSize(width, height) {
       if (_RBXRenderer.renderer) {
         _RBXRenderer.resolution = [width, height], _RBXRenderer.renderer.domElement.setAttribute("style", `width: ${_RBXRenderer.resolution[0]}px; height: ${_RBXRenderer.resolution[1]}px; border-radius: 0px;`), _RBXRenderer.canvasContainer.style.width = `${_RBXRenderer.resolution[0]}px`, _RBXRenderer.canvasContainer.style.height = `${_RBXRenderer.resolution[1]}px`, _RBXRenderer.renderer.setSize(width, height);
-        for (let renderScene of this.scenes)
+        for (let renderScene of _RBXRenderer.scenes)
           renderScene.n8aoPass && (FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? renderScene.n8aoPass.setSize(width * 2, height * 2) : renderScene.n8aoPass.setSize(width, height)), renderScene.effectComposer && (FLAGS.POST_PROCESSING_IS_DOUBLE_SIZE ? renderScene.effectComposer.setSize(width * 2, height * 2, !1) : renderScene.effectComposer.setSize(width, height, !1));
       }
     }
@@ -78302,10 +79100,10 @@ layout(location = 0) out highp vec4 neuralFragColor;
     });
   }
   __name(onMouseDown2, "onMouseDown");
-  function init26() {
+  function init25() {
     chrome.runtime.onMessage.addListener(onMessage), document.addEventListener("mousedown", onMouseDown2, { capture: !0 });
   }
-  __name(init26, "init");
+  __name(init25, "init");
 
   // src/content/features/sitewide/viewid.ts
   init_api();
@@ -78522,7 +79320,7 @@ Bundled Items:
     });
   }
   __name(OnMouseDown, "OnMouseDown");
-  function init27() {
+  function init26() {
     chrome.runtime.onMessage.addListener(async (request) => {
       request.action === "view-ids" && await HandleMessage(request);
     }), document.addEventListener(
@@ -78531,7 +79329,7 @@ Bundled Items:
       { capture: !0 }
     );
   }
-  __name(init27, "init");
+  __name(init26, "init");
 
   // src/content/features/navigation/search/quicksearch.js
   init_api();
@@ -78871,7 +79669,7 @@ Bundled Items:
       return;
     }
     let profileHeaderEls = nameEls.filter(
-      (el3) => el3.matches(PROFILE_HEADER_NAME_SELECTOR)
+      (el3) => el3.matches(PROFILE_HEADER_NAME_SELECTOR) && !el3.closest("[data-rovalra-banned-profile]")
     ), selfEls = nameEls.filter(
       (el3) => !el3.matches(PROFILE_HEADER_NAME_SELECTOR)
     ), profileUserId = getUserIdFromUrl();
@@ -78914,7 +79712,7 @@ Bundled Items:
     cardNameUnsubscribe || (observeUserCardElements(), cardNameUnsubscribe = onUserCardElement(applyDisplayNameGradientToCard));
   }
   __name(setupCardDisplayNameGradients, "setupCardDisplayNameGradients");
-  async function init28() {
+  async function init27() {
     if (!await settings.displayNameGradientEnabled) return;
     setupCardDisplayNameGradients();
     let observeNameElement = /* @__PURE__ */ __name((el3) => {
@@ -78930,7 +79728,7 @@ Bundled Items:
       (name === "displayNameGradient" || name === "displayNameGradientEnabled" || name === "displayNameGradientEffect") && applyDisplayNameGradient();
     });
   }
-  __name(init28, "init");
+  __name(init27, "init");
 
   // src/content/features/navigation/search/quicksearch.js
   var lastSearchedQuery = "", userSearchAbortController = null, gameSearchAbortController = null, assets = getAssets(), STORAGE_KEY5 = "rovalra_search_history", MAX_HISTORY = 50, quickSearchCosmeticsPromises = /* @__PURE__ */ new Map(), initialSearchValue = "", searchHistoryRenderVersion = 0, selectedIndex = 0, activeQuickSearchRequest = null, latestCommittedQuickSearchRequest = null, debounce = /* @__PURE__ */ __name((func, delay) => {
@@ -79954,7 +80752,7 @@ Bundled Items:
     });
   }
   __name(renderSearchHistory, "renderSearchHistory");
-  function init29() {
+  function init28() {
     updateSearchSettings(), chrome.storage.onChanged.addListener((changes, area) => {
       area === "local" && (changes.quickSearchEnabled || changes.userSearchEnabled || changes.gameSearchEnabled || changes.friendSearchEnabled || changes.searchHistoryEnabled || changes.profileBackgroundGradientEnabled || changes.applyGradientToAvatarTile || changes.avatarBorderEnabled) && updateSearchSettings();
     });
@@ -80047,7 +80845,7 @@ Bundled Items:
       }
     }, 300);
   }
-  __name(init29, "init");
+  __name(init28, "init");
 
   // src/content/features/developer/rendertest.js
   init_observer();
@@ -80103,14 +80901,14 @@ Bundled Items:
     lastFrameTime = Date.now() / 1e3, animate();
   }
   __name(startAnimationLoop, "startAnimationLoop");
-  function init30() {
+  function init29() {
     chrome.storage.local.get("eastereggslinksEnabled", async (result) => {
       result.eastereggslinksEnabled && observeElement(".content#content", (cDiv) => {
         renderAvatarPage(cDiv);
       });
     });
   }
-  __name(init30, "init");
+  __name(init29, "init");
 
   // src/content/features/navigation/groupfunds.js
   init_observer();
@@ -80121,7 +80919,7 @@ Bundled Items:
   init_currency();
   init_user();
   init_users();
-  var CACHE_KEY2 = "rovalra-group-funds-data", NAVBAR_SELECTORS = "#nav-robux-amount, #nav-robux-balance", NAVBAR_BALANCE_UPDATED_EVENT2 = "rovalra:navbar-balance-updated", STREAMER_ROBUX_VISIBILITY_EVENT2 = "rovalra-streamer-robux-visibility", STREAMER_ROBUX_VALUE_CLASS = "rovalra-streamer-robux-value", state = {
+  var CACHE_KEY2 = "rovalra-group-funds-data", NAVBAR_SELECTORS = "#nav-robux-amount, #nav-robux-balance", NAVBAR_BALANCE_UPDATED_EVENT2 = "rovalra:navbar-balance-updated", STREAMER_ROBUX_VISIBILITY_EVENT2 = "rovalra-streamer-robux-visibility", STREAMER_ROBUX_VALUE_CLASS = "rovalra-streamer-robux-value", LEGACY_POPOVER_SELECTOR = "#buy-robux-popover", FOUNDATION_MENU_SELECTOR = '.foundation-web-menu.nav-foundation-menu[role="menu"]', FOUNDATION_ROBUX_MENU_MARKER = '#nav-robux, [role="menuitem"][href*="/upgrades/robux"]', FOUNDATION_MENU_ITEM_CLASS = "relative clip group/interactable focus-visible:outline-focus disabled:outline-none foundation-web-menu-item flex items-center content-default text-truncate-split focus-visible:hover:outline-none cursor-pointer stroke-none bg-none text-align-x-left width-full text-body-large padding-x-large padding-y-medium gap-x-large radius-medium", FOUNDATION_STATE_LAYER_CLASS = "absolute inset-[0] transition-colors group-hover/interactable:bg-[var(--color-state-hover)] group-active/interactable:bg-[var(--color-state-press)] group-disabled/interactable:bg-none", state = {
     initialized: !1,
     groupFundsEnabled: !1,
     navbarTotalEnabled: !1,
@@ -80280,10 +81078,69 @@ Bundled Items:
     }), personalRowDataPromise) : null;
   }
   __name(warmPersonalRowData, "warmPersonalRowData");
-  function upsertPersonalRow(section, divider, data) {
+  function isFoundationRobuxMenu(element) {
+    return element instanceof HTMLElement && element.matches(FOUNDATION_MENU_SELECTOR) && !!element.querySelector(FOUNDATION_ROBUX_MENU_MARKER);
+  }
+  __name(isFoundationRobuxMenu, "isFoundationRobuxMenu");
+  function getOpenRobuxPopover() {
+    return document.querySelector(LEGACY_POPOVER_SELECTOR) || [...document.querySelectorAll(FOUNDATION_MENU_SELECTOR)].find(
+      isFoundationRobuxMenu
+    ) || null;
+  }
+  __name(getOpenRobuxPopover, "getOpenRobuxPopover");
+  function createFoundationMenuItem(href) {
+    let item = document.createElement("a");
+    item.setAttribute("role", "menuitem"), item.tabIndex = -1, item.className = FOUNDATION_MENU_ITEM_CLASS, item.style.columnGap = "8px", item.style.textDecoration = "none", href && (item.href = href);
+    let stateLayer = document.createElement("div");
+    return stateLayer.setAttribute("aria-hidden", "true"), stateLayer.className = FOUNDATION_STATE_LAYER_CLASS, item.appendChild(stateLayer), item;
+  }
+  __name(createFoundationMenuItem, "createFoundationMenuItem");
+  function createFoundationTextWrapper() {
+    let wrapper = document.createElement("div");
+    wrapper.className = "grow-1 text-truncate-split flex flex-col gap-y-xsmall";
+    let title = document.createElement("span");
+    return title.className = "foundation-web-menu-item-title text-no-wrap text-truncate-split content-emphasis", wrapper.appendChild(title), { wrapper, title };
+  }
+  __name(createFoundationTextWrapper, "createFoundationTextWrapper");
+  function createMenuIconContainer(isFoundation) {
+    let iconContainer = document.createElement("span");
+    return iconContainer.style.width = "28px", iconContainer.style.height = "28px", iconContainer.style.display = "inline-block", isFoundation ? iconContainer.style.flexShrink = "0" : iconContainer.style.marginRight = "8px", iconContainer;
+  }
+  __name(createMenuIconContainer, "createMenuIconContainer");
+  function upsertFoundationPersonalRow(container, data, personalBalance) {
+    let userLink = container.querySelector(".rovalra-personal-robux-row");
+    userLink instanceof HTMLElement || (userLink = createFoundationMenuItem(), userLink.classList.add("rovalra-personal-robux-row"), container.prepend(userLink)), data.userId && (userLink.href = `https://www.roblox.com/users/${data.userId}/profile`);
+    let iconContainer = createMenuIconContainer(!0);
+    data.thumbnailData && iconContainer.appendChild(
+      createThumbnailElement(data.thumbnailData, "User", "", {
+        borderRadius: "999px",
+        width: "28px",
+        height: "28px"
+      })
+    );
+    let { wrapper, title } = createFoundationTextWrapper();
+    title.textContent = data.username || "User";
+    let amountSpan = document.createElement("span");
+    amountSpan.className = "shrink-0 text-no-wrap content-emphasis";
+    let rbxIcon = document.createElement("span");
+    rbxIcon.className = "icon-robux-16x16", rbxIcon.style.verticalAlign = "text-bottom", rbxIcon.style.marginRight = "3px";
+    let amountValue = document.createElement("span");
+    amountValue.className = STREAMER_ROBUX_VALUE_CLASS, amountValue.textContent = personalBalance.toLocaleString(), amountSpan.append(rbxIcon, amountValue), userLink.replaceChildren(
+      userLink.firstElementChild,
+      iconContainer,
+      wrapper,
+      amountSpan
+    );
+  }
+  __name(upsertFoundationPersonalRow, "upsertFoundationPersonalRow");
+  function upsertPersonalRow(section, divider, data, isFoundation = !1) {
     if (!data) return;
     let personalBalance = Number(data.personalBalance);
     if (!Number.isFinite(personalBalance)) return;
+    if (isFoundation) {
+      upsertFoundationPersonalRow(section, data, personalBalance);
+      return;
+    }
     let userLi = section.querySelector(".rovalra-personal-robux-row");
     userLi instanceof HTMLElement || (userLi = document.createElement("li"), userLi.className = "rovalra-personal-robux-row", section.insertBefore(userLi, divider.nextSibling)), userLi.textContent = "";
     let userLink = document.createElement("a");
@@ -80370,11 +81227,11 @@ Bundled Items:
     `, (document.head || document.documentElement).appendChild(style);
   }
   __name(injectPendingRowStyle, "injectPendingRowStyle");
-  function init31() {
+  function init30() {
     if (state.initialized) return;
     state.initialized = !0, injectPendingRowStyle();
     let renderSection = /* @__PURE__ */ __name((popover) => {
-      let menu = popover.querySelector(".dropdown-menu");
+      let isFoundation = popover.matches(FOUNDATION_MENU_SELECTOR), menu = isFoundation ? popover : popover.querySelector(".dropdown-menu");
       if (!menu) return;
       state.renderVersion++;
       let myVersion = state.renderVersion;
@@ -80383,24 +81240,39 @@ Bundled Items:
       ), !state.groupFundsEnabled || state.groupIds.length === 0) return;
       let allCachedDataPromise = getCache2(), section = document.createElement("div");
       section.className = "rovalra-group-funds-section";
-      let divider = document.createElement("li");
-      divider.className = "rbx-divider", section.appendChild(divider), state.navbarTotalEnabled && (upsertPersonalRow(section, divider, personalRowData), warmPersonalRowData().then((data) => {
-        state.renderVersion === myVersion && upsertPersonalRow(section, divider, data);
+      let divider, rowContainer = section;
+      isFoundation ? (divider = document.createElement("div"), divider.setAttribute("role", "separator"), divider.className = "foundation-web-menu-separator", rowContainer = document.createElement("div"), rowContainer.setAttribute("role", "group"), rowContainer.className = "padding-small", section.append(divider, rowContainer)) : (divider = document.createElement("li"), divider.className = "rbx-divider", section.appendChild(divider)), state.navbarTotalEnabled && (upsertPersonalRow(
+        rowContainer,
+        divider,
+        personalRowData,
+        isFoundation
+      ), warmPersonalRowData().then((data) => {
+        state.renderVersion === myVersion && upsertPersonalRow(rowContainer, divider, data, isFoundation);
       }));
-      let renderGroup = /* @__PURE__ */ __name((groupId) => {
+      let createFoundationGroupRow = /* @__PURE__ */ __name((groupId) => {
+        let revenueUrl = `https://www.roblox.com/groups/configure?id=${groupId}#!/revenue/summary`, createRow3 = /* @__PURE__ */ __name((iconContainer2) => {
+          let link = createFoundationMenuItem(revenueUrl), { wrapper, title } = createFoundationTextWrapper();
+          return iconContainer2 && link.appendChild(iconContainer2), link.appendChild(wrapper), rowContainer.appendChild(link), title;
+        }, "createRow"), iconContainer = createMenuIconContainer(!0), amountSpan = createRow3(iconContainer), pendingLink = createRow3();
+        return pendingLink.classList.replace(
+          "content-emphasis",
+          "content-default"
+        ), { iconContainer, amountSpan, pendingLink };
+      }, "createFoundationGroupRow"), createLegacyGroupRow = /* @__PURE__ */ __name((groupId) => {
         let fundsLi = document.createElement("li"), fundsLink = document.createElement("a");
         fundsLink.className = "rbx-menu-item", fundsLink.href = `https://www.roblox.com/groups/configure?id=${groupId}#!/revenue/summary`, fundsLink.style.display = "flex", fundsLink.style.alignItems = "center";
         let leftContainer = document.createElement("div");
         leftContainer.style.display = "flex", leftContainer.style.alignItems = "center";
-        let iconContainer = document.createElement("span");
-        iconContainer.style.width = "28px", iconContainer.style.height = "28px", iconContainer.style.marginRight = "8px", iconContainer.style.display = "inline-block", leftContainer.appendChild(iconContainer), fundsLink.appendChild(leftContainer);
+        let iconContainer = createMenuIconContainer(!1);
+        leftContainer.appendChild(iconContainer), fundsLink.appendChild(leftContainer);
         let amountSpan = document.createElement("span");
         fundsLink.appendChild(amountSpan), fundsLi.appendChild(fundsLink), section.appendChild(fundsLi);
         let pendingLi = document.createElement("li");
         pendingLi.className = "rovalra-funds-pending-row";
         let pendingLink = document.createElement("a");
-        pendingLink.className = "rbx-menu-item", pendingLink.style.paddingTop = "0", pendingLink.style.paddingBottom = "5px", pendingLink.style.fontSize = "12px", pendingLink.style.color = "gray", pendingLink.style.textAlign = "right", pendingLink.style.cursor = "default", pendingLink.textContent = "", pendingLi.appendChild(pendingLink), section.appendChild(pendingLi);
-        let renderIcon = /* @__PURE__ */ __name((data) => {
+        return pendingLink.className = "rbx-menu-item", pendingLink.style.paddingTop = "0", pendingLink.style.paddingBottom = "5px", pendingLink.style.fontSize = "12px", pendingLink.style.color = "gray", pendingLink.style.textAlign = "right", pendingLink.style.cursor = "default", pendingLink.textContent = "", pendingLi.appendChild(pendingLink), section.appendChild(pendingLi), { iconContainer, amountSpan, pendingLink };
+      }, "createLegacyGroupRow"), renderGroup = /* @__PURE__ */ __name((groupId) => {
+        let { iconContainer, amountSpan, pendingLink } = isFoundation ? createFoundationGroupRow(groupId) : createLegacyGroupRow(groupId), renderIcon = /* @__PURE__ */ __name((data) => {
           if (data) {
             let img = createThumbnailElement(data, "Group", "", {
               borderRadius: "8px",
@@ -80452,7 +81324,18 @@ Bundled Items:
       popoverOpenState.set(popover, isOpen), isOpen && !wasOpen && renderSection(popover);
     }, "handlePopoverState");
     observeElement(
-      "#buy-robux-popover",
+      FOUNDATION_MENU_SELECTOR,
+      (menu) => {
+        isFoundationRobuxMenu(menu) && (menu.dataset.rovalraGroupFundsMenu = "true", renderSection(menu));
+      },
+      {
+        multiple: !0,
+        onRemove: /* @__PURE__ */ __name((menu) => {
+          menu?.dataset.rovalraGroupFundsMenu === "true" && state.renderVersion++;
+        }, "onRemove")
+      }
+    ), observeElement(
+      LEGACY_POPOVER_SELECTOR,
       (popover) => {
         handlePopoverState(popover), observeAttributes(popover, () => handlePopoverState(popover), [
           "class",
@@ -80473,7 +81356,7 @@ Bundled Items:
       { multiple: !0 }
     ), chrome.storage.onChanged.addListener((changes, namespace) => {
       if (namespace !== "local") return;
-      let openPopover = document.querySelector("#buy-robux-popover");
+      let openPopover = getOpenRobuxPopover();
       if (changes[CACHE_KEY2]) {
         renderNavbarTotal().catch(() => {
         });
@@ -80495,10 +81378,10 @@ Bundled Items:
       });
     });
   }
-  __name(init31, "init");
+  __name(init30, "init");
 
   // src/content/features/sitewide/customFont.js
-  function init32() {
+  function init31() {
     chrome.storage.local.get(["Customfont", "Customfontlink"], (result) => {
       if (!result.Customfont) return;
       let fontLink = result.Customfontlink;
@@ -80509,7 +81392,7 @@ Bundled Items:
       });
     });
   }
-  __name(init32, "init");
+  __name(init31, "init");
   function resolveGoogleFont(input) {
     input = input.trim();
     let importMatch = input.match(/@import\s+url\(['"]?(https?:\/\/fonts\.googleapis\.com\/[^'")\s]+)['"]?\)/);
@@ -80661,12 +81544,12 @@ Bundled Items:
     areaName === "local" && (changes.customFaviconEnabled || changes.customFaviconUrl) && refresh();
   }
   __name(handleStorageChange, "handleStorageChange");
-  function init33() {
+  function init32() {
     refresh(), chrome.storage.onChanged.addListener(handleStorageChange), document.addEventListener("rovalra:urlChanged", () => {
       enabled2 && faviconHref && applyFavicon();
     });
   }
-  __name(init33, "init");
+  __name(init32, "init");
 
   // src/content/features/navigation/transactionslink.js
   init_observer();
@@ -80847,8 +81730,8 @@ Bundled Items:
     );
   }
   __name(addTransactionsLinks, "addTransactionsLinks");
-  function init34() {
-    init34._run || (init34._run = !0, chrome.storage.local.get(
+  function init33() {
+    init33._run || (init33._run = !0, chrome.storage.local.get(
       { transactionsSidebarLinkEnabled: !1 },
       (settings2) => {
         let label = ts2("navigation.transactions");
@@ -80864,7 +81747,7 @@ Bundled Items:
       }
     ));
   }
-  __name(init34, "init");
+  __name(init33, "init");
 
   // src/content/features/sitewide/modernIcons.js
   init_observer();
@@ -80908,7 +81791,7 @@ Bundled Items:
 
   // src/content/features/scamprevention/loginBanner.js
   init_observer();
-  function init35() {
+  function init34() {
     chrome.storage.local.get({ loginBannerEnabled: !0 }, (settings2) => {
       if (!settings2.loginBannerEnabled) return;
       let hostname = window.location.hostname;
@@ -80941,7 +81824,7 @@ Bundled Items:
       interval = setInterval(addBanner, 100), observer2 = observeElement(".login-content-wrapper", addBanner);
     });
   }
-  __name(init35, "init");
+  __name(init34, "init");
 
   // src/content/features/sitewide/lessPlus.js
   init_purify_es();
@@ -81033,10 +81916,10 @@ Bundled Items:
     }));
   }
   __name(asyncInit, "asyncInit");
-  function init36() {
+  function init35() {
     initialized2 || (initialized2 = !0, asyncInit());
   }
-  __name(init36, "init");
+  __name(init35, "init");
 
   // src/content/features/sitewide/kidsTheme.js
   init_dropdown();
@@ -81164,13 +82047,13 @@ Bundled Items:
     );
   }
   __name(makeBadgeChanges, "makeBadgeChanges");
-  function init37() {
+  function init36() {
     !document.body && !document.getElementById(ageBadgeContainerId) || (initializeLayoutListeners(), currentBadgeContainerObserver && currentBadgeContainerObserver.disconnect(), makeBadgeChanges(), currentBadgeContainerObserver = observeChildren(
       document.getElementById(ageBadgeContainerId),
       makeBadgeChanges
     ), startObserving());
   }
-  __name(init37, "init");
+  __name(init36, "init");
 
   // src/content/features/sitewide/kidsTheme.js
   var AGE_THEME_OPTIONS = [
@@ -81250,7 +82133,7 @@ Bundled Items:
     button.addEventListener("click", updatePosition), updatePosition(), applyAgeTheme(currentTheme);
   }
   __name(addAgeThemeNavbarButton, "addAgeThemeNavbarButton");
-  function init38() {
+  function init37() {
     chrome.storage.local.get(
       {
         ageKidsThemeEnabled: !1,
@@ -81262,7 +82145,7 @@ Bundled Items:
       }
     );
   }
-  __name(init38, "init");
+  __name(init37, "init");
 
   // src/content/features/sitewide/customRobloxBanner.js
   init_observer();
@@ -81572,7 +82455,7 @@ Bundled Items:
     }), syncAllLogoElements(), initializePositionControls(), chrome.storage.onChanged.addListener(handleStorageChange2);
   }
   __name(initialize2, "initialize");
-  function init39() {
+  function init38() {
     initialized3 || (initialized3 = !0, initialize2().catch(
       (error3) => console.error(
         "RoValra: Custom Roblox banner initialization failed.",
@@ -81580,7 +82463,7 @@ Bundled Items:
       )
     ));
   }
-  __name(init39, "init");
+  __name(init38, "init");
 
   // src/content/features/sitewide/sidebarCollapse.js
   init_purify_es();
@@ -81878,12 +82761,12 @@ Bundled Items:
     ));
   }
   __name(initSidebarCollapse, "initSidebarCollapse");
-  function init40() {
+  function init39() {
     initialized4 || (initialized4 = !0, initSidebarCollapse().catch(
       (error3) => console.error("RoValra: Sidebar collapse initialization failed", error3)
     ));
   }
-  __name(init40, "init");
+  __name(init39, "init");
 
   // src/content/features/sitewide/sidebarLayout.js
   init_i18n();
@@ -82368,7 +83251,7 @@ Bundled Items:
     savedOrder = Array.isArray(data[ORDER_STORAGE_KEY]) ? data[ORDER_STORAGE_KEY].map(String) : [], hiddenSidebarKeys = Array.isArray(data[HIDDEN_STORAGE_KEY]) ? data[HIDDEN_STORAGE_KEY].map(String) : [];
   }
   __name(loadSavedLayout, "loadSavedLayout");
-  async function init41() {
+  async function init40() {
     if (!initialized5) {
       if (initialized5 = !0, sidebarLayoutEnabled = await settings.sidebarLayoutEnabled !== !1, !sidebarLayoutEnabled) return;
       await loadLocale(), await loadSavedLayout(), document.addEventListener(
@@ -82378,7 +83261,7 @@ Bundled Items:
     }
     !sidebarLayoutEnabled || observersInitialized || (observersInitialized = !0, observeElement(".left-nav", attachSidebarLayout));
   }
-  __name(init41, "init");
+  __name(init40, "init");
 
   // src/content/features/sitewide/topbarLayout.js
   init_i18n();
@@ -83064,12 +83947,12 @@ Bundled Items:
     });
   }
   __name(initializeStorageListener, "initializeStorageListener");
-  async function init42() {
+  async function init41() {
     initialized6 || (initialized6 = !0, topbarLayoutEnabled = await settings.topbarLayoutEnabled !== !1, await loadLocale2(), await loadSavedLayout2(), initializeStorageListener(), window.addEventListener("resize", () => scheduleTopbarLayoutUpdate(), {
       passive: !0
     })), !observersInitialized2 && (observersInitialized2 = !0, observeElement(TOPBAR_ROOT_SELECTOR2, attachTopbarLayout));
   }
-  __name(init42, "init");
+  __name(init41, "init");
 
   // src/content/features/sitewide/friendUsernames.js
   init_idExtractor();
@@ -83200,10 +84083,10 @@ Bundled Items:
     ));
   }
   __name(setupServerFriendTooltips, "setupServerFriendTooltips");
-  async function init43() {
+  async function init42() {
     await settings.friendUsernamesEnabled && (setupCardUsernames(), setupServerFriendTooltips(), setupServerFriendNames());
   }
-  __name(init43, "init");
+  __name(init42, "init");
 
   // src/content/features/sitewide/wideTilePlayerCounts.js
   init_games();
@@ -83635,10 +84518,10 @@ Bundled Items:
     });
   }
   __name(startObservers, "startObservers");
-  async function init44() {
+  async function init43() {
     initialized7 || (initialized7 = !0, await settings.wideGameTileStatsEnabled && (startObservers(), debouncedScan()));
   }
-  __name(init44, "init");
+  __name(init43, "init");
 
   // src/content/features/paymentmethods/bonusItems.js
   init_observer();
@@ -83809,7 +84692,7 @@ Bundled Items:
     }
   }
   __name(addBonusItemDropdown, "addBonusItemDropdown");
-  async function init45() {
+  async function init44() {
     if (window.location.pathname.toLowerCase().includes("/upgrades/paymentmethods")) {
       if (!await settings.bonusItemEnabled) {
         paymentMethodsObserver?.disconnect(), paymentMethodsObserver = null, activeDropdown?.destroy(), activeDropdown = null, activeCard?.remove(), activeCard = null, activePurchaseSummary = null;
@@ -83839,7 +84722,7 @@ Bundled Items:
       );
     }
   }
-  __name(init45, "init");
+  __name(init44, "init");
 
   // src/content/features/sitewide/backgroundImage.js
   init_getSettings();
@@ -83920,7 +84803,7 @@ Bundled Items:
   }
   __name(applyStoredBackgroundImage, "applyStoredBackgroundImage");
   var initialized8 = !1;
-  function init46() {
+  function init45() {
     initialized8 || (initialized8 = !0, chrome.storage.onChanged.addListener((changes, areaName) => {
       areaName === "local" && (changes[BACKGROUND_IMAGE_SETTING] || changes[BACKGROUND_IMAGE_ENABLED_SETTING]) && applyStoredBackgroundImage(changes).catch(
         (error3) => console.error("RoValra: Failed to refresh the custom background.", error3)
@@ -83929,7 +84812,7 @@ Bundled Items:
       (error3) => console.error("RoValra: Failed to apply the custom background.", error3)
     ));
   }
-  __name(init46, "init");
+  __name(init45, "init");
 
   // src/content/features/sitewide/freeRobloxPlusThemes.js
   init_observer();
@@ -83947,13 +84830,16 @@ Bundled Items:
   init_idExtractor();
   var SETTING_NAME = "displayAppThemeUserProfile", SETTING_NAME_2 = "displayAppThemeOwnProfile", isSetInProgress = !1, isProfilePage = !1;
   async function freePlusThemeCallback() {
-    if (!isProfilePage || !await settings[SETTING_NAME]) return;
+    if (!isProfilePage || !await settings[SETTING_NAME] || /\/banned-users\/\d+\/profile/.test(window.location.pathname) || document.querySelector("[data-rovalra-banned-profile]"))
+      return;
     let body = document.body, profileUserId = getUserIdFromUrl(), profileUserSettings = await getUserSettings(profileUserId), appThemes = (await callRobloxApiJson({
       subdomain: "www",
       endpoint: "/global-settings/roblox-themes.json",
       isRovalraApi: !0
     })).themes;
-    profileUserSettings.theme === "" || appThemes.filter((i2) => i2.setting === profileUserSettings.theme).length < 1 || (body.classList.remove(...appThemes.map((i2) => i2.class)), profileUserSettings.theme !== "Default" && body.classList.add(appThemes.filter((i2) => i2.setting === profileUserSettings.theme)[0].class));
+    profileUserSettings.theme === "" || appThemes.filter((i2) => i2.setting === profileUserSettings.theme).length < 1 || (body.classList.remove(...appThemes.map((i2) => i2.class)), profileUserSettings.theme !== "Default" && body.classList.add(
+      appThemes.filter((i2) => i2.setting === profileUserSettings.theme)[0].class
+    ));
   }
   __name(freePlusThemeCallback, "freePlusThemeCallback");
   async function initProfile() {
@@ -83961,12 +84847,18 @@ Bundled Items:
   }
   __name(initProfile, "initProfile");
   async function initSitewide() {
-    document.addEventListener("rovalra:user-settings-response", async ({ detail }) => {
-      if (isSetInProgress || getCurrentUserTierSync() < 1 || !await settings[SETTING_NAME_2] || !detail.accountTheme) return;
-      isSetInProgress = !0;
-      let userSettings = await getUserSettings(await getAuthenticatedUserId());
-      (userSettings.theme && detail.accountTheme !== userSettings.theme || !userSettings.theme) && updateUserSettingViaApi("theme", detail.accountTheme), isSetInProgress = !1;
-    }), document.addEventListener("rovalra:settingSaved", async (event) => {
+    document.addEventListener(
+      "rovalra:user-settings-response",
+      async ({ detail }) => {
+        if (isSetInProgress || getCurrentUserTierSync() < 1 || !await settings[SETTING_NAME_2] || !detail.accountTheme)
+          return;
+        isSetInProgress = !0;
+        let userSettings = await getUserSettings(
+          await getAuthenticatedUserId()
+        );
+        (userSettings.theme && detail.accountTheme !== userSettings.theme || !userSettings.theme) && updateUserSettingViaApi("theme", detail.accountTheme), isSetInProgress = !1;
+      }
+    ), document.addEventListener("rovalra:settingSaved", async (event) => {
       if (event.detail?.name === SETTING_NAME_2)
         if (event.detail.value, event.detail.value === !0 && getCurrentUserTierSync() >= 1)
           try {
@@ -83974,9 +84866,15 @@ Bundled Items:
               subdomain: "apis",
               endpoint: "/user-settings-api/v1/user-settings"
             });
-            updateUserSettingViaApi("theme", robloxUserSettings.accountTheme || "");
+            updateUserSettingViaApi(
+              "theme",
+              robloxUserSettings.accountTheme || ""
+            );
           } catch (e) {
-            console.error("RoValra App Themes On Profile: Uh oh! Something went wrong! Setting theme to none. Details:", e), updateUserSettingViaApi("theme", "");
+            console.error(
+              "RoValra App Themes On Profile: Uh oh! Something went wrong! Setting theme to none. Details:",
+              e
+            ), updateUserSettingViaApi("theme", "");
           }
         else event.detail.value === !1 && updateUserSettingViaApi("theme", "");
     });
@@ -84090,7 +84988,7 @@ Bundled Items:
     );
   }
   __name(publishInitialSettingState, "publishInitialSettingState");
-  function init47() {
+  function init46() {
     initialized9 || (initialized9 = !0, (async () => CACHE_KEY3 = CACHE_KEY_PREFIX + String(await getAuthenticatedUserId()))(), observeElement(THEME_SECTION_SELECTOR, observeThemeSection, {
       onRemove: /* @__PURE__ */ __name(() => {
         themeSectionObserver?.disconnect(), themeSectionObserver = null;
@@ -84108,7 +85006,7 @@ Bundled Items:
       event.detail?.name === SETTING_NAME2 && setEnabled(event.detail.value);
     }));
   }
-  __name(init47, "init");
+  __name(init46, "init");
 
   // src/content/features/sitewide/voiceBanIndicator.js
   init_api();
@@ -84270,7 +85168,7 @@ Bundled Items:
     cachedData = null, cachedAt = 0, await refresh2(!0);
   }
   __name(syncSetting, "syncSetting");
-  async function init48() {
+  async function init47() {
     initialized10 || (initialized10 = !0, enabled3 = !!await settings.voiceBanIndicatorEnabled, enabled3 && refresh2(), document.addEventListener(
       "rovalra:settingSaved",
       (event) => {
@@ -84288,7 +85186,7 @@ Bundled Items:
       }
     ));
   }
-  __name(init48, "init");
+  __name(init47, "init");
 
   // src/content/features/plus/sendRobux.js
   init_api();
@@ -84457,9 +85355,10 @@ Bundled Items:
             ".thumbnail-holder.thumbnail-holder-position"
           );
           thumbnailHolder && (thumbnailHolder.style.background = "transparent");
-        } else if (element.classList.contains("avatar-card-image"))
+        } else if (element.classList.contains("avatar-card-image")) {
+          if (element.closest(".rovalra-user-card") || element.closest("[data-rovalra-banned-profile]")) return;
           applyToAvatarContainer(element, gradient, !1);
-        else if (element.classList.contains("avatar-toggle-button")) {
+        } else if (element.classList.contains("avatar-toggle-button")) {
           let updateButtons = /* @__PURE__ */ __name(() => {
             element.querySelectorAll("button").forEach((btn) => {
               btn.style.backgroundColor = "var(--rovalra-container-background-color)";
@@ -84473,7 +85372,7 @@ Bundled Items:
     );
   }
   __name(observeProfileGradient, "observeProfileGradient");
-  async function init49() {
+  async function init48() {
     try {
       let settings2 = await loadSettings();
       if (!settings2.profileBackgroundGradientEnabled) {
@@ -84500,7 +85399,7 @@ Bundled Items:
       );
     }
   }
-  __name(init49, "init");
+  __name(init48, "init");
 
   // src/content/features/plus/sendRobux.js
   init_purifyCfg();
@@ -84546,7 +85445,7 @@ Bundled Items:
     })).perTransferLimit;
     robuxBalanceContainer.classList.add(`${cssClassNamePrefix}-robux-container`), robuxBalanceContainer.append(createRobuxIcon({ size: "20px" }), " " + String((await getUserCurrency()).robux));
     let userThumbnailData = await fetchUserThumbnailWithApiKey(userId), userFullData = await getUserFullData(userId), userProfileData = (await getUserProfileData([userId])).profileDetails[0], userCard = createUserCard({
-      displayName: userFullData.displayName || userFullData.name,
+      displayName: userProfileData?.names?.combinedName || userFullData.displayName || userFullData.name,
       username: userFullData.name,
       thumbData: userThumbnailData,
       hidePresence: !0,
@@ -84648,7 +85547,7 @@ Bundled Items:
     });
     robuxBalanceContainer.classList.add(`${cssClassNamePrefix}-robux-container`), robuxBalanceContainer.append(createRobuxIcon({ size: "20px" }), " " + String((await getUserCurrency()).robux));
     let userThumbnailData = await fetchUserThumbnailWithApiKey(userId), userFullData = await getUserFullData(userId), userProfileData = (await getUserProfileData([userId])).profileDetails[0], userCard = createUserCard({
-      displayName: userFullData.displayName,
+      displayName: userProfileData?.names?.combinedName || userFullData.displayName,
       username: `@${userFullData.name}`,
       thumbData: userThumbnailData,
       hidePresence: !0,
@@ -85260,7 +86159,7 @@ Bundled Items:
   };
 
   // src/content/features/navigation/privacyToggles.js
-  var SETTING_NAME3 = "privacyTogglesEnabled", abortController = new AbortController(), togglesEnabled = 0, currentNavItem, toggleChangeSettingFunctions = [], currentlisteners = [], DROPDOWNS = [
+  var SETTING_NAME3 = "privacyTogglesEnabled", OLD_ICON_SETTING_NAME = "privacyTogglesOldIconEnabled", abortController = new AbortController(), togglesEnabled = 0, currentNavItem, toggleChangeSettingFunctions = [], currentlisteners = [], DROPDOWNS = [
     onlineStatus_default,
     joinStatus_default,
     privateServerPrivacy_default,
@@ -85269,12 +86168,12 @@ Bundled Items:
   async function addNavBtn() {
     currentNavItem || (console.log("add nav called!"), currentNavItem = await createNavbarButton({
       id: "rovalra-privacy-toggle-navbtn",
-      iconData: '<icon size="x-large" style="color: var(--rovalra-main-text-color)" filled>lock-closed</icon>',
+      iconData: '<icon size="x-large" style="color: var(--rovalra-main-text-color)"' + (await settings[OLD_ICON_SETTING_NAME] ? ">three-bars-horizontal" : " filled>lock-closed") + "</icon>",
       tooltipText: await t2("privacyToggles.nav.tooltip")
     }), addDropdown(currentNavItem));
   }
   __name(addNavBtn, "addNavBtn");
-  function appendInlineControl2(row, control) {
+  function appendInlineControl(row, control) {
     let textWrapper = row.querySelector(".text-truncate-split.flex.flex-col");
     if (!textWrapper) return;
     Object.assign(textWrapper.style, {
@@ -85291,7 +86190,7 @@ Bundled Items:
       minWidth: "0"
     }), textWrapper.appendChild(control);
   }
-  __name(appendInlineControl2, "appendInlineControl");
+  __name(appendInlineControl, "appendInlineControl");
   async function dropdownItemsFormat(dropdownItems) {
     return await Promise.all(
       dropdownItems.map(async (option) => ({ ...option, label: await t2(option.label) }))
@@ -85356,7 +86255,7 @@ Bundled Items:
           callback: changeSettingsCallback
         });
       }
-      appendInlineControl2(div, dropdownEl.element), changeToggleElements(dropdownEl, currentItems), dropdownMenu.panel.append(div);
+      appendInlineControl(div, dropdownEl.element), changeToggleElements(dropdownEl, currentItems), dropdownMenu.panel.append(div);
     }
     btn.remove(), checkNoToggles(noTogglesEl);
   }
@@ -85365,12 +86264,12 @@ Bundled Items:
     currentNavItem && (currentNavItem.parentNode.remove(), currentNavItem = void 0), currentlisteners = [], abortController.abort(), abortController = new AbortController(), togglesEnabled = 0;
   }
   __name(cleanup, "cleanup");
-  async function init50() {
+  async function init49() {
     await settings[SETTING_NAME3] && addNavBtn(), document.addEventListener("rovalra:settingSaved", async ({ detail }) => {
       !detail.name || detail.name !== SETTING_NAME3 || (detail.value ? addNavBtn() : cleanup());
     });
   }
-  __name(init50, "init");
+  __name(init49, "init");
 
   // src/content/features/navigation/serviceincidentnotice.js
   init_api();
@@ -85407,12 +86306,12 @@ Bundled Items:
     document.querySelectorAll(".rovalra-status-alert").forEach((a) => a.parentElement.remove());
   }
   __name(removeStatuses, "removeStatuses");
-  async function init51() {
+  async function init50() {
     await settings[SETTING_NAME4] && statusChecker(), document.addEventListener("rovalra:settingSaved", async ({ detail }) => {
       !detail.name || detail.name !== SETTING_NAME4 || (detail.value ? statusChecker() : removeStatuses());
     });
   }
-  __name(init51, "init");
+  __name(init50, "init");
 
   // node_modules/fzstd/esm/index.mjs
   var ab2 = ArrayBuffer, u82 = Uint8Array, u162 = Uint16Array, i162 = Int16Array;
@@ -86625,7 +87524,7 @@ Bundled Items:
 
   // src/content/features/avatar/filters.js
   init_i18n();
-  function init52() {
+  function init51() {
     window.location.pathname.includes("/my/avatar") && chrome.storage.local.get({
       avatarFiltersEnabled: !1,
       searchbarEnabled: !1
@@ -86984,11 +87883,11 @@ Bundled Items:
       })();
     });
   }
-  __name(init52, "init");
+  __name(init51, "init");
 
   // src/content/features/avatar/R6Warning.js
   init_observer();
-  function init53() {
+  function init52() {
     function injectLayoutStyles() {
       if (document.getElementById("rovalra-avatar-layout-styles")) return;
       let link = document.createElement("link");
@@ -87053,7 +87952,7 @@ Bundled Items:
       }), observeElement(modalSelector, handleModalFound, { multiple: !0 });
     });
   }
-  __name(init53, "init");
+  __name(init52, "init");
 
   // src/content/features/avatar/avatarRotator.js
   init_observer();
@@ -87062,7 +87961,7 @@ Bundled Items:
   init_thumbnails();
   init_input();
   init_i18n();
-  function init54() {
+  function init53() {
     window.location.pathname.includes("/my/avatar") && chrome.storage.local.get("avatarRotatorEnabled", (data) => {
       data.avatarRotatorEnabled && observeElement(
         ".breadcrumb-container",
@@ -87299,7 +88198,7 @@ Bundled Items:
       );
     });
   }
-  __name(init54, "init");
+  __name(init53, "init");
 
   // src/content/core/utils/itemCategories.js
   init_api();
@@ -87363,7 +88262,7 @@ Bundled Items:
   __name(getIdsBySubcategory, "getIdsBySubcategory");
 
   // src/content/features/avatar/multiEquip.js
-  function init55() {
+  function init54() {
     let updateState = /* @__PURE__ */ __name(async (enabled10) => {
       if (document.dispatchEvent(new CustomEvent("rovalra-multi-equip", { detail: { enabled: enabled10 } })), enabled10)
         try {
@@ -87389,7 +88288,7 @@ Bundled Items:
       namespace === "local" && changes.multiEquipEnabled && updateState(changes.multiEquipEnabled.newValue === !0);
     });
   }
-  __name(init55, "init");
+  __name(init54, "init");
 
   // src/content/features/avatar/bodyColors.js
   init_observer();
@@ -87427,7 +88326,7 @@ Bundled Items:
     document.querySelector(".redraw-avatar button")?.click();
   }
   __name(refreshAvatarPreview, "refreshAvatarPreview");
-  function init56() {
+  function init55() {
     if (!window.location.pathname.includes("/my/avatar")) return;
     let teardown2 = null, activeList = null, release = /* @__PURE__ */ __name(() => {
       teardown2?.(), teardown2 = null;
@@ -87531,7 +88430,7 @@ Bundled Items:
       namespace !== "local" || !changes.bodyColorsEnabled || (release(), removeDots(activeList), changes.bodyColorsEnabled.newValue !== !1 && activeList && build(activeList));
     });
   }
-  __name(init56, "init");
+  __name(init55, "init");
 
   // src/content/features/avatar/gameOutfits.js
   init_observer();
@@ -87884,7 +88783,7 @@ Bundled Items:
     }
   }
   __name(warmUp, "warmUp");
-  function init57() {
+  function init56() {
     let running = !1, disposers = [], generation3 = 0, register = /* @__PURE__ */ __name((disposer) => {
       disposer && disposers.push(disposer);
     }, "register"), stop = /* @__PURE__ */ __name(() => {
@@ -87916,7 +88815,7 @@ Bundled Items:
       namespace !== "local" || !changes.gameOutfitsEnabled || (changes.gameOutfitsEnabled.newValue === !1 ? stop() : start());
     });
   }
-  __name(init57, "init");
+  __name(init56, "init");
 
   // src/content/features/catalog/itemsales.js
   init_api();
@@ -87925,7 +88824,7 @@ Bundled Items:
   init_purify_es();
   init_i18n();
   var cachedItemsData = null, currentActiveItemId = null;
-  function init58() {
+  function init57() {
     chrome.storage.local.get({ itemSalesEnabled: !1 }, async (settings2) => {
       if (!settings2.itemSalesEnabled) return;
       let url = window.location.href, regex = /https:\/\/www\.roblox\.com\/(?:[a-z]{2}\/)?(?:catalog|bundles)\/(\d+)/, match = url.match(regex);
@@ -87970,7 +88869,7 @@ Bundled Items:
       });
     });
   }
-  __name(init58, "init");
+  __name(init57, "init");
 
   // src/content/index.js
   init_method();
@@ -88149,7 +89048,7 @@ Bundled Items:
       }
   }
   __name(mountDependencyScanner, "mountDependencyScanner");
-  function init59() {
+  function init58() {
     /\/bundles\//i.test(window.location.pathname) || chrome.storage.local.get("EnableItemDependencies", (data) => {
       data.EnableItemDependencies === !0 && (startObserving(), observeElement(
         "#favorites-button",
@@ -88157,7 +89056,7 @@ Bundled Items:
       ));
     });
   }
-  __name(init59, "init");
+  __name(init58, "init");
 
   // src/content/features/catalog/pricefloor.js
   init_observer();
@@ -88166,7 +89065,7 @@ Bundled Items:
   init_assets();
   init_tooltip();
   init_i18n();
-  function init60() {
+  function init59() {
     chrome.storage.local.get("priceFloorEnabled", (data) => {
       data.priceFloorEnabled !== !1 && observeElement(
         ".item-price-value.icon-text-wrapper.clearfix.icon-robux-price-container",
@@ -88230,14 +89129,14 @@ Bundled Items:
       );
     });
   }
-  __name(init60, "init");
+  __name(init59, "init");
 
   // src/content/core/ui/catalog/catalogBanner.js
   init_markdown();
   init_observer();
   init_purify_es();
   var isInitialized2 = !1;
-  function init61() {
+  function init60() {
     if (isInitialized2) return;
     isInitialized2 = !0, startObserving();
     let BANNER_ID3 = "rovalra-catalog-notice-banner", TARGET_PARENT_SELECTOR = ".page-content.menu-shown";
@@ -88291,14 +89190,14 @@ Bundled Items:
     }
     __name(initializeBannerContainer2, "initializeBannerContainer"), observeElement(TARGET_PARENT_SELECTOR, initializeBannerContainer2);
   }
-  __name(init61, "init");
+  __name(init60, "init");
 
   // src/content/features/catalog/bannerTest.js
   init_observer();
   var isInitialized3 = !1;
-  function init62() {
+  function init61() {
     window.location.href.includes("/catalog") && chrome.storage.local.get({ EnablebannerTest: !1 }, (settings2) => {
-      settings2.EnablebannerTest && (init61(), !isInitialized3 && (isInitialized3 = !0, observeElement("#rovalra-catalog-notice-banner", () => {
+      settings2.EnablebannerTest && (init60(), !isInitialized3 && (isInitialized3 = !0, observeElement("#rovalra-catalog-notice-banner", () => {
         window.location.href.includes("/catalog") && window.CatalogBannerManager && window.CatalogBannerManager.addNotice(
           "Catalog Test Banner",
           '<svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
@@ -88307,7 +89206,7 @@ Bundled Items:
       })));
     });
   }
-  __name(init62, "init");
+  __name(init61, "init");
 
   // src/content/features/catalog/ParentItem.js
   init_idExtractor();
@@ -88334,7 +89233,7 @@ Bundled Items:
     });
   }
   __name(observeNativeItemBundles, "observeNativeItemBundles");
-  function init63() {
+  function init62() {
     chrome.storage.local.get(
       { ParentItemsEnabled: !1 },
       async (settings2) => {
@@ -88348,7 +89247,7 @@ Bundled Items:
           currentItemId = null;
           return;
         }
-        currentItemId = itemId, init61(), observeNativeItemBundles(itemId);
+        currentItemId = itemId, init60(), observeNativeItemBundles(itemId);
         try {
           let response = await callRobloxApi({
             subdomain: "catalog",
@@ -88446,7 +89345,7 @@ Bundled Items:
       }
     );
   }
-  __name(init63, "init");
+  __name(init62, "init");
 
   // src/content/features/catalog/purchasePrompt.js
   init_observer();
@@ -88488,7 +89387,7 @@ Bundled Items:
     `;
   }
   __name(processDialog, "processDialog");
-  function init64() {
+  function init63() {
     chrome.storage.local.get({ EnableRobuxAfterPurchase: !0 }, (settings2) => {
       settings2.EnableRobuxAfterPurchase && observeElement(
         ".unified-purchase-dialog-content",
@@ -88500,6 +89399,228 @@ Bundled Items:
         { multiple: !0 }
       );
     });
+  }
+  __name(init63, "init");
+
+  // src/content/features/catalog/recentlyViewed.js
+  init_observer();
+  init_idExtractor();
+
+  // src/content/core/apis/catalog.js
+  init_api();
+  var catalogItemDetailsCache = /* @__PURE__ */ new Map(), CATALOG_ITEM_TYPES = {
+    ASSET: "asset",
+    BUNDLE: "bundle"
+  }, CATALOG_ITEM_STATUSES = {
+    NEW: "New",
+    SALE: "Sale",
+    XBOX_EXCLUSIVE: "XboxExclusive",
+    AMAZON_EXCLUSIVE: "AmazonExclusive",
+    GOOGLE_PLAY_EXCLUSIVE: "GooglePlayExclusive",
+    IOS_EXCLUSIVE: "IosExclusive",
+    SALE_TIMER: "SaleTimer",
+    IS_FAE: "IsFae"
+  }, CATALOG_ITEM_STATUS_VALUES = Object.values(CATALOG_ITEM_STATUSES), CATALOG_ITEM_STATUS_ALIASES = {
+    IsFAE: CATALOG_ITEM_STATUSES.IS_FAE
+  };
+  function getCacheKey(itemId, itemType) {
+    return `${itemId}|${itemType}`;
+  }
+  __name(getCacheKey, "getCacheKey");
+  async function getCatalogItemDetails(itemId, itemType = CATALOG_ITEM_TYPES.ASSET, options = {}) {
+    if (!itemId) throw new Error("itemId is required");
+    if (!itemType) throw new Error("itemType is required");
+    let { noCache = !1 } = options, normalizedItemType = itemType.toString(), cacheKey = getCacheKey(itemId, normalizedItemType);
+    if (!noCache && catalogItemDetailsCache.has(cacheKey))
+      return catalogItemDetailsCache.get(cacheKey);
+    let requestPromise = callRobloxApiJson({
+      subdomain: "catalog",
+      endpoint: `/v1/catalog/items/${itemId}/details?itemType=${encodeURIComponent(normalizedItemType)}`,
+      method: "GET",
+      noCache
+    }).catch((error3) => (catalogItemDetailsCache.delete(cacheKey), console.warn("RoValra: Failed to fetch catalog item details", error3), null));
+    return noCache || catalogItemDetailsCache.set(cacheKey, requestPromise), requestPromise;
+  }
+  __name(getCatalogItemDetails, "getCatalogItemDetails");
+
+  // src/content/features/catalog/recentlyViewed.js
+  init_user();
+  init_buttons();
+  init_dompurify();
+  init_tooltip();
+  init_i18n();
+  init_getSettings();
+  var STORAGE_KEY7 = "rovalra_recently_viewed", MAX_ITEMS = 24, ITEM_PAGE_REGEX = /^(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/(catalog|bundles)\/\d+/i, ROSEAL_VIEW_SELECTOR = "#roseal-main-view", LANDING_PAGE_REGEX = /^(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/catalog\/?$/i;
+  async function loadHistory() {
+    let userId = await getAuthenticatedUserId();
+    if (!userId) return { userId: null, items: [] };
+    let result = await chrome.storage.local.get(STORAGE_KEY7);
+    return { userId, items: result[STORAGE_KEY7]?.[userId] || [] };
+  }
+  __name(loadHistory, "loadHistory");
+  async function saveHistory(userId, items) {
+    let all = (await chrome.storage.local.get(STORAGE_KEY7))[STORAGE_KEY7] || {};
+    all[userId] = items, await chrome.storage.local.set({ [STORAGE_KEY7]: all });
+  }
+  __name(saveHistory, "saveHistory");
+  function getPrice(details) {
+    return !details || details.priceStatus === "Off Sale" ? null : details.lowestPrice ?? details.price ?? null;
+  }
+  __name(getPrice, "getPrice");
+  async function recordView() {
+    let id = getPlaceIdFromUrl();
+    if (!id) return;
+    let itemType = window.location.pathname.includes("/bundles/") ? "Bundle" : "Asset", details = await getCatalogItemDetails(id, itemType);
+    if (!details) return;
+    let { userId, items } = await loadHistory();
+    if (!userId) return;
+    let entry = {
+      id: String(id),
+      itemType,
+      price: getPrice(details),
+      viewedAt: Date.now()
+    }, next = [
+      entry,
+      ...items.filter(
+        (item) => !(item.id === entry.id && item.itemType === itemType)
+      )
+    ].slice(0, MAX_ITEMS);
+    await saveHistory(userId, next);
+  }
+  __name(recordView, "recordView");
+  function getPriceChange(entry, details) {
+    let now = getPrice(details);
+    if (entry.price === null && now !== null)
+      return { type: "backOnSale", text: ts2("recentlyViewed.backOnSale") };
+    if (entry.price !== null && now === null)
+      return { type: "offSale", text: ts2("recentlyViewed.offSale") };
+    if (entry.price === null || now === entry.price) return null;
+    let diff = Math.abs(now - entry.price).toLocaleString();
+    return now < entry.price ? {
+      type: "cheaper",
+      text: ts2("recentlyViewed.cheaper", { value: diff })
+    } : {
+      type: "pricier",
+      text: ts2("recentlyViewed.pricier", { value: diff })
+    };
+  }
+  __name(getPriceChange, "getPriceChange");
+  function applyPriceChange(wrapper) {
+    let price = wrapper?.querySelector(
+      ".rovalra-item-card-link .rovalra-item-rap"
+    ), type = wrapper?.dataset.priceChange;
+    if (!(!price || !type || price.dataset.rovalraPriceChange === type)) {
+      if (price.dataset.rovalraPriceChange = type, price.classList.remove("cheaper", "pricier", "offSale", "backOnSale"), price.classList.add("rovalra-recently-viewed-price", type), price.querySelector(".rovalra-recently-viewed-arrow")?.remove(), type === "cheaper" || type === "pricier") {
+        let arrow = document.createElement("span");
+        arrow.className = "rovalra-recently-viewed-arrow", arrow.textContent = type === "cheaper" ? "\u2193" : "\u2191", price.prepend(arrow);
+      }
+      price.dataset.rovalraPriceTooltip || (price.dataset.rovalraPriceTooltip = "true", addTooltip(price, () => wrapper.dataset.priceChangeText || "", {
+        position: "top",
+        shouldShow: /* @__PURE__ */ __name(() => !!wrapper.dataset.priceChange, "shouldShow")
+      }));
+    }
+  }
+  __name(applyPriceChange, "applyPriceChange");
+  function createEntry(entry, onRemove) {
+    let wrapper = document.createElement("div");
+    wrapper.className = "rovalra-recently-viewed-item", wrapper.dataset.itemId = entry.id, wrapper.dataset.itemType = entry.itemType, wrapper.appendChild(
+      createItemCard(entry.id, {
+        itemType: entry.itemType,
+        cardStyles: { width: "150px" }
+      })
+    );
+    let removeButton2 = document.createElement("button");
+    removeButton2.type = "button", removeButton2.className = "rovalra-recently-viewed-remove", removeButton2.setAttribute("aria-label", ts2("recentlyViewed.remove")), removeButton2.title = ts2("recentlyViewed.remove");
+    let icon = Icon({ icon: "close", material: !0, size: "medium" });
+    return icon.setAttribute("aria-hidden", "true"), removeButton2.append(icon), removeButton2.addEventListener("click", (e) => {
+      e.preventDefault(), e.stopPropagation(), onRemove(entry);
+    }), wrapper.appendChild(removeButton2), wrapper;
+  }
+  __name(createEntry, "createEntry");
+  var landingObserverRegistered = !1, priceTrackingRegistered = !1, rendering = !1, priceEntries = /* @__PURE__ */ new Map();
+  function entrySelector(entry) {
+    return `.rovalra-recently-viewed-item[data-item-id="${entry.id}"][data-item-type="${entry.itemType}"]`;
+  }
+  __name(entrySelector, "entrySelector");
+  function registerPriceTracking() {
+    priceTrackingRegistered || (priceTrackingRegistered = !0, window.addEventListener("rovalra-catalog-details", (event) => {
+      let list = document.querySelector(".rovalra-recently-viewed-list");
+      if (list)
+        for (let details of event.detail?.data || []) {
+          let entry = priceEntries.get(`${details.itemType}:${details.id}`);
+          if (!entry) continue;
+          let change = getPriceChange(entry, details), wrapper = list.querySelector(entrySelector(entry));
+          !change || !wrapper || (wrapper.dataset.priceChange = change.type, wrapper.dataset.priceChangeText = change.text, applyPriceChange(wrapper));
+        }
+    }), observeElement(
+      ".rovalra-recently-viewed-item .rovalra-item-card-link .rovalra-item-rap",
+      (price) => applyPriceChange(price.closest(".rovalra-recently-viewed-item")),
+      { multiple: !0 }
+    ));
+  }
+  __name(registerPriceTracking, "registerPriceTracking");
+  function getAnchor() {
+    return document.querySelector(ROSEAL_VIEW_SELECTOR) || document.querySelector(".catalog-results");
+  }
+  __name(getAnchor, "getAnchor");
+  function placeRow() {
+    let row = document.querySelector(".rovalra-recently-viewed"), anchor = getAnchor();
+    row && anchor && row.nextElementSibling !== anchor && anchor.before(row);
+  }
+  __name(placeRow, "placeRow");
+  function isRowNeeded() {
+    return !!getAnchor() && LANDING_PAGE_REGEX.test(window.location.pathname) && !document.querySelector(".rovalra-recently-viewed");
+  }
+  __name(isRowNeeded, "isRowNeeded");
+  async function renderRow() {
+    if (!(rendering || !isRowNeeded())) {
+      rendering = !0;
+      try {
+        let showPriceChanges = await settings.recentlyViewedPriceChanges, { userId, items } = await loadHistory();
+        if (!userId || items.length === 0 || !isRowNeeded()) return;
+        let row = document.createElement("div");
+        row.className = "rovalra-recently-viewed", row.innerHTML = safeHtml`
+            <div class="rovalra-recently-viewed-header">
+                <h2 class="text-heading-small">${ts2("recentlyViewed.title")}</h2>
+            </div>
+            <div class="rovalra-recently-viewed-list"></div>
+        `;
+        let header = row.querySelector(".rovalra-recently-viewed-header"), list = row.querySelector(".rovalra-recently-viewed-list"), remove2 = /* @__PURE__ */ __name(async (entry) => {
+          items = items.filter(
+            (item) => !(item.id === entry.id && item.itemType === entry.itemType)
+          ), await saveHistory(userId, items), list.querySelector(entrySelector(entry))?.remove(), items.length === 0 && row.remove();
+        }, "remove");
+        header.appendChild(
+          createButton(ts2("recentlyViewed.clear"), "secondary", {
+            onClick: /* @__PURE__ */ __name(async () => {
+              items = [], await saveHistory(userId, items), row.remove();
+            }, "onClick")
+          })
+        ), priceEntries = showPriceChanges ? new Map(
+          items.map((item) => [`${item.itemType}:${item.id}`, item])
+        ) : /* @__PURE__ */ new Map(), showPriceChanges && registerPriceTracking(), items.forEach((entry) => list.appendChild(createEntry(entry, remove2))), getAnchor().before(row);
+      } finally {
+        rendering = !1;
+      }
+    }
+  }
+  __name(renderRow, "renderRow");
+  async function init64() {
+    if (!await settings.recentlyViewedEnabled) return;
+    let path = window.location.pathname;
+    if (ITEM_PAGE_REGEX.test(path)) {
+      recordView();
+      return;
+    }
+    if (LANDING_PAGE_REGEX.test(path) && !landingObserverRegistered) {
+      landingObserverRegistered = !0;
+      let onAnchorChange = /* @__PURE__ */ __name(() => {
+        placeRow(), renderRow();
+      }, "onAnchorChange");
+      observeElement(".catalog-results", onAnchorChange), observeElement(ROSEAL_VIEW_SELECTOR, onAnchorChange, {
+        onRemove: placeRow
+      });
+    }
   }
   __name(init64, "init");
 
@@ -100234,9 +101355,9 @@ Bundled Items:
      * @param {Function} [onProgress] - Executes when single items have been loaded.
      * @param {Function} [onError] - Executes when an error occurs.
      */
-    constructor(onLoad, onProgress, onError) {
+    constructor(onLoad2, onProgress, onError) {
       let scope = this, isLoading = !1, itemsLoaded = 0, itemsTotal = 0, urlModifier, handlers = [];
-      this.onStart = void 0, this.onLoad = onLoad, this.onProgress = onProgress, this.onError = onError, this._abortController = null, this.itemStart = function(url) {
+      this.onStart = void 0, this.onLoad = onLoad2, this.onProgress = onProgress, this.onError = onError, this._abortController = null, this.itemStart = function(url) {
         itemsTotal++, isLoading === !1 && scope.onStart !== void 0 && scope.onStart(url, itemsLoaded, itemsTotal), isLoading = !0;
       }, this.itemEnd = function(url) {
         itemsLoaded++, scope.onProgress !== void 0 && scope.onProgress(url, itemsLoaded, itemsTotal), itemsLoaded === itemsTotal && (isLoading = !1, scope.onLoad !== void 0 && scope.onLoad());
@@ -100406,25 +101527,25 @@ Bundled Items:
      * @param {onProgressCallback} [onProgress] - Executed while the loading is in progress.
      * @param {onErrorCallback} [onError] - Executed when errors occur.
      */
-    load(url, onLoad, onProgress, onError) {
+    load(url, onLoad2, onProgress, onError) {
       url === void 0 && (url = ""), this.path !== void 0 && (url = this.path + url), url = this.manager.resolveURL(url);
       let cached = Cache2.get(`file:${url}`);
       if (cached !== void 0) {
         this.manager.itemStart(url), setTimeout(() => {
-          onLoad && onLoad(cached), this.manager.itemEnd(url);
+          onLoad2 && onLoad2(cached), this.manager.itemEnd(url);
         }, 0);
         return;
       }
       if (loading[url] !== void 0) {
         loading[url].push({
-          onLoad,
+          onLoad: onLoad2,
           onProgress,
           onError
         });
         return;
       }
       loading[url] = [], loading[url].push({
-        onLoad,
+        onLoad: onLoad2,
         onProgress,
         onError
       });
@@ -100554,23 +101675,23 @@ Bundled Items:
      * @param {onErrorCallback} onError - Executed when errors occur.
      * @return {Image} The image.
      */
-    load(url, onLoad, onProgress, onError) {
+    load(url, onLoad2, onProgress, onError) {
       this.path !== void 0 && (url = this.path + url), url = this.manager.resolveURL(url);
       let scope = this, cached = Cache2.get(`image:${url}`);
       if (cached !== void 0) {
         if (cached.complete === !0)
           scope.manager.itemStart(url), setTimeout(function() {
-            onLoad && onLoad(cached), scope.manager.itemEnd(url);
+            onLoad2 && onLoad2(cached), scope.manager.itemEnd(url);
           }, 0);
         else {
           let arr = _loading.get(cached);
-          arr === void 0 && (arr = [], _loading.set(cached, arr)), arr.push({ onLoad, onError });
+          arr === void 0 && (arr = [], _loading.set(cached, arr)), arr.push({ onLoad: onLoad2, onError });
         }
         return cached;
       }
       let image = createElementNS2("img");
       function onImageLoad() {
-        removeEventListeners(), onLoad && onLoad(this);
+        removeEventListeners(), onLoad2 && onLoad2(this);
         let callbacks = _loading.get(this) || [];
         for (let i2 = 0; i2 < callbacks.length; i2++) {
           let callback = callbacks[i2];
@@ -100620,7 +101741,7 @@ Bundled Items:
      * @param {onErrorCallback} onError - Executed when errors occur.
      * @return {CubeTexture} The cube texture.
      */
-    load(urls, onLoad, onProgress, onError) {
+    load(urls, onLoad2, onProgress, onError) {
       let texture = new CubeTexture2();
       texture.colorSpace = SRGBColorSpace2;
       let loader = new ImageLoader(this.manager);
@@ -100628,7 +101749,7 @@ Bundled Items:
       let loaded = 0;
       function loadTexture(i2) {
         loader.load(urls[i2], function(image) {
-          texture.images[i2] = image, loaded++, loaded === 6 && (texture.needsUpdate = !0, onLoad && onLoad(texture));
+          texture.images[i2] = image, loaded++, loaded === 6 && (texture.needsUpdate = !0, onLoad2 && onLoad2(texture));
         }, void 0, onError);
       }
       __name(loadTexture, "loadTexture");
@@ -100661,10 +101782,10 @@ Bundled Items:
      * @param {onErrorCallback} onError - Executed when errors occur.
      * @return {Texture} The texture.
      */
-    load(url, onLoad, onProgress, onError) {
+    load(url, onLoad2, onProgress, onError) {
       let texture = new Texture2(), loader = new ImageLoader(this.manager);
       return loader.setCrossOrigin(this.crossOrigin), loader.setPath(this.path), loader.load(url, function(image) {
-        texture.image = image, texture.needsUpdate = !0, onLoad !== void 0 && onLoad(texture);
+        texture.image = image, texture.needsUpdate = !0, onLoad2 !== void 0 && onLoad2(texture);
       }, onProgress, onError), texture;
     }
   }, Light2 = class extends Object3D2 {
@@ -101305,18 +102426,18 @@ Bundled Items:
      * @param {onProgressCallback} onProgress - Unsupported in this loader.
      * @param {onErrorCallback} onError - Executed when errors occur.
      */
-    load(url, onLoad, onProgress, onError) {
+    load(url, onLoad2, onProgress, onError) {
       url === void 0 && (url = ""), this.path !== void 0 && (url = this.path + url), url = this.manager.resolveURL(url);
       let scope = this, cached = Cache2.get(`image-bitmap:${url}`);
       if (cached !== void 0) {
         if (scope.manager.itemStart(url), cached.then) {
           cached.then((imageBitmap) => {
-            _errorMap.has(cached) === !0 ? (onError && onError(_errorMap.get(cached)), scope.manager.itemError(url), scope.manager.itemEnd(url)) : (onLoad && onLoad(imageBitmap), scope.manager.itemEnd(url));
+            _errorMap.has(cached) === !0 ? (onError && onError(_errorMap.get(cached)), scope.manager.itemError(url), scope.manager.itemEnd(url)) : (onLoad2 && onLoad2(imageBitmap), scope.manager.itemEnd(url));
           });
           return;
         }
         setTimeout(function() {
-          onLoad && onLoad(cached), scope.manager.itemEnd(url);
+          onLoad2 && onLoad2(cached), scope.manager.itemEnd(url);
         }, 0);
         return;
       }
@@ -101327,7 +102448,7 @@ Bundled Items:
       }).then(function(blob2) {
         return createImageBitmap(blob2, Object.assign(scope.options, { colorSpaceConversion: "none" }));
       }).then(function(imageBitmap) {
-        Cache2.add(`image-bitmap:${url}`, imageBitmap), onLoad && onLoad(imageBitmap), scope.manager.itemEnd(url);
+        Cache2.add(`image-bitmap:${url}`, imageBitmap), onLoad2 && onLoad2(imageBitmap), scope.manager.itemEnd(url);
       }).catch(function(e) {
         onError && onError(e), _errorMap.set(promise, e), Cache2.remove(`image-bitmap:${url}`), scope.manager.itemError(url), scope.manager.itemEnd(url);
       });
@@ -106797,7 +107918,7 @@ void main() {
      * @param {onProgressCallback} onProgress - Executed while the loading is in progress.
      * @param {onErrorCallback} onError - Executed when errors occur.
      */
-    load(url, onLoad, onProgress, onError) {
+    load(url, onLoad2, onProgress, onError) {
       let scope = this, resourcePath;
       if (this.resourcePath !== "")
         resourcePath = this.resourcePath;
@@ -106813,7 +107934,7 @@ void main() {
       loader.setPath(this.path), loader.setResponseType("arraybuffer"), loader.setRequestHeader(this.requestHeader), loader.setWithCredentials(this.withCredentials), loader.load(url, function(data) {
         try {
           scope.parse(data, resourcePath, function(gltf) {
-            onLoad(gltf), scope.manager.itemEnd(url);
+            onLoad2(gltf), scope.manager.itemEnd(url);
           }, _onError);
         } catch (e) {
           _onError(e);
@@ -106878,7 +107999,7 @@ void main() {
      * @param {function(GLTFLoader~LoadObject)} onLoad - Executed when the loading process has been finished.
      * @param {onErrorCallback} onError - Executed when errors occur.
      */
-    parse(data, path, onLoad, onError) {
+    parse(data, path, onLoad2, onError) {
       let json, extensions = {}, plugins = {}, textDecoder2 = new TextDecoder();
       if (typeof data == "string")
         json = JSON.parse(data);
@@ -106932,7 +108053,7 @@ void main() {
               extensionsRequired.indexOf(extensionName) >= 0 && plugins[extensionName] === void 0 && console.warn('THREE.GLTFLoader: Unknown extension "' + extensionName + '".');
           }
         }
-      parser.setExtensions(extensions), parser.setPlugins(plugins), parser.parse(onLoad, onError);
+      parser.setExtensions(extensions), parser.setPlugins(plugins), parser.parse(onLoad2, onError);
     }
     /**
      * Async version of {@link GLTFLoader#parse}.
@@ -107669,7 +108790,7 @@ void main() {
     setPlugins(plugins) {
       this.plugins = plugins;
     }
-    parse(onLoad, onError) {
+    parse(onLoad2, onError) {
       let parser = this, json = this.json, extensions = this.extensions;
       this.cache.removeAll(), this.nodeCache = {}, this._invokeAll(function(ext) {
         return ext._markDefs && ext._markDefs();
@@ -107696,7 +108817,7 @@ void main() {
         })).then(function() {
           for (let scene of result.scenes)
             scene.updateMatrixWorld();
-          onLoad(result);
+          onLoad2(result);
         });
       }).catch(onError);
     }
@@ -107966,11 +109087,11 @@ void main() {
         throw new Error("THREE.GLTFLoader: Image " + sourceIndex + " is missing URI and bufferView");
       let promise = Promise.resolve(sourceURI).then(function(sourceURI2) {
         return new Promise(function(resolve, reject) {
-          let onLoad = resolve;
-          loader.isImageBitmapLoader === !0 && (onLoad = /* @__PURE__ */ __name(function(imageBitmap) {
+          let onLoad2 = resolve;
+          loader.isImageBitmapLoader === !0 && (onLoad2 = /* @__PURE__ */ __name(function(imageBitmap) {
             let texture = new Texture2(imageBitmap);
             texture.needsUpdate = !0, resolve(texture);
-          }, "onLoad")), loader.load(LoaderUtils.resolveURL(sourceURI2, options.path), onLoad, void 0, reject);
+          }, "onLoad")), loader.load(LoaderUtils.resolveURL(sourceURI2, options.path), onLoad2, void 0, reject);
         });
       }).then(function(texture) {
         return isObjectURL === !0 && URL2.revokeObjectURL(sourceURI), assignExtrasToUserData(texture, sourceDef), texture.userData.mimeType = sourceDef.mimeType || getImageURIMimeType(sourceDef.uri), texture;
@@ -109342,6 +110463,23 @@ void main() {
             itemHoverRotateButton?.contains(e.relatedTarget) || currentHoveredItemElement === element && removeCurrentHoveredItemData();
           }
         ));
+      },
+      { multiple: !0 }
+    ), observeElement(
+      ".rovalra-recently-viewed-item .rovalra-item-card",
+      (element) => {
+        let itemLinkElement = element.querySelector(
+          "a.rovalra-item-card-link"
+        ), itemThumbContainer = element.querySelector(
+          ".rovalra-item-thumb-container"
+        );
+        !itemLinkElement || !itemThumbContainer || (itemThumbContainer.addEventListener("mouseenter", () => {
+          hoverPreviewEnabled && (startedRenderer || startRenderer().then(async (success) => {
+            success && (await loadOgAvatar(), animationLoopStarted || (animationLoopStarted = !0, customAnimate()));
+          }), currentHoveredItemElement = element, currentHoveredItemThumbElement = itemThumbContainer, currentHoveredItemLink = itemLinkElement.href, currentHoveredItemType = void 0, setSceneColor(itemHoverScene, getItemCardColor(itemThumbContainer)), updateHoveredItemTypeFromThumbnail(itemThumbContainer));
+        }), itemThumbContainer.addEventListener("mouseleave", (e) => {
+          itemHoverRotateButton?.contains(e.relatedTarget) || currentHoveredItemElement === element && removeCurrentHoveredItemData();
+        }));
       },
       { multiple: !0 }
     ), mainRendererEnabled && await startRenderer() && (animationLoopStarted = !0, await updateMainRenderer(), customAnimate());
@@ -110911,7 +112049,7 @@ void main() {
   init_getSettings();
   init_thumbnails();
   init_buttons();
-  var BADGE_LIST_CLASS = "rovalra-badge-layout-list", NATIVE_LIST_CLASS = "rovalra-badge-native-list", HIDDEN_BADGE_LIST_CLASS = "rovalra-hidden-badges-list", GRID_VIEW_CLASS = "rovalra-badge-grid-view", PREFETCH_COMPLETE_CLASS = "rovalra-badge-prefetch-complete", LOAD_MORE_CONTROL_CLASS = "rovalra-badge-load-more-control", CUSTOM_LOAD_MORE_CLASS = "rovalra-badge-grid-load-more", GRID_HIDDEN_BADGE_CLASS = "rovalra-badge-grid-hidden", GRID_STATS_CLASS = "rovalra-badge-grid-stats", GRID_SHIMMER_CLASS = "rovalra-badge-grid-shimmer", STORAGE_KEY7 = "rovalra_badge_layout_view", GRID_INITIAL_VISIBLE_COUNT = 15, GRID_VISIBLE_INCREMENT = 15, initialized13 = !1, universeBadgeCache = /* @__PURE__ */ new Map(), observedBadgeLists = /* @__PURE__ */ new WeakSet();
+  var BADGE_LIST_CLASS = "rovalra-badge-layout-list", NATIVE_LIST_CLASS = "rovalra-badge-native-list", HIDDEN_BADGE_LIST_CLASS = "rovalra-hidden-badges-list", GRID_VIEW_CLASS = "rovalra-badge-grid-view", PREFETCH_COMPLETE_CLASS = "rovalra-badge-prefetch-complete", LOAD_MORE_CONTROL_CLASS = "rovalra-badge-load-more-control", CUSTOM_LOAD_MORE_CLASS = "rovalra-badge-grid-load-more", GRID_HIDDEN_BADGE_CLASS = "rovalra-badge-grid-hidden", GRID_STATS_CLASS = "rovalra-badge-grid-stats", GRID_SHIMMER_CLASS = "rovalra-badge-grid-shimmer", STORAGE_KEY8 = "rovalra_badge_layout_view", GRID_INITIAL_VISIBLE_COUNT = 15, GRID_VISIBLE_INCREMENT = 15, initialized13 = !1, universeBadgeCache = /* @__PURE__ */ new Map(), observedBadgeLists = /* @__PURE__ */ new WeakSet();
   async function getLocaleText2() {
     let [rarity, wonYesterday, wonEver] = await Promise.all([
       t2("privateGames.badges.rarity"),
@@ -110923,7 +112061,7 @@ void main() {
   __name(getLocaleText2, "getLocaleText");
   function getSavedView() {
     try {
-      return localStorage.getItem(STORAGE_KEY7) === "grid" ? "grid" : "list";
+      return localStorage.getItem(STORAGE_KEY8) === "grid" ? "grid" : "list";
     } catch {
       return "list";
     }
@@ -110931,7 +112069,7 @@ void main() {
   __name(getSavedView, "getSavedView");
   function saveView(value2) {
     try {
-      localStorage.setItem(STORAGE_KEY7, value2);
+      localStorage.setItem(STORAGE_KEY8, value2);
     } catch {
     }
   }
@@ -111297,10 +112435,10 @@ void main() {
     });
   }
   __name(observeBadgeLists, "observeBadgeLists");
-  function getCacheKey(userId, badgeId) {
+  function getCacheKey2(userId, badgeId) {
     return `${userId}:${badgeId}`;
   }
-  __name(getCacheKey, "getCacheKey");
+  __name(getCacheKey2, "getCacheKey");
   function sleep4(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -111392,7 +112530,7 @@ void main() {
   async function loadCachedBadgeOwnership(userId, badgeIds) {
     let cached = await get(CACHE_SECTION3, String(userId), CACHE_AREA) || {}, now = Date.now();
     badgeIds.forEach((badgeId) => {
-      let cacheKey = getCacheKey(userId, badgeId);
+      let cacheKey = getCacheKey2(userId, badgeId);
       if (ownershipCache.has(cacheKey)) return;
       let entry = cached[badgeId];
       !entry || entry.expiresAt <= now || ownershipCache.set(cacheKey, entry.owned === !0);
@@ -111402,7 +112540,7 @@ void main() {
   async function cacheBadgeOwnershipBatch(userId, badgeIds, ownedIds) {
     let cached = await get(CACHE_SECTION3, String(userId), CACHE_AREA) || {}, expiresAt = Date.now() + OWNERSHIP_CACHE_MS;
     badgeIds.forEach((badgeId) => {
-      let cacheKey = getCacheKey(userId, badgeId), owned = ownedIds.has(badgeId);
+      let cacheKey = getCacheKey2(userId, badgeId), owned = ownedIds.has(badgeId);
       ownershipCache.set(cacheKey, owned), cached[badgeId] = { owned, expiresAt };
     }), await set(CACHE_SECTION3, String(userId), cached, CACHE_AREA);
   }
@@ -111411,7 +112549,7 @@ void main() {
     let uniqueBadgeIds = [...new Set(badgeIds.map(String))];
     await loadCachedBadgeOwnership(userId, uniqueBadgeIds);
     let missingIds = uniqueBadgeIds.filter(
-      (badgeId) => !ownershipCache.has(getCacheKey(userId, badgeId))
+      (badgeId) => !ownershipCache.has(getCacheKey2(userId, badgeId))
     );
     for (let i2 = 0; i2 < missingIds.length; i2 += OWNERSHIP_BATCH_SIZE) {
       let batch = missingIds.slice(i2, i2 + OWNERSHIP_BATCH_SIZE), data = await fetchAwardedDates(userId, batch);
@@ -111429,7 +112567,7 @@ void main() {
     if (!userId) return;
     let badgeIds = getBadgeRows2(container).map(getBadgeId).filter(Boolean);
     badgeIds.length !== 0 && (await fetchOwnedBadgeIds(userId, badgeIds), getBadgeRows2(container).forEach((row) => {
-      let badgeId = getBadgeId(row), ownsBadge = badgeId ? ownershipCache.get(getCacheKey(userId, badgeId)) : void 0;
+      let badgeId = getBadgeId(row), ownsBadge = badgeId ? ownershipCache.get(getCacheKey2(userId, badgeId)) : void 0;
       row.classList.toggle(NOT_OWNED_CLASS, ownsBadge === !1);
     }));
   }
@@ -112905,6 +114043,7 @@ void main() {
   init_regions();
   init_idExtractor();
   init_i18n();
+  init_tooltip();
   var CLASSES = {
     CONTAINER: "rovalra-details-container",
     INFO_ROW: "text-info",
@@ -112912,7 +114051,6 @@ void main() {
     Uptime: "rovalra-uptime-info",
     Performance: "rovalra-performance-info",
     Version: "rovalra-version-info",
-    LanguageMatch: "rovalra-language-match-info",
     Full: "rovalra-server-full-info",
     Private: "rovalra-private-server-info",
     Purchase: "rovalra-purchase-game-info",
@@ -112921,13 +114059,12 @@ void main() {
     Performance: 1,
     Uptime: 2,
     Version: 3,
-    LanguageMatch: 4,
     Region: 5,
     Purchase: 6,
     Status: 7
   }, STYLES2 = {
-    container: "display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 4px; min-height: 112px;",
-    containerFriends: "display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; width: 100%; min-height: 116px;",
+    container: "display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 4px; min-height: 44px;",
+    containerFriends: "display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; width: 100%; min-height: 48px;",
     row: "display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400;",
     icon: "display: flex; align-items: center; flex-shrink: 0; height: 20px;",
     text: "line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%; flex: 1;"
@@ -112936,17 +114073,12 @@ void main() {
     performanceLow: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m16 18 2.29-2.29-4.88-4.88-4 4L2 7.41 3.41 6l6 6 4-4 6.3 6.29L22 12v6z" stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>',
     uptime: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m22 5.7-4.6-3.9-1.3 1.5 4.6 3.9zM7.9 3.4 6.6 1.9 2 5.7l1.3 1.5zM12.5 8H11v6l4.7 2.9.8-1.2-4-2.4zM12 4c-5 0-9 4-9 9s4 9 9 9 9-4 9-9-4-9-9-9m0 16c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7" fill="currentColor"/></svg>',
     version: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 10.12h-6.78l2.74-2.82c-2.73-2.7-7.15-2.8-9.88-.1-2.73 2.71-2.73 7.08 0 9.79s7.15 2.71 9.88 0C18.32 15.65 19 14.08 19 12.1h2c0 1.98-.88 4.55-2.64 6.29-3.51 3.48-9.21 3.48-12.72 0-3.5-3.47-3.53-9.11-.02-12.58s9.14-3.47 12.65 0L21 3zM12.5 8v4.25l3.5 2.08-.72 1.21L11 13V8z" stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>',
-    language: IconText({
-      icon: "globe-simplified",
-      filled: !1,
-      size: "20px"
-    }),
     regionDefault: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M11 8.17 6.49 3.66C8.07 2.61 9.96 2 12 2c5.52 0 10 4.48 10 10 0 2.04-.61 3.93-1.66 5.51l-1.46-1.46C19.59 14.87 20 13.48 20 12c0-3.35-2.07-6.22-5-7.41V5c0 1.1-.9 2-2 2h-2zm10.19 13.02-1.41 1.41-2.27-2.27C15.93 21.39 14.04 22 12 22 6.48 22 2 17.52 2 12c0-2.04.61-3.93 1.66-5.51L1.39 4.22 2.8 2.81zM11 18c-1.1 0-2-.9-2-2v-1l-4.79-4.79C4.08 10.79 4 11.38 4 12c0 4.08 3.05 7.44 7 7.93z" stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>',
     full: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M11 8.17 6.49 3.66C8.07 2.61 9.96 2 12 2c5.52 0 10 4.48 10 10 0 2.04-.61 3.93-1.66 5.51l-1.46-1.46C19.59 14.87 20 13.48 20 12c0-3.35-2.07-6.22-5-7.41V5c0 1.1-.9 2-2 2h-2zm10.19 13.02-1.41 1.41-2.27-2.27C15.93 21.39 14.04 22 12 22 6.48 22 2 17.52 2 12c0-2.04.61-3.93 1.66-5.51L1.39 4.22 2.8 2.81zM11 18c-1.1 0-2-.9-2-2v-1l-4.79-4.79C4.08 10.79 4 11.38 4 12c0 4.08 3.05 7.44 7 7.93z" stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>',
     private: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2m-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2m3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1z" stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>',
     purchase: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M11 8.17 6.49 3.66C8.07 2.61 9.96 2 12 2c5.52 0 10 4.48 10 10 0 2.04-.61 3.93-1.66 5.51l-1.46-1.46C19.59 14.87 20 13.48 20 12c0-3.35-2.07-6.22-5-7.41V5c0 1.1-.9 2-2 2h-2zm10.19 13.02-1.41 1.41-2.27-2.27C15.93 21.39 14.04 22 12 22 6.48 22 2 17.52 2 12c0-2.04.61-3.93 1.66-5.51L1.39 4.22 2.8 2.81zM11 18c-1.1 0-2-.9-2-2v-1l-4.79-4.79C4.08 10.79 4 11.38 4 12c0 4.08 3.05 7.44 7 7.93z" stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>',
     inactive: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V12M12 16H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"/> stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>'
-  }, isShareLinkEnabled = !0, isServerUptimeEnabled = !0, isServerRegionEnabled = !0, isPlaceVersionEnabled = !0, isServerLanguageMatchEnabled = !0, isFullServerIDEnabled = !0, isFullServerIndicatorsEnabled = !0, isServerPerformanceEnabled = !0, isMiscIndicatorsEnabled = !0, isDatacenterAndIdEnabled = !0, isServerListModificationsEnabled = !0, cacheReadyPromise = new Promise((resolve) => {
+  }, isShareLinkEnabled = !0, isServerUptimeEnabled = !0, isServerRegionEnabled = !0, isPlaceVersionEnabled = !0, isFullServerIDEnabled = !0, isFullServerIndicatorsEnabled = !0, isServerPerformanceEnabled = !0, isMiscIndicatorsEnabled = !0, isDatacenterAndIdEnabled = !0, isServerListModificationsEnabled = !0, cacheReadyPromise = new Promise((resolve) => {
     loadDatacenterMap().then(resolve).catch(() => resolve()), !(typeof chrome > "u" || !chrome.storage?.local) && (chrome.storage.local.get(
       [
         "ServerlistmodificationsEnabled",
@@ -112954,7 +114086,6 @@ void main() {
         "EnableServerUptime",
         "EnableServerRegion",
         "EnablePlaceVersion",
-        "EnableServerLanguageMatch",
         "EnableFullServerID",
         "EnableFullServerIndicators",
         "EnableServerPerformance",
@@ -112962,19 +114093,12 @@ void main() {
         "EnableDatacenterandId"
       ],
       (res) => {
-        res?.ServerlistmodificationsEnabled !== void 0 && (isServerListModificationsEnabled = res.ServerlistmodificationsEnabled), res?.enableShareLink !== void 0 && (isShareLinkEnabled = res.enableShareLink), res?.EnableServerUptime !== void 0 && (isServerUptimeEnabled = res.EnableServerUptime), res?.EnableServerRegion !== void 0 && (isServerRegionEnabled = res.EnableServerRegion), res?.EnablePlaceVersion !== void 0 && (isPlaceVersionEnabled = res.EnablePlaceVersion), res?.EnableServerLanguageMatch !== void 0 && (isServerLanguageMatchEnabled = res.EnableServerLanguageMatch), res?.EnableFullServerID !== void 0 && (isFullServerIDEnabled = res.EnableFullServerID), res?.EnableFullServerIndicators !== void 0 && (isFullServerIndicatorsEnabled = res.EnableFullServerIndicators), res?.EnableServerPerformance !== void 0 && (isServerPerformanceEnabled = res.EnableServerPerformance), res?.EnableMiscIndicators !== void 0 && (isMiscIndicatorsEnabled = res.EnableMiscIndicators), res?.EnableDatacenterandId !== void 0 && (isDatacenterAndIdEnabled = res.EnableDatacenterandId), resolve();
+        res?.ServerlistmodificationsEnabled !== void 0 && (isServerListModificationsEnabled = res.ServerlistmodificationsEnabled), res?.enableShareLink !== void 0 && (isShareLinkEnabled = res.enableShareLink), res?.EnableServerUptime !== void 0 && (isServerUptimeEnabled = res.EnableServerUptime), res?.EnableServerRegion !== void 0 && (isServerRegionEnabled = res.EnableServerRegion), res?.EnablePlaceVersion !== void 0 && (isPlaceVersionEnabled = res.EnablePlaceVersion), res?.EnableFullServerID !== void 0 && (isFullServerIDEnabled = res.EnableFullServerID), res?.EnableFullServerIndicators !== void 0 && (isFullServerIndicatorsEnabled = res.EnableFullServerIndicators), res?.EnableServerPerformance !== void 0 && (isServerPerformanceEnabled = res.EnableServerPerformance), res?.EnableMiscIndicators !== void 0 && (isMiscIndicatorsEnabled = res.EnableMiscIndicators), res?.EnableDatacenterandId !== void 0 && (isDatacenterAndIdEnabled = res.EnableDatacenterandId), resolve();
       }
     ), chrome.storage.onChanged?.addListener((changes, area) => {
       area === "local" && (changes.ServerlistmodificationsEnabled && (isServerListModificationsEnabled = changes.ServerlistmodificationsEnabled.newValue, isServerListModificationsEnabled || document.querySelectorAll(
-        ".rovalra-details-container, .rovalra-server-extra-details, .rovalra-copy-join-link"
-      ).forEach((el3) => el3.remove())), changes.enableShareLink && (isShareLinkEnabled = changes.enableShareLink.newValue), changes.EnableServerUptime && (isServerUptimeEnabled = changes.EnableServerUptime.newValue), changes.EnableServerRegion && (isServerRegionEnabled = changes.EnableServerRegion.newValue), changes.EnablePlaceVersion && (isPlaceVersionEnabled = changes.EnablePlaceVersion.newValue), changes.EnableServerLanguageMatch && (isServerLanguageMatchEnabled = changes.EnableServerLanguageMatch.newValue, isServerLanguageMatchEnabled ? document.querySelectorAll("[data-rovalra-serverid]").forEach((server) => {
-        let apiData = server._rovalraApiData;
-        displayLanguageMatch(
-          server,
-          apiData?.languageMatchCount
-        ).catch(() => {
-        });
-      }) : document.querySelectorAll(`.${CLASSES.LanguageMatch}`).forEach((row) => row.style.display = "none")), changes.EnableFullServerID && (isFullServerIDEnabled = changes.EnableFullServerID.newValue), changes.EnableFullServerIndicators && (isFullServerIndicatorsEnabled = changes.EnableFullServerIndicators.newValue), changes.EnableServerPerformance && (isServerPerformanceEnabled = changes.EnableServerPerformance.newValue), changes.EnableMiscIndicators && (isMiscIndicatorsEnabled = changes.EnableMiscIndicators.newValue), changes.EnableDatacenterandId && (isDatacenterAndIdEnabled = changes.EnableDatacenterandId.newValue, document.querySelectorAll("[data-rovalra-serverid]").forEach((server) => {
+        ".rovalra-details-container, .rovalra-server-extra-details, .rovalra-copy-join-link, .rovalra-meta-pill"
+      ).forEach((el3) => el3.remove())), changes.enableShareLink && (isShareLinkEnabled = changes.enableShareLink.newValue), changes.EnableServerUptime && (isServerUptimeEnabled = changes.EnableServerUptime.newValue), changes.EnableServerRegion && (isServerRegionEnabled = changes.EnableServerRegion.newValue), changes.EnablePlaceVersion && (isPlaceVersionEnabled = changes.EnablePlaceVersion.newValue), changes.EnableFullServerID && (isFullServerIDEnabled = changes.EnableFullServerID.newValue), changes.EnableFullServerIndicators && (isFullServerIndicatorsEnabled = changes.EnableFullServerIndicators.newValue), changes.EnableServerPerformance && (isServerPerformanceEnabled = changes.EnableServerPerformance.newValue), changes.EnableMiscIndicators && (isMiscIndicatorsEnabled = changes.EnableMiscIndicators.newValue), changes.EnableDatacenterandId && (isDatacenterAndIdEnabled = changes.EnableDatacenterandId.newValue, document.querySelectorAll("[data-rovalra-serverid]").forEach((server) => {
         displayIpAndDcId(server);
       })));
     }));
@@ -113026,6 +114150,24 @@ void main() {
     return null;
   }
   __name(extractCountryCode, "extractCountryCode");
+  var regionDisplayNames = null;
+  function getCountryName(countryCode) {
+    try {
+      regionDisplayNames ??= new Intl.DisplayNames(
+        [document.documentElement.lang || navigator.language, "en"],
+        { type: "region" }
+      );
+      let name = regionDisplayNames.of(countryCode.toUpperCase());
+      if (name && name.toUpperCase() !== countryCode.toUpperCase())
+        return name;
+    } catch {
+    }
+    let entry = datacenterList?.find(
+      (e) => (e.location || e).country?.toLowerCase() === countryCode
+    );
+    return (entry?.location || entry)?.country_name || null;
+  }
+  __name(getCountryName, "getCountryName");
   function removeCountryFromRegion(regionName) {
     if (!regionName || !datacenterList) return regionName;
     let parts = regionName.split(",").map((p2) => p2.trim());
@@ -113101,7 +114243,26 @@ void main() {
     return iconWrapper && (iconWrapper.innerHTML = iconHTML), textWrapper && (textWrapper.textContent = text3), isVisible3 ? (element.style.display = "flex", element.style.visibility = "visible") : (element.style.display = "none", element.style.visibility = "visible"), element;
   }
   __name(updateInfoElement, "updateInfoElement");
-  function clearExclusiveStatuses(container) {
+  function getOrCreateMetaIcons(server) {
+    let meta = server.querySelector(".server-meta-icons");
+    if (meta) return meta;
+    let gauge = server.querySelector(".server-player-count-gauge");
+    return gauge ? (meta = document.createElement("div"), meta.className = "server-meta-icons rovalra-meta-icons", gauge.after(meta), meta) : null;
+  }
+  __name(getOrCreateMetaIcons, "getOrCreateMetaIcons");
+  function updateMetaPill(server, type, iconHTML, text3, isVisible3, tooltip = "") {
+    let className = CLASSES[type], meta = isVisible3 ? getOrCreateMetaIcons(server) : null, pill = server.querySelector(`.rovalra-meta-pill.${className}`);
+    if (!meta && !pill) {
+      let container = getOrCreateDetailsContainer(server);
+      return updateInfoElement(container, type, iconHTML, text3, isVisible3);
+    }
+    return pill || (pill = document.createElement("span"), pill.className = `server-meta-badge-tip rovalra-meta-pill ${className}`, pill.style.order = ORDERS[type] || ORDERS.Status, pill.innerHTML = '<div class="foundation-web-badge flex items-center select-none gap-[var(--size-150)] radius-circle height-600 width-[fit-content] padding-x-small bg-shift-200 content-emphasis stroke-none"><span class="rovalra-icon-wrapper"></span><span class="rovalra-pill-text text-no-wrap text-truncate-split text-label-small padding-y-xsmall padding-right-xxsmall content-emphasis"></span></div>', addTooltip(pill, () => pill.dataset.rovalraTooltip || "", {
+      position: "top",
+      shouldShow: /* @__PURE__ */ __name(() => !!pill.dataset.rovalraTooltip, "shouldShow")
+    }), meta.appendChild(pill)), pill.dataset.rovalraTooltip = tooltip, pill.querySelector(".rovalra-icon-wrapper").innerHTML = iconHTML, pill.querySelector(".rovalra-pill-text").textContent = text3, pill.style.display = isVisible3 ? "" : "none", server.querySelector(`.${CLASSES.CONTAINER} > .${className}`)?.remove(), pill;
+  }
+  __name(updateMetaPill, "updateMetaPill");
+  function clearExclusiveStatuses(server, container) {
     [
       CLASSES.Uptime,
       CLASSES.Version,
@@ -113110,7 +114271,7 @@ void main() {
       CLASSES.Private,
       CLASSES.Purchase,
       CLASSES.Inactive
-    ].forEach((cls) => container.querySelector(`.${cls}`)?.remove());
+    ].forEach((cls) => container.querySelector(`.${cls}`)?.remove()), server.querySelector(`.rovalra-meta-pill.${CLASSES.Region}`)?.remove();
   }
   __name(clearExclusiveStatuses, "clearExclusiveStatuses");
   function injectStyles3() {
@@ -113129,6 +114290,37 @@ void main() {
             background-color: transparent;
             color: inherit;
         }
+        .rovalra-meta-icons {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+        .server-meta-icons:has(.rovalra-meta-pill) {
+            flex-wrap: wrap;
+            row-gap: 4px;
+        }
+        .rovalra-meta-pill {
+            display: inline-flex;
+            min-width: 0;
+            max-width: 100%;
+            cursor: default;
+        }
+        .rovalra-meta-pill .foundation-web-badge {
+            max-width: 100%;
+        }
+        .rovalra-meta-pill .rovalra-icon-wrapper {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .rovalra-meta-pill .rovalra-icon-wrapper svg {
+            width: 14px;
+            height: 14px;
+        }
+        .rovalra-meta-pill .rovalra-pill-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     `, document.head.appendChild(style);
   }
   __name(injectStyles3, "injectStyles");
@@ -113146,18 +114338,24 @@ void main() {
   __name(enableAvatarLinks, "enableAvatarLinks");
   function displayPerformance(server, fps, serverLocations3 = {}) {
     if (!isServerPerformanceEnabled || !isServerListModificationsEnabled) {
-      let container2 = getOrCreateDetailsContainer(server);
-      updateInfoElement(container2, "Performance", "", "", !1);
+      updateMetaPill(server, "Performance", "", "", !1);
       return;
     }
-    let container = getOrCreateDetailsContainer(server), text3 = "Server Performance Unknown", icon = ICONS.performanceHigh, visible = !1;
+    let text3 = "Unknown", icon = ICONS.performanceHigh, visible = !1;
     if (fps === "fetching")
-      text3 = "Server Performance Loading...", visible = !0;
+      text3 = ts2("serverInfo.loading"), visible = !0;
     else if (typeof fps == "number") {
       let percent = Math.min(100, Math.round(fps / 60 * 100));
-      text3 = `Server Performance ${percent}%`, icon = percent < 50 ? ICONS.performanceLow : ICONS.performanceHigh, visible = !0;
+      text3 = `${percent}%`, icon = percent < 50 ? ICONS.performanceLow : ICONS.performanceHigh, visible = !0;
     }
-    updateInfoElement(container, "Performance", icon, text3, visible);
+    updateMetaPill(
+      server,
+      "Performance",
+      icon,
+      text3,
+      visible,
+      ts2("serverInfo.performanceTooltip")
+    );
   }
   __name(displayPerformance, "displayPerformance");
   function displayUptime(server, uptime, isEstimate, serverLocations3 = {}) {
@@ -113189,47 +114387,26 @@ void main() {
     updateInfoElement(container, "Version", ICONS.version, text3, visible);
   }
   __name(displayPlaceVersion, "displayPlaceVersion");
-  async function displayLanguageMatch(server, languageMatchCount) {
-    if (await cacheReadyPromise, !isServerListModificationsEnabled || !isServerLanguageMatchEnabled)
-      return;
-    let container = getOrCreateDetailsContainer(server);
-    if (!container) return;
-    let row = container.querySelector(`.${CLASSES.LanguageMatch}`);
-    if (row || (row = updateInfoElement(
-      container,
-      "LanguageMatch",
-      ICONS.language,
-      ""
-    ), row.style.display = "none"), !Number.isFinite(languageMatchCount) || languageMatchCount < 0) {
-      row.style.display = "none";
-      return;
-    }
-    let languageName = await getAuthenticatedUserLanguageName();
-    !languageName || !isServerListModificationsEnabled || !isServerLanguageMatchEnabled || (row = updateInfoElement(
-      container,
-      "LanguageMatch",
-      ICONS.language,
-      ts2("serverInfo.languageMatchCount", {
-        language: languageName,
-        count: languageMatchCount
-      })
-    ), row.style.visibility = "visible");
-  }
-  __name(displayLanguageMatch, "displayLanguageMatch");
   function displayRegion(server, regionName, serverLocations3 = {}) {
     if (!isServerRegionEnabled || !isServerListModificationsEnabled) {
-      let container2 = getOrCreateDetailsContainer(server);
-      updateInfoElement(container2, "Region", "", "", !1);
+      updateMetaPill(server, "Region", "", "", !1);
       return;
     }
     let container = getOrCreateDetailsContainer(server);
     regionName && regionName !== "Unknown Region" && (container.querySelector(`.${CLASSES.Full}`)?.remove(), container.querySelector(`.${CLASSES.Private}`)?.remove());
-    let text3 = "Unknown", icon = ICONS.regionDefault, visible = !1;
+    let text3 = "Unknown", countryName = null, icon = ICONS.regionDefault, visible = !1;
     if (regionName && regionName !== "Unknown Region" && regionName !== "N/A" && regionName !== "Unknown") {
       let countryCode = extractCountryCode(regionName);
-      text3 = removeCountryFromRegion(regionName), text3 === "Unknown" || text3 === "N/A" || !text3 ? visible = !1 : (countryCode && (icon = `<img src="https://flagcdn.com/w40/${countryCode}.png" srcset="https://flagcdn.com/w80/${countryCode}.png 2x" width="20" height="14" alt="${countryCode}" style="display: block;">`), visible = !0);
+      text3 = removeCountryFromRegion(regionName), text3 === "Unknown" || text3 === "N/A" || !text3 ? visible = !1 : (countryCode && (countryName = countryCode === "us" ? text3.split(",").pop().trim() : getCountryName(countryCode), icon = `<img src="https://flagcdn.com/w40/${countryCode}.png" srcset="https://flagcdn.com/w80/${countryCode}.png 2x" width="16" height="12" alt="${countryCode}" style="display: block; border-radius: 2px;">`), visible = !0);
     }
-    updateInfoElement(container, "Region", icon, text3, visible);
+    updateMetaPill(
+      server,
+      "Region",
+      icon,
+      countryName || text3,
+      visible,
+      ts2("serverInfo.regionTooltip", { region: text3 })
+    );
   }
   __name(displayRegion, "displayRegion");
   function displayRegionForServerId(serverId, regionName, serverLocations3) {
@@ -113262,7 +114439,7 @@ void main() {
       updateInfoElement(container2, "Full", "", "", !1);
       return;
     }
-    let container = getOrCreateDetailsContainer(server), regionElement = container.querySelector(`.${CLASSES.Region}`);
+    let container = getOrCreateDetailsContainer(server), regionElement = server.querySelector(`.${CLASSES.Region}`);
     if (regionElement && regionElement.style.display !== "none" && !["Unknown", "N/A", "Unknown Region"].includes(
       regionElement.textContent.trim()
     )) {
@@ -113285,7 +114462,7 @@ void main() {
       return;
     }
     let container = getOrCreateDetailsContainer(server);
-    clearExclusiveStatuses(container), updateInfoElement(
+    clearExclusiveStatuses(server, container), updateInfoElement(
       container,
       "Purchase",
       ICONS.purchase,
@@ -113515,10 +114692,7 @@ void main() {
     displayRegion(server, cachedLocation || "Unknown", serverLocations3);
     let cachedApiData = context.serverDataCache?.get(String(serverId)), attachedApiData = server._rovalraApiData, attachedApiDataId = attachedApiData?.server_id || attachedApiData?.id, apiData = cachedApiData && String(cachedApiData.server_id || cachedApiData.id) === String(serverId) ? cachedApiData : attachedApiData && String(attachedApiDataId) === String(serverId) ? attachedApiData : null;
     if (apiData && (server._rovalraApiData = apiData), apiData) {
-      if (displayLanguageMatch(server, apiData.languageMatchCount).catch(
-        () => {
-        }
-      ), apiData.place_version && !getServerVersion(serverId) && displayPlaceVersion(server, apiData.place_version, serverLocations3), apiData.first_seen && !isPrivate && !getServerUptime(serverId)) {
+      if (apiData.place_version && !getServerVersion(serverId) && displayPlaceVersion(server, apiData.place_version, serverLocations3), apiData.first_seen && !isPrivate && !getServerUptime(serverId)) {
         let date = new Date(
           apiData.first_seen.endsWith("Z") ? apiData.first_seen : apiData.first_seen + "Z"
         ), uptime = isNaN(date) ? 0 : Math.max(0, (/* @__PURE__ */ new Date() - date) / 1e3);
@@ -113530,9 +114704,7 @@ void main() {
         apiData.country
       );
       locStr && (serverLocations3[serverId] = locStr, displayRegion(server, locStr, serverLocations3));
-    } else
-      displayLanguageMatch(server, void 0).catch(() => {
-      });
+    }
     if ((isServerUptimeEnabled || isServerRegionEnabled || isPlaceVersionEnabled) && getServerUptime(serverId) === null && !isPrivate && (uptimeBatch.add(serverId), clearTimeout(server._rovalraUptimeTimeout), server._rovalraUptimeTimeout = setTimeout(
       () => processUptimeBatch2(),
       100
@@ -113951,7 +115123,6 @@ void main() {
         min-width: 110px !important;
     }
     .rovalra-modern-ui .rovalra-version-info { order: 5 !important; }
-    .rovalra-modern-ui .rovalra-language-match-info { order: 6 !important; }
 
     .rovalra-modern-ui .rovalra-region-info {
         order: 10 !important;
@@ -114624,11 +115795,6 @@ void main() {
                   );
                 } catch {
                 }
-              displayLanguageMatch(
-                serverElement,
-                serverData.languageMatchCount
-              ).catch(() => {
-              });
               let placeVersion = serverData.placeVersion ?? serverData.place_version;
               placeVersion != null && displayPlaceVersion(
                 serverElement,
@@ -122876,7 +124042,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
 
   // src/content/features/groups/draggableGroups.js
   init_observer();
-  var STORAGE_KEY8 = "rovalra_groups_order", HOLD_THRESHOLD2 = 200, MOVE_THRESHOLD2 = 5, dragState = {
+  var STORAGE_KEY9 = "rovalra_groups_order", HOLD_THRESHOLD2 = 200, MOVE_THRESHOLD2 = 5, dragState = {
     active: !1,
     element: null,
     clone: null,
@@ -123002,12 +124168,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     links.forEach((link, idx) => {
       let match = link.getAttribute("href")?.match(/\/communities\/(\d+)/);
       match && order.push({ groupId: match[1], position: idx });
-    }), chrome.storage.local.set({ [STORAGE_KEY8]: order });
+    }), chrome.storage.local.set({ [STORAGE_KEY9]: order });
   }
   __name(persistOrder, "persistOrder");
   function restoreSavedOrder(container) {
-    chrome.storage.local.get([STORAGE_KEY8], (result) => {
-      let savedOrder4 = result[STORAGE_KEY8];
+    chrome.storage.local.get([STORAGE_KEY9], (result) => {
+      let savedOrder4 = result[STORAGE_KEY9];
       if (!savedOrder4 || !savedOrder4.length) return;
       let orderMap = new Map(savedOrder4.map((o) => [o.groupId, o.position]));
       container.querySelectorAll("div.padding-bottom-small").forEach((section) => {
@@ -126337,14 +127503,26 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       themeColorIcon: !0,
       size: "22px"
     },
+    qa_tester: {
+      type: "header",
+      userIds: [],
+      builderIcon: "lab-beaker",
+      builderIconFilled: !0,
+      themeColorIcon: !0,
+      tooltip: "Roblox QA Tester",
+      shiny: !1,
+      sparkles: !1,
+      size: "22px"
+    },
     translator: {
       type: "header",
       userIds: TRANSLATOR_USER_IDS,
-      icon: assets5.translateIcon,
+      builderIcon: "language-characters",
+      builderIconFilled: !0,
+      themeColorIcon: !0,
       tooltip: "RoValra Translator",
       confetti: assets5.translateIcon,
-      style: {},
-      shiny: !0
+      size: "22px"
     },
     tester: {
       type: "header",
@@ -126481,7 +127659,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_idExtractor();
   init_getSettings();
   init_settingHandler();
-  var badgeCache = /* @__PURE__ */ new Map(), groupRuntimeBadgeCache = /* @__PURE__ */ new Map(), VIDEO_STAR_GROUP_ID = 4199740, VIDEO_STAR_BADGE_NAME = "video_star", COMMUNITY_FEEDBACK_PROGRAM_GROUP_ID = 12051064, COMMUNITY_FEEDBACK_PROGRAM_BADGE_NAME = "community_feedback_program", CREATOR_EVENTS_GROUP_ID = 9420522, CREATOR_EVENTS_BADGE_NAME = "creator_events", DONATOR_BADGE_KEYS = [
+  var badgeCache = /* @__PURE__ */ new Map(), groupRuntimeBadgeCache = /* @__PURE__ */ new Map(), VIDEO_STAR_GROUP_ID = 4199740, VIDEO_STAR_BADGE_NAME = "video_star", COMMUNITY_FEEDBACK_PROGRAM_GROUP_ID = 12051064, COMMUNITY_FEEDBACK_PROGRAM_BADGE_NAME = "community_feedback_program", CREATOR_EVENTS_GROUP_ID = 9420522, CREATOR_EVENTS_BADGE_NAME = "creator_events", QA_TESTER_GROUP_ID = 3055661, QA_TESTER_BADGE_NAME = "qa_tester", DONATOR_BADGE_KEYS = [
     "donator_1",
     "donator_2",
     "donator_3",
@@ -126499,6 +127677,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return item?.group?.id === CREATOR_EVENTS_GROUP_ID;
   }
   __name(isCreatorEventsGroupMember, "isCreatorEventsGroupMember");
+  function isQaTesterGroupMember(item) {
+    return item?.group?.id === QA_TESTER_GROUP_ID;
+  }
+  __name(isQaTesterGroupMember, "isQaTesterGroupMember");
   function getRuntimeGroupBadges(userId) {
     return groupRuntimeBadgeCache.get(String(userId)) || [];
   }
@@ -126609,7 +127791,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(addFloatingSparkles, "addFloatingSparkles");
   function createHeaderBadge(parentContainer, badge) {
     let iconContainer = document.createElement("div");
-    iconContainer.className = "rovalra-header-badge", Object.assign(iconContainer.style, {
+    if (iconContainer.className = "rovalra-header-badge", Object.assign(iconContainer.style, {
       position: "relative",
       display: "inline-flex",
       alignItems: "center",
@@ -126617,7 +127799,17 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       verticalAlign: "middle",
       overflow: "visible",
       color: badge.themeColorIcon ? "var(--rovalra-main-text-color)" : ""
-    }), badge.id === "contributor" && (iconContainer.style.paddingLeft = "5px");
+    }), badge.id === "contributor" && (iconContainer.style.paddingLeft = "5px"), badge.builderIcon) {
+      let builderIcon = Icon({
+        icon: badge.builderIcon,
+        filled: badge.builderIconFilled,
+        size: badge.size || "var(--icon-size-large)"
+      });
+      builderIcon.style.cursor = "pointer", badge.confetti && builderIcon.addEventListener("click", (e) => {
+        e.stopPropagation(), createConfetti(builderIcon, badge.confetti);
+      }), badge.tooltip && addTooltip(iconContainer, badge.tooltip, { position: "bottom" }), iconContainer.appendChild(builderIcon), parentContainer.appendChild(iconContainer);
+      return;
+    }
     let icon = document.createElement(badge.themeColorIcon ? "span" : "img");
     if (badge.iconAssetName && (badge.themeColorIcon ? icon.dataset.rovalraAssetMask = badge.iconAssetName : icon.dataset.rovalraAsset = badge.iconAssetName), badge.id && (icon.dataset.rovalraBadgeConfig = badge.id), badge.themeColorIcon ? Object.assign(icon.style, {
       display: "inline-block",
@@ -126802,7 +127994,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       let userId = String(event.detail?.userId || "");
       if (!userId) return;
       let groups = event.detail?.data?.data, runtimeBadges = [];
-      Array.isArray(groups) && (groups.some(isVideoStarGroupMember) && runtimeBadges.push(VIDEO_STAR_BADGE_NAME), groups.some(isCommunityFeedbackProgramGroupMember) && runtimeBadges.push(COMMUNITY_FEEDBACK_PROGRAM_BADGE_NAME), groups.some(isCreatorEventsGroupMember) && runtimeBadges.push(CREATOR_EVENTS_BADGE_NAME)), groupRuntimeBadgeCache.set(userId, runtimeBadges), userId === String(getUserIdFromUrl() || "") && rerenderCurrentProfileBadges();
+      Array.isArray(groups) && (groups.some(isVideoStarGroupMember) && runtimeBadges.push(VIDEO_STAR_BADGE_NAME), groups.some(isCommunityFeedbackProgramGroupMember) && runtimeBadges.push(COMMUNITY_FEEDBACK_PROGRAM_BADGE_NAME), groups.some(isCreatorEventsGroupMember) && runtimeBadges.push(CREATOR_EVENTS_BADGE_NAME), groups.some(isQaTesterGroupMember) && runtimeBadges.push(QA_TESTER_BADGE_NAME)), groupRuntimeBadgeCache.set(userId, runtimeBadges), userId === String(getUserIdFromUrl() || "") && rerenderCurrentProfileBadges();
     }), document.addEventListener("rovalra:settingSaved", (event) => {
       [
         "robloxGroupFeaturesEnabled",
@@ -127547,7 +128739,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_observer();
   init_i18n();
   init_getSettings();
-  var STORAGE_KEY9 = "hiddenFriendPrivateServers", PRIVATE_SERVER_ROW_SELECTOR = ".flex.items-center.justify-between.padding-y-medium.width-full", HIDE_BUTTON_SELECTOR = "[data-rovalra-hide-private-server]", hiddenPrivateServerIds = /* @__PURE__ */ new Set(), storageListenerRegistered = !1, enabled4 = !1;
+  var STORAGE_KEY10 = "hiddenFriendPrivateServers", PRIVATE_SERVER_ROW_SELECTOR = ".flex.items-center.justify-between.padding-y-medium.width-full", HIDE_BUTTON_SELECTOR = "[data-rovalra-hide-private-server]", hiddenPrivateServerIds = /* @__PURE__ */ new Set(), storageListenerRegistered = !1, enabled4 = !1;
   function isHideablePrivateServer(row) {
     return row.closest('[data-rovalra-section-type="private"]') && row.getAttribute("data-rovalra-is-owner") === "false" && row.getAttribute("data-private-server-id");
   }
@@ -127562,7 +128754,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     hiddenPrivateServerIds.add(privateServerId);
     try {
       await chrome.storage.local.set({
-        [STORAGE_KEY9]: [...hiddenPrivateServerIds]
+        [STORAGE_KEY10]: [...hiddenPrivateServerIds]
       }), row.remove();
     } catch {
       hiddenPrivateServerIds.delete(privateServerId);
@@ -127608,7 +128800,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(applyToRow, "applyToRow");
   function registerStorageListener() {
     storageListenerRegistered || (storageListenerRegistered = !0, chrome.storage.onChanged.addListener((changes, areaName) => {
-      areaName === "local" && (changes.HidePrivateServersEnabled && (enabled4 = changes.HidePrivateServersEnabled.newValue !== !1), changes[STORAGE_KEY9] && (hiddenPrivateServerIds = new Set(changes[STORAGE_KEY9].newValue || [])), document.querySelectorAll(PRIVATE_SERVER_ROW_SELECTOR).forEach(applyToRow));
+      areaName === "local" && (changes.HidePrivateServersEnabled && (enabled4 = changes.HidePrivateServersEnabled.newValue !== !1), changes[STORAGE_KEY10] && (hiddenPrivateServerIds = new Set(changes[STORAGE_KEY10].newValue || [])), document.querySelectorAll(PRIVATE_SERVER_ROW_SELECTOR).forEach(applyToRow));
     }));
   }
   __name(registerStorageListener, "registerStorageListener");
@@ -127630,8 +128822,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(observePrivateServerRows, "observePrivateServerRows");
   async function init122() {
-    let stored = await chrome.storage.local.get(STORAGE_KEY9);
-    hiddenPrivateServerIds = new Set(stored[STORAGE_KEY9] || []), enabled4 = await settings.HidePrivateServersEnabled !== !1, registerStorageListener(), observePrivateServerRows();
+    let stored = await chrome.storage.local.get(STORAGE_KEY10);
+    hiddenPrivateServerIds = new Set(stored[STORAGE_KEY10] || []), enabled4 = await settings.HidePrivateServersEnabled !== !1, registerStorageListener(), observePrivateServerRows();
   }
   __name(init122, "init");
 
@@ -127639,7 +128831,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_observer();
   init_getSettings();
   init_i18n();
-  var SETTING_NAME5 = "PinPrivateServersEnabled", MASTER_SETTING_NAME = "ServerlistmodificationsEnabled", STORAGE_KEY10 = "rovalra_pinned_private_servers", PRIVATE_SERVER_ROW_SELECTOR2 = [
+  var SETTING_NAME5 = "PinPrivateServersEnabled", MASTER_SETTING_NAME = "ServerlistmodificationsEnabled", STORAGE_KEY11 = "rovalra_pinned_private_servers", PRIVATE_SERVER_ROW_SELECTOR2 = [
     ".rbx-private-game-server-item",
     ".flex.items-center.justify-between.padding-y-medium.width-full"
   ].join(","), PIN_BUTTON_SELECTOR = "[data-rovalra-pin-private-server]", PIN_WRAPPER_CLASS = "rovalra-pin-private-server-wrapper", PINNED_CLASS = "rovalra-private-server-pinned", CONTAINER_CLASS = "rovalra-private-server-pin-container", CREATE_ROW_CLASS = "rovalra-private-server-create-row", pinnedServerIds = /* @__PURE__ */ new Set(), featureEnabled = !1, masterEnabled = !0, enabled5 = !1, observersRegistered = !1, storageListenerRegistered2 = !1, settingListenerRegistered = !1, extractionListenerRegistered = !1;
@@ -127647,10 +128839,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return new Promise((resolve) => {
       chrome.storage.local.get(
         {
-          [STORAGE_KEY10]: []
+          [STORAGE_KEY11]: []
         },
         (data) => {
-          let stored = data?.[STORAGE_KEY10];
+          let stored = data?.[STORAGE_KEY11];
           resolve(
             new Set(
               Array.isArray(stored) ? stored.map(String) : []
@@ -127665,7 +128857,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return new Promise((resolve) => {
       chrome.storage.local.set(
         {
-          [STORAGE_KEY10]: [
+          [STORAGE_KEY11]: [
             ...pinnedServerIds
           ]
         },
@@ -127983,8 +129175,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     storageListenerRegistered2 || (storageListenerRegistered2 = !0, chrome.storage.onChanged.addListener(
       (changes, areaName) => {
         if (areaName === "local") {
-          if (changes[STORAGE_KEY10]) {
-            let stored = changes[STORAGE_KEY10].newValue;
+          if (changes[STORAGE_KEY11]) {
+            let stored = changes[STORAGE_KEY11].newValue;
             pinnedServerIds = new Set(
               Array.isArray(stored) ? stored.map(String) : []
             ), enabled5 && applyAllRows();
@@ -128122,13 +129314,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(isValidOffSaleDeadline, "isValidOffSaleDeadline");
   function shouldShowPreviousPrice(price, deadline, isOffSale) {
-    return isOffSale && hasValidPreviousPrice(price) && (!deadline || isValidOffSaleDeadline(deadline));
+    return isOffSale && hasValidPreviousPrice(price) && price !== 1 && (!deadline || isValidOffSaleDeadline(deadline));
   }
   __name(shouldShowPreviousPrice, "shouldShowPreviousPrice");
   function addPriceIconToCard(card, assetId) {
     let price = itemPrices.get(assetId), isOffSale = itemIsOffSale.get(assetId), deadline = itemOffSaleDeadlines.get(assetId);
     if (!shouldShowPreviousPrice(price, deadline, isOffSale)) {
-      deadline && !isValidOffSaleDeadline(deadline) && card.querySelectorAll(
+      (price === 1 || deadline && !isValidOffSaleDeadline(deadline)) && card.querySelectorAll(
         ".rovalra-offsale-price-icon, .rovalra-previous-price-text"
       ).forEach((element) => element.remove());
       return;
@@ -128696,6 +129888,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     wearing && (wearing.style.cssText = "display: none !important; height: 0px !important; margin: 0px !important; padding: 0px !important; opacity: 0 !important; pointer-events: none !important;");
   }
   __name(hideOriginalWearingSection, "hideOriginalWearingSection");
+  function getProfileContent(element = document) {
+    return element?.matches?.(".profile-content, .profile-tab-content") ? element : element?.closest?.(".profile-content, .profile-tab-content") || document.querySelector(".profile-content, .profile-tab-content");
+  }
+  __name(getProfileContent, "getProfileContent");
   function ensureCategorizedSection(content) {
     let categorizedSection = document.getElementById(
       "rovalra-main-categorized-wrapper"
@@ -128827,7 +130023,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
     if (!result.categorizeWearingEnabled) return;
     isBodyPartsCategoryEnabled = result.CategorizeBodyParts !== !1, isAnimationsCategoryEnabled = result.CategorizeAnimations !== !1, isEmotesCategoryEnabled = result.CategorizeEmotes !== !1, await loadAssetTypeIds(), observeElement(
-      ".profile-tab-content",
+      ".profile-content, .profile-tab-content",
       (content) => {
         let originalWearing = content.querySelector(
           ".profile-currently-wearing, .roseal-currently-wearing"
@@ -128839,7 +130035,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       ".profile-currently-wearing, .roseal-currently-wearing",
       (wearing) => {
         hideOriginalWearingSection(wearing);
-        let content = wearing.closest(".profile-tab-content");
+        let content = getProfileContent(wearing);
         content && loadCurrentlyWearing(content);
       },
       { multiple: !0 }
@@ -128860,7 +130056,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         }
       });
     }), window.addEventListener("rovalra-profile-platform-response", (event) => {
-      let content = document.querySelector(".profile-tab-content");
+      let content = getProfileContent();
       content && loadCurrentlyWearing(content, event.detail);
     });
     let hideStyle = document.createElement("style");
@@ -128899,7 +130095,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     ), window.addEventListener("popstate", () => {
       activeWearingUserId = null;
-      let content = document.querySelector(".profile-tab-content");
+      let content = getProfileContent();
       content && loadCurrentlyWearing(content);
     });
   }
@@ -129175,7 +130371,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         </a>
     `, "getStatPillHtml");
     content.innerHTML = "", content.innerHTML = dompurify_default.sanitize(`
-        <div class="profile-platform-container" data-profile-type="User" data-profile-id="${user.id}" style="width: 970px; margin: 0 auto;">
+        <div class="profile-platform-container" data-profile-type="User" data-profile-id="${user.id}" data-rovalra-banned-profile="true" style="width: 970px; margin: 0 auto;">
             <div class="sg-system-feedback">
                 <div class="alert-system-feedback"><div class="alert"><span class="alert-content"></span></div></div>
             </div>
@@ -129552,7 +130748,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
                         <a href="https://www.roblox.com/users/${userId}/friends#!/friends" class="btn-secondary-xs btn-more see-all-link-icon">${ts2("bannedUsers.seeAll")}</a>
                     </div>
                     <div class="friends-carousel-container">
-                        <div class="friends-carousel-list-container rovalra-banned-friends-scroll">
+                        <div class="rovalra-banned-friends-scroll">
                             <div id="rovalra-banned-friends-list" class="rovalra-banned-friends-list"></div>
                         </div>
                     </div>
@@ -130305,7 +131501,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   FLAGS.ONLINE_ASSETS = !0;
   FLAGS.AUDIO_ENABLED = !1;
   backgroundRendererRequests();
-  var currentRig2 = null, currentRigType = null, profileBackgroundRenderer = null, profileRenderAuthentication = new Authentication(), emoteStopTimer = null, preloadedCanvas = null, isPreloading = !1, globalAvatarData = null, globalAvatarBackgroundId = null, interceptedProfileData = null, profileEnvironmentEnabled = !1, customModelInstance = null, avatarDataPromise = null, isCustomEnvLoaded = !1, environmentConfig = null, activeEmoteId = null, animationSpeed = 1, EFFECT_BLACK_KEY_THRESHOLD = 0.08, EFFECT_BLACK_KEY_SOFTNESS = 0.02, isAnimatePatched = !1, raycaster = new Raycaster(), intendedDistance = 10, lastAppliedDistance = 10, lastCameraPos = new Vector32(), lastTargetPos = new Vector32(), raycastFrameSkip = 0, raycastTargets = [], isRenderingPaused = !1, currentDirectTrack = null, directEmoteTimer = null, hasMovedCamera = !1, hasSetInitialCamera = !1, activeProfileRenderUserId = null, profileRenderObserversSetup = !1, removeRoblox3dObserver = null, renderContainerObserver = null, autoSwitchObserver = null, animationLoopStarted2 = !1, autoSwitchedProfileUserId = null, profileRenderFrameSettingListener = null, profileFrameOverflowStyles = /* @__PURE__ */ new Map(), resizeObserversByContainer = /* @__PURE__ */ new WeakMap(), blackKeyedEffectMaterials = /* @__PURE__ */ new WeakSet(), headFocusDistance = 4, bodyFocusDistance = 6, bodyCenterCFrame = new CFrame(0, 4, 0), bodyHeadCFrame = new CFrame(0, 4, 0);
+  var currentRig2 = null, currentRigType = null, profileBackgroundRenderer = null, profileRenderAuthentication = new Authentication(), emoteStopTimer = null, preloadedCanvas = null, isPreloading = !1, globalAvatarData = null, globalAvatarBackgroundId = null, interceptedProfileData = null, profileEnvironmentEnabled = !1, customModelInstance = null, avatarDataPromise = null, isCustomEnvLoaded = !1, environmentConfig = null, activeEmoteId = null, animationSpeed = 1;
+  var isAnimatePatched = !1, raycaster = new Raycaster(), intendedDistance = 10, lastAppliedDistance = 10, lastCameraPos = new Vector32(), lastTargetPos = new Vector32(), raycastFrameSkip = 0, raycastTargets = [], isRenderingPaused = !1, currentDirectTrack = null, directEmoteTimer = null, hasMovedCamera = !1, hasSetInitialCamera = !1, activeProfileRenderUserId = null, profileRenderObserversSetup = !1, removeRoblox3dObserver = null, renderContainerObserver = null, autoSwitchObserver = null, animationLoopStarted2 = !1, autoSwitchedProfileUserId = null, profileRenderFrameSettingListener = null, profileFrameOverflowStyles = /* @__PURE__ */ new Map(), resizeObserversByContainer = /* @__PURE__ */ new WeakMap();
+  var headFocusDistance = 4, bodyFocusDistance = 6, bodyCenterCFrame = new CFrame(0, 4, 0), bodyHeadCFrame = new CFrame(0, 4, 0);
   function updateProfileBackground(profileData) {
     let backgroundId = Number(profileData?.components?.ProfileBackground?.assetId) || null;
     globalAvatarBackgroundId !== backgroundId && (globalAvatarBackgroundId = backgroundId, profileBackgroundRenderer && profileBackgroundRenderer.setBackground(
@@ -130320,33 +131518,6 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   window.addEventListener("rovalra-profile-platform-response", (event) => {
     interceptedProfileData = event.detail, updateProfileBackground(interceptedProfileData);
   });
-  function isRoavatarEffectMaterial(material) {
-    return material?.isShaderMaterial && typeof material.fragmentShader == "string" && material.fragmentShader.includes("uniform sampler2D uAlphaMap") && material.fragmentShader.includes("varying vec3 vInstanceColor");
-  }
-  __name(isRoavatarEffectMaterial, "isRoavatarEffectMaterial");
-  function keyBlackFromEffectMaterial(material) {
-    blackKeyedEffectMaterials.has(material) || !isRoavatarEffectMaterial(material) || (material.fragmentShader = material.fragmentShader.replace(
-      "gl_FragColor = finalColor;",
-      `
-    float blackKeyValue = max(max(finalColor.r, finalColor.g), finalColor.b);
-    finalColor.a *= smoothstep(
-        ${EFFECT_BLACK_KEY_SOFTNESS.toFixed(3)},
-        ${EFFECT_BLACK_KEY_THRESHOLD.toFixed(3)},
-        blackKeyValue
-    );
-    if (finalColor.a <= 0.001) discard;
-
-    gl_FragColor = finalColor;`
-    ), material.needsUpdate = !0, blackKeyedEffectMaterials.add(material));
-  }
-  __name(keyBlackFromEffectMaterial, "keyBlackFromEffectMaterial");
-  function keyBlackFromEffectMaterials() {
-    let scene = RBXRenderer.getScene?.();
-    scene && scene.traverse((object) => {
-      (Array.isArray(object.material) ? object.material : [object.material]).forEach(keyBlackFromEffectMaterial);
-    });
-  }
-  __name(keyBlackFromEffectMaterials, "keyBlackFromEffectMaterials");
   function constrainCamera() {
     let controls2 = RBXRenderer.getRendererControls(), camera = RBXRenderer.getRendererCamera();
     if (!controls2 || !camera || raycastTargets.length === 0 || camera.position.equals(lastCameraPos) && controls2.target.equals(lastTargetPos) || (raycastFrameSkip++, raycastFrameSkip % 2 !== 0)) return;
@@ -130425,7 +131596,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     let controls2 = RBXRenderer.getRendererControls(), camera = RBXRenderer.getRendererCamera();
     controls2 && camera && (updateCameraSystem(), updateControlsTargetCFrame(), controls2.update());
     let [width, height] = RBXRenderer.resolution;
-    RBXRenderer.camera.aspect = width / height, RBXRenderer.camera.updateProjectionMatrix(), RBXRenderer.renderer.setRenderTarget(null), keyBlackFromEffectMaterials(), RBXRenderer.firstScene.effectComposer ? RBXRenderer.firstScene.effectComposer.render() : RBXRenderer.renderer.render(RBXRenderer.scene, RBXRenderer.camera), requestAnimationFrame(() => {
+    RBXRenderer.camera.aspect = width / height, RBXRenderer.camera.updateProjectionMatrix(), RBXRenderer.renderer.setRenderTarget(null), RBXRenderer.firstScene.effectComposer ? RBXRenderer.firstScene.effectComposer.render() : RBXRenderer.renderer.render(RBXRenderer.scene, RBXRenderer.camera), requestAnimationFrame(() => {
       customAnimate2();
     });
   }
@@ -132321,27 +133492,18 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_getSettings();
   var MAX_STATUS_LENGTH = 128, REPORTING_ENABLED = !1, activeHomeStatusBubble = null, homeStatusControllers = /* @__PURE__ */ new WeakMap(), statusUrlPattern = /\b(?:https?:\/\/|www\.)[^\s<]+/gi, trailingUrlPunctuationPattern = /[.,!?;:)\]}]+$/;
   function linkifyStatusContent(container) {
-    let walker = document.createTreeWalker(
-      container,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode: /* @__PURE__ */ __name((node2) => node2.parentElement?.closest("a, code") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT, "acceptNode")
-      }
-    ), textNodes = [], node;
+    let walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode: /* @__PURE__ */ __name((node2) => node2.parentElement?.closest("a, code") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT, "acceptNode")
+    }), textNodes = [], node;
     for (; node = walker.nextNode(); ) textNodes.push(node);
     for (let textNode of textNodes) {
       let text3 = textNode.nodeValue, lastIndex = 0, match, fragment2 = document.createDocumentFragment();
       for (statusUrlPattern.lastIndex = 0; match = statusUrlPattern.exec(text3); ) {
-        let urlText = match[0], trailingPunctuation = urlText.match(
-          trailingUrlPunctuationPattern
-        )?.[0] || "";
+        let urlText = match[0], trailingPunctuation = urlText.match(trailingUrlPunctuationPattern)?.[0] || "";
         if (trailingPunctuation && (urlText = urlText.slice(0, -trailingPunctuation.length)), !urlText) continue;
         fragment2.append(text3.slice(lastIndex, match.index));
         let link = document.createElement("a");
-        link.href = urlText.startsWith("www.") ? `https://${urlText}` : urlText, link.textContent = urlText, link.target = "_blank", link.rel = "noopener noreferrer", link.style.textDecoration = "underline", link.addEventListener(
-          "click",
-          (event) => event.stopPropagation()
-        ), fragment2.append(link, trailingPunctuation), lastIndex = match.index + match[0].length;
+        link.href = urlText.startsWith("www.") ? `https://${urlText}` : urlText, link.textContent = urlText, link.target = "_blank", link.rel = "noopener noreferrer", link.style.textDecoration = "underline", link.addEventListener("click", (event) => event.stopPropagation()), fragment2.append(link, trailingPunctuation), lastIndex = match.index + match[0].length;
       }
       lastIndex !== 0 && (fragment2.append(text3.slice(lastIndex)), textNode.replaceWith(fragment2));
     }
@@ -132440,7 +133602,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(openEditStatusOverlay, "openEditStatusOverlay");
   async function addStatusBubble(avatarContainer) {
-    if (!avatarContainer.querySelector(".rovalra-status-bubble-wrapper"))
+    if (!avatarContainer.querySelector(".rovalra-status-bubble-wrapper") && !avatarContainer.closest("[data-rovalra-banned-profile]"))
       try {
         avatarContainer.classList.add("rovalra-status-bubble-host");
         let userId = getUserIdFromUrl();
@@ -132604,10 +133766,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(addHomeStatusHover, "addHomeStatusHover");
   async function init133() {
     if (!await settings.statusBubbleEnabled) return;
-    migrateLegacyStatus(), startObserving(), injectStylesheet("css/thinkingbubble.css", "rovalra-profile-status-css"), observeElement(".user-profile-header-details-avatar-container:not(.rovalra-sendrobux-avatar)", (el3) => addStatusBubble(el3), {
+    migrateLegacyStatus(), startObserving(), injectStylesheet("css/thinkingbubble.css", "rovalra-profile-status-css"), observeElement(".user-profile-header-details-avatar-container:not(.rovalra-sendrobux-avatar):not(.rovalra-user-card-avatar)", (el3) => addStatusBubble(el3), {
       multiple: !0
     }), await settings.statusBubbleHomePage && (observeUserCardElements(), onUserCardElement(addHomeStatusHover, {
-      exclude: [".rovalra-donator-card", ".user-item-clickable", ".rovalra-sendrobux-profile"]
+      exclude: [
+        ".rovalra-donator-card",
+        ".user-item-clickable",
+        ".rovalra-sendrobux-profile"
+      ]
     }));
   }
   __name(init133, "init");
@@ -134955,6 +136121,238 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(init142, "init");
 
+  // src/content/features/profile/friends/mutualFriends.js
+  init_idExtractor();
+  init_user();
+  init_observer();
+  init_getSettings();
+  init_users();
+  init_thumbnails();
+  init_pill();
+  init_userCard();
+  init_i18n();
+  var PILL_CLASS = "rovalra-mutual-friends-pill", MAX_PREVIEW_AVATARS = 3, MUTUALS_HASH = "#!/mutuals", DEFAULT_TAB_HASH = "#!/friends", TAB_ACTIVE_CLASS = "rovalra-mutuals-tab-active", HEADING_CLASS = "rovalra-mutuals-heading", PANE_CLASS = "rovalra-mutuals-pane", initialHash = window.location.hash;
+  function isFriendsPage() {
+    return /^(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/users\/\d+\/friends/i.test(
+      window.location.pathname
+    );
+  }
+  __name(isFriendsPage, "isFriendsPage");
+  async function getMutualIds(userId) {
+    let mutuals = await getMutualFriends(userId), ids = Object.keys(mutuals).map(Number).filter((id) => id > 0);
+    return { mutuals, ids };
+  }
+  __name(getMutualIds, "getMutualIds");
+  function createPillContent2(thumbnails, label) {
+    let content = document.createElement("span");
+    content.className = "rovalra-mutual-friends-content";
+    let avatars = document.createElement("span");
+    avatars.className = "rovalra-mutual-friends-avatars", thumbnails.forEach((thumb) => {
+      if (thumb.state !== "Completed" || !thumb.imageUrl) return;
+      let img = document.createElement("img");
+      img.src = thumb.imageUrl, img.alt = "", avatars.appendChild(img);
+    });
+    let text3 = document.createElement("span");
+    return text3.textContent = label, content.append(avatars, text3), content;
+  }
+  __name(createPillContent2, "createPillContent");
+  async function initProfilePill(userId, ids) {
+    if (ids.length === 0) return;
+    let [thumbnails, label, tooltip] = await Promise.all([
+      getBatchThumbnails(
+        ids.slice(0, MAX_PREVIEW_AVATARS),
+        "AvatarHeadshot",
+        "48x48"
+      ),
+      t2("mutualFriends.pill", { count: ids.length }),
+      t2("mutualFriends.tooltip")
+    ]), pill = createPill(createPillContent2(thumbnails, label), tooltip, {
+      href: `/users/${userId}/friends${MUTUALS_HASH}`
+    });
+    pill.classList.add(PILL_CLASS);
+    let placePill = /* @__PURE__ */ __name((header) => {
+      let row = header.querySelector(
+        'a[href*="/friends#!/friends"]'
+      )?.parentElement;
+      if (!row || pill.parentElement === row) return;
+      let lastSeenPill = row.querySelector(
+        ".rovalra-last-online-pill, .roseal-user-last-seen-v2"
+      );
+      lastSeenPill ? row.insertBefore(pill, lastSeenPill) : row.appendChild(pill);
+    }, "placePill");
+    observeElement(
+      ".user-profile-header",
+      (header) => {
+        placePill(header), new MutationObserver(() => placePill(header)).observe(header, {
+          childList: !0,
+          subtree: !0,
+          attributes: !0,
+          attributeFilter: ["href"]
+        });
+      },
+      { multiple: !0 }
+    );
+  }
+  __name(initProfilePill, "initProfilePill");
+  function getPresenceLabel(presence) {
+    let type = presence?.userPresenceType ?? 0;
+    if (type === 2 && presence.lastLocation) {
+      if (!presence.rootPlaceId) return presence.lastLocation;
+      let link = document.createElement("a");
+      return link.href = `/games/${presence.rootPlaceId}`, link.textContent = presence.lastLocation, link;
+    }
+    return type === 1 ? presence.lastLocation || ts2("common.website") : type === 3 ? ts2("common.studio") : ts2("common.offline");
+  }
+  __name(getPresenceLabel, "getPresenceLabel");
+  var PRESENCE_ICON_CLASSES = {
+    1: "online icon-online",
+    2: "game icon-game",
+    3: "studio icon-studio"
+  };
+  function createMutualCard(userId, names, thumb, presence) {
+    let profileUrl = `/users/${userId}/profile`, card = document.createElement("li");
+    card.className = "list-item avatar-card";
+    let container = document.createElement("div");
+    container.className = "avatar-card-container";
+    let content = document.createElement("div");
+    content.className = "avatar-card-content";
+    let avatar = document.createElement("div");
+    avatar.className = "avatar avatar-card-fullbody";
+    let avatarLink = document.createElement("a");
+    avatarLink.className = "avatar-card-link", avatarLink.href = profileUrl;
+    let imageContainer = document.createElement("span");
+    if (imageContainer.className = "thumbnail-2d-container avatar-card-image", thumb?.state === "Completed" && thumb.imageUrl) {
+      let img = document.createElement("img");
+      img.src = thumb.imageUrl, img.alt = names.displayName || names.username || "", imageContainer.appendChild(img);
+    }
+    avatarLink.appendChild(imageContainer), avatar.appendChild(avatarLink);
+    let status = document.createElement("div");
+    status.className = "avatar-status";
+    let iconClass = PRESENCE_ICON_CLASSES[presence?.userPresenceType];
+    if (iconClass) {
+      let icon = document.createElement("span");
+      icon.className = iconClass, status.appendChild(icon);
+    }
+    avatar.appendChild(status);
+    let caption = document.createElement("div");
+    caption.className = "avatar-card-caption";
+    let captionInner = document.createElement("span"), nameContainer = document.createElement("div");
+    nameContainer.className = "avatar-name-container";
+    let nameLink = document.createElement("a");
+    nameLink.className = "text-overflow avatar-name", nameLink.href = profileUrl, nameLink.textContent = names.displayName || names.username || "", nameContainer.appendChild(nameLink);
+    let usernameLabel = document.createElement("div");
+    usernameLabel.className = "avatar-card-label", usernameLabel.textContent = names.username ? `@${names.username}` : "";
+    let presenceLabel = document.createElement("div");
+    return presenceLabel.className = "avatar-card-label", presenceLabel.append(getPresenceLabel(presence)), captionInner.append(nameContainer, usernameLabel, presenceLabel), caption.appendChild(captionInner), content.append(avatar, caption), container.appendChild(content), card.appendChild(container), card;
+  }
+  __name(createMutualCard, "createMutualCard");
+  async function renderMutualsPane(pane, mutuals, ids) {
+    let section = document.createElement("div");
+    section.className = "friends-content section";
+    let headerWrapper = document.createElement("div"), header = document.createElement("div");
+    header.className = "container-header";
+    let subtitle = document.createElement("div");
+    subtitle.className = "friends-subtitle";
+    let title = document.createElement("h2");
+    if (title.textContent = await t2("mutualFriends.title", { count: ids.length }), subtitle.appendChild(title), header.appendChild(subtitle), headerWrapper.appendChild(header), section.appendChild(headerWrapper), ids.length === 0) {
+      let empty = document.createElement("div");
+      empty.className = "section-content-off", empty.textContent = await t2("mutualFriends.empty"), section.appendChild(empty), pane.replaceChildren(section);
+      return;
+    }
+    let [thumbnails, presenceMap] = await Promise.all([
+      getBatchThumbnails(ids, "AvatarHeadshot", "150x150"),
+      batchFetchPresence(ids)
+    ]), thumbMap = new Map(
+      thumbnails.map((thumb) => [thumb.targetId, thumb])
+    ), list = document.createElement("ul");
+    list.className = "hlist avatar-cards", ids.forEach((id) => {
+      list.appendChild(
+        createMutualCard(
+          id,
+          mutuals[id] || {},
+          thumbMap.get(id),
+          presenceMap.get(id)
+        )
+      );
+    }), section.appendChild(list), pane.replaceChildren(section);
+  }
+  __name(renderMutualsPane, "renderMutualsPane");
+  async function initMutualsTab(mutuals, ids) {
+    let tabLabel = await t2("mutualFriends.tab"), app = null, heading = null, pane = null, suppressedHeading = null, isActive = !1, rendered = !1, openOnLoad = initialHash === MUTUALS_HASH, syncNav = /* @__PURE__ */ __name((nav) => {
+      let item = heading?.parentElement;
+      item && nav.lastElementChild !== item && nav.appendChild(item), isActive && nav.querySelectorAll(
+        `.rbx-tab-heading.active:not(.${HEADING_CLASS})`
+      ).forEach((nativeHeading) => {
+        suppressedHeading = nativeHeading, nativeHeading.classList.remove("active");
+      });
+    }, "syncNav"), deactivate = /* @__PURE__ */ __name(() => {
+      isActive && (isActive = !1, app?.classList.remove(TAB_ACTIVE_CLASS), heading?.classList.remove("active"), heading?.removeAttribute("aria-current"), suppressedHeading?.classList.add("active"), suppressedHeading = null);
+    }, "deactivate"), activate = /* @__PURE__ */ __name(() => {
+      if (!app || !heading || !pane) return;
+      isActive || (isActive = !0, heading.classList.add("active"), heading.setAttribute("aria-current", "page"), app.classList.add(TAB_ACTIVE_CLASS));
+      let nav = heading.closest("ul");
+      nav && syncNav(nav), window.location.hash !== MUTUALS_HASH && history.replaceState(history.state, "", MUTUALS_HASH), rendered || (rendered = !0, renderMutualsPane(pane, mutuals, ids).catch((error3) => {
+        rendered = !1, console.warn(
+          "RoValra: Failed to render mutual friends.",
+          error3
+        );
+      }));
+    }, "activate");
+    observeElement(
+      "#friends-web-app ul.nav.nav-tabs",
+      (nav) => {
+        app = nav.closest("#friends-web-app");
+        let tabContent = app?.querySelector(".rbx-tab-content");
+        if (!(!app || !tabContent)) {
+          if (!nav.querySelector(`.${HEADING_CLASS}`)) {
+            let item = document.createElement("li");
+            item.id = "mutuals", item.setAttribute("role", "tab"), item.className = "subtract-item rbx-tab", heading = document.createElement("a"), heading.className = `rbx-tab-heading ${HEADING_CLASS}`, heading.href = MUTUALS_HASH;
+            let lead = document.createElement("span");
+            lead.className = "text-lead", lead.textContent = tabLabel;
+            let subtitle = document.createElement("span");
+            subtitle.className = "rbx-tab-subtitle", heading.append(lead, subtitle), item.appendChild(heading), nav.appendChild(item), heading.addEventListener("click", (event) => {
+              event.preventDefault(), activate();
+            }), nav.addEventListener("click", (event) => {
+              let clicked = event.target.closest(".rbx-tab-heading");
+              clicked && clicked !== heading && deactivate();
+            }), new MutationObserver(() => syncNav(nav)).observe(nav, {
+              childList: !0,
+              subtree: !0,
+              attributes: !0,
+              attributeFilter: ["class"]
+            });
+          }
+          tabContent.querySelector(`:scope > .${PANE_CLASS}`) || (pane = document.createElement("div"), pane.className = `subtract-item tab-pane ${PANE_CLASS}`, tabContent.appendChild(pane), rendered = !1), (isActive || openOnLoad) && (openOnLoad = !1, isActive = !1, activate());
+        }
+      },
+      { multiple: !0 }
+    ), window.addEventListener("hashchange", () => {
+      let hash = window.location.hash;
+      if (hash === MUTUALS_HASH) {
+        activate();
+        return;
+      }
+      isActive && (hash === DEFAULT_TAB_HASH ? history.replaceState(history.state, "", MUTUALS_HASH) : deactivate());
+    });
+  }
+  __name(initMutualsTab, "initMutualsTab");
+  async function initMutualFriends() {
+    if (!await settings.mutualFriendsEnabled) return;
+    let onFriendsPage = isFriendsPage(), userId = Number(
+      onFriendsPage ? await getUserIdFromFriendUrl() : getUserIdFromUrl()
+    );
+    if (!userId) return;
+    let authedUserId = Number(await getAuthenticatedUserId());
+    if (!authedUserId || authedUserId === userId) return;
+    let { mutuals, ids } = await getMutualIds(userId);
+    onFriendsPage ? await initMutualsTab(mutuals, ids) : await initProfilePill(userId, ids);
+  }
+  __name(initMutualFriends, "initMutualFriends");
+  function init143() {
+    initMutualFriends();
+  }
+  __name(init143, "init");
+
   // src/content/features/profile/friends/unfriend.js
   init_observer();
   init_overlay();
@@ -135253,7 +136651,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(initializeIfOnFriendsPage, "initializeIfOnFriendsPage");
-  async function init143() {
+  async function init144() {
     if (!(await chrome.storage.local.get("bulkUnfriendEnabled")).bulkUnfriendEnabled)
       return;
     let handlePageChange = /* @__PURE__ */ __name(async () => {
@@ -135274,7 +136672,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !1 }
     ), window.addEventListener("popstate", handlePageChange);
   }
-  __name(init143, "init");
+  __name(init144, "init");
 
   // src/content/features/profile/friends/unfriendDetector.js
   init_overlay();
@@ -135328,7 +136726,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       isHandlingQueue = !0;
       try {
         if (!await settings.unfriendDetectorEnabled) return;
-        let userId = await getAuthenticatedUserId();
+        let userId = await getAuthenticatedUserId(!0);
         if (!userId) return;
         let pending2 = await consumePendingUnfriends(userId);
         pending2.length && await showUnfriendDetectedOverlay(pending2);
@@ -135450,14 +136848,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         });
   }
   __name(showUnfriendDetectedOverlay, "showUnfriendDetectedOverlay");
-  async function init144() {
+  async function init145() {
     await settings.unfriendDetectorEnabled && (setUnfriendDetectedListener((removedFriends) => {
       showUnfriendDetectedOverlay(removedFriends);
     }), await handlePendingQueue(), !listenerAttached && chrome.storage?.onChanged && (listenerAttached = !0, chrome.storage.onChanged.addListener((changes, areaName) => {
       areaName === "local" && changes[PENDING_UNFRIENDS_KEY2] && handlePendingQueue();
     })));
   }
-  __name(init144, "init");
+  __name(init145, "init");
 
   // src/content/features/profile/badges/bulkRemover.js
   init_observer();
@@ -135590,7 +136988,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     bulkMode = !1, selectedBadges.clear(), toggleButton?.remove(), actionButton?.remove(), toggleButton = null, actionButton = null, document.querySelectorAll(".rovalra-badge-radio").forEach((radio) => radio.remove()), document.querySelectorAll("#assetsItems .item-card-container").forEach(restoreCard);
   }
   __name(cleanup7, "cleanup");
-  async function init145() {
+  async function init146() {
     if (!(await chrome.storage.local.get("bulkBadgeRemoverEnabled")).bulkBadgeRemoverEnabled) return;
     let refresh4 = /* @__PURE__ */ __name(async () => {
       let userId = await getAuthenticatedUserId(), pageUserId = getUserIdFromInventoryUrl() || String(userId);
@@ -135609,7 +137007,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       event.target.closest("#vertical-menu a, .menu-secondary-option") && setTimeout(refresh4, 0);
     });
   }
-  __name(init145, "init");
+  __name(init146, "init");
 
   // src/content/features/profile/header/avatarDownload.js
   init_observer();
@@ -135719,12 +137117,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     button.classList.replace("text-label-medium", "text-label-large"), button.classList.add(buttonIdentifier), toggleContainer.style.display = "flex", toggleContainer.style.gap = "10px", toggleContainer.prepend(button);
   }
   __name(addDownloadButton, "addDownloadButton");
-  async function init146() {
+  async function init147() {
     await settings.avatarDownloadEnabled && observeElement(".avatar-toggle-button", addDownloadButton, {
       multiple: !0
     });
   }
-  __name(init146, "init");
+  __name(init147, "init");
 
   // src/content/index.js
   init_avatarBorder();
@@ -135733,7 +137131,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_observer();
   init_handlesettings();
   var PROFILE_AVATAR_SELECTOR = ".user-profile-header-details-avatar-container .avatar.avatar-card-fullbody", AVATAR_CLASS = "rovalra-improved-avatar-card";
-  async function init147() {
+  async function init148() {
     try {
       if (!(await loadSettings()).improvedAvatarCard) return;
       observeElement(
@@ -135745,7 +137143,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       console.error("RoValra: Improved avatar card init failed", error3);
     }
   }
-  __name(init147, "init");
+  __name(init148, "init");
 
   // src/content/features/sitewide/moreRobuxDigits.js
   init_observer();
@@ -135856,14 +137254,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     refresh4(), observeChildren(element, refresh4), observeAttributes(element, refresh4, NAVBAR_AMOUNT_DATA_KEYS);
   }
   __name(watchNavbarAmount, "watchNavbarAmount");
-  function init148() {
+  function init149() {
     initialized18 || (initialized18 = !0, observeElement(NAVBAR_AMOUNT_SELECTOR, watchNavbarAmount, {
       multiple: !0
     }), document.addEventListener("rovalra:settingSaved", () => {
       document.querySelectorAll(NAVBAR_AMOUNT_SELECTOR).forEach(refreshNavbarAmount);
     }));
   }
-  __name(init148, "init");
+  __name(init149, "init");
 
   // src/content/core/catalog/purchasePromptItemId.js
   init_observer();
@@ -136138,7 +137536,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }, "tryProcess");
     tryProcess();
   }, "attachItemDataToPurchasePrompt");
-  function init149() {
+  function init150() {
     observeElement(
       ".modal-dialog .modal-content, .modal-content, .unified-purchase-dialog-content, .foundation-web-dialog-content",
       (element) => {
@@ -136205,7 +137603,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       "color: #FF4500;"
     );
   }
-  __name(init149, "init");
+  __name(init150, "init");
 
   // src/content/features/profile/currencytransfer.js
   init_api();
@@ -136287,14 +137685,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     menuItems.length > 0 ? menuItems[0].insertAdjacentElement("afterend", button) : container.appendChild(button);
   }
   __name(addCurrencyTransferButton, "addCurrencyTransferButton");
-  function init150() {
+  function init151() {
     chrome.storage.local.get({ currencyTransferEnabled: !0 }, (settings2) => {
       settings2.currencyTransferEnabled && registerProfileContextMenuAction(addCurrencyTransferButton, () => {
         getCurrencyTransferStatus();
       });
     });
   }
-  __name(init150, "init");
+  __name(init151, "init");
 
   // src/content/features/profile/header/usernameColor.js
   init_observer();
@@ -136331,7 +137729,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     el3 && (el3.style.color = colors[value2]);
   }
   __name(addUsernameColor, "addUsernameColor");
-  async function init151() {
+  async function init152() {
     await settings.usernameColor && observeElement(
       ".stylistic-alts-username, .deleted-user-container .user-name",
       (el3) => {
@@ -136345,7 +137743,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     );
   }
-  __name(init151, "init");
+  __name(init152, "init");
 
   // src/content/features/profile/header/chatEligibilityTooltip.js
   init_idExtractor();
@@ -136437,12 +137835,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(processPotentialChatOverlay, "processPotentialChatOverlay");
-  async function init152() {
+  async function init153() {
     observerRegistered2 || !getUserIdFromUrl() || !await settings.chatEligibilityTooltipEnabled || (observerRegistered2 = !0, observeElement(PRESENTATION_SELECTOR, processPotentialChatOverlay, {
       multiple: !0
     }));
   }
-  __name(init152, "init");
+  __name(init153, "init");
 
   // src/content/features/profile/profileCustomization.js
   init_api();
@@ -137104,10 +138502,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     )));
   }
   __name(initProfileCustomization, "initProfileCustomization");
-  function init153() {
+  function init154() {
     initProfileCustomization();
   }
-  __name(init153, "init");
+  __name(init154, "init");
 
   // src/content/core/profile/profileEdit.js
   init_observer();
@@ -137189,7 +138587,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     existingSections.forEach((section) => section.remove());
   }
   __name(renderProfileEditFeatures, "renderProfileEditFeatures");
-  function init154() {
+  function init155() {
     isProfileEditPage() && (observeElement(
       "ul.foundation-web-list",
       (list) => renderProfileEditFeatures(list.parentElement),
@@ -137205,13 +138603,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       });
     }));
   }
-  __name(init154, "init");
+  __name(init155, "init");
 
   // src/content/core/settings/badgeSettings.js
   init_api();
   init_generateSettings();
   init_handlesettings();
   init_i18n();
+  init_settingHandler();
   async function setBadgeVisibility(badgeName, isVisible3) {
     try {
       await callRobloxApiJson({
@@ -137220,7 +138619,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         endpoint: "/v1/auth/badges/visibility",
         method: "POST",
         body: { badge: badgeName, visible: isVisible3 }
-      });
+      }), await invalidateAuthenticatedUserSettingsCache();
     } catch (error3) {
       console.error(
         `RoValra: Failed to set badge visibility for ${badgeName}`,
@@ -137230,7 +138629,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(setBadgeVisibility, "setBadgeVisibility");
   async function getBadgeVisibilitySettings() {
-    let response = await syncDonatorTier();
+    let response = await syncDonatorTier({ force: !0 });
     return !response || response.status !== "success" || !response.badges ? [] : Object.keys(response.badges).filter(
       (key) => typeof response.badges[key] == "boolean" && !key.endsWith("_visible") && response.badges[key] === !0
     ).map((key) => ({
@@ -137464,7 +138863,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     });
   }
   __name(renderAllSocialLinks, "renderAllSocialLinks");
-  async function init155() {
+  async function init156() {
     await settings.socialLinksEnabled && (window.addEventListener("rovalra-profile-platform-response", (event) => {
       event.detail?.components?.About && (profileSocialLinks = getSocialLinks(event.detail), renderAllSocialLinks());
     }), observeElement(
@@ -137477,7 +138876,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     ));
   }
-  __name(init155, "init");
+  __name(init156, "init");
 
   // src/content/features/settings/index.js
   init_assets();
@@ -137828,12 +139227,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     });
   }
   __name(handleOpenManager, "handleOpenManager");
-  function init156() {
+  function init157() {
     initialized19 || (initialized19 = !0, document.addEventListener(OPEN_EVENT, handleOpenManager), document.addEventListener("roblox-dom-changed", scheduleNativeButton), window.addEventListener("hashchange", scheduleNativeButton), window.addEventListener("popstate", scheduleNativeButton), window.addEventListener("rovalra:urlChanged", scheduleNativeButton), chrome.storage.onChanged.addListener((changes, area) => {
       area === "local" && changes.bulkUnblockEnabled && (clearCache(), scheduleNativeButton());
     }), scheduleNativeButton());
   }
-  __name(init156, "init");
+  __name(init157, "init");
 
   // src/content/features/settings/index.js
   init_observer();
@@ -138090,7 +139489,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_assets();
   init_getSettings();
   init_i18n();
-  var rovalraButtonAdded = !1, NAVBAR_DROPDOWN_SETTING_NAME = "hideRoValraSettingsNavbarDropdown", POPOVER_SETTINGS_LINK_SELECTOR = 'a.rbx-menu-item[href*="?rovalra=info"]';
+  var rovalraButtonAdded = !1, NAVBAR_DROPDOWN_SETTING_NAME = "hideRoValraSettingsNavbarDropdown", POPOVER_SETTINGS_LINK_SELECTOR = 'a[href*="?rovalra=info"]', FOUNDATION_MENU_SELECTOR2 = '.foundation-web-menu.nav-foundation-menu[role="menu"]', SETTINGS_POPOVER_MENU_SELECTOR = `#settings-popover-menu, ${FOUNDATION_MENU_SELECTOR2}`;
   function addCustomButton2(debouncedAddPopoverButton2) {
     if (!window.location.href.includes("/my/account") || window.location.href.includes("?rovalra="))
       return;
@@ -138132,10 +139531,31 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     logo.dataset.rovalraAsset = "rovalraIcon", logo.src = assets7.rovalraIcon, logo.style.width = "15px", logo.style.height = "15px", logo.style.marginRight = "5px", logo.style.verticalAlign = "middle", newButtonLink.append(logo, newButtonSpan), newButtonListItem.appendChild(newButtonLink), divider.insertAdjacentElement("afterend", newButtonListItem), rovalraButtonAdded = !0;
   }
   __name(addCustomButton2, "addCustomButton");
+  function findFoundationSettingsItem(menu) {
+    return [...menu.querySelectorAll('[role="menuitem"][href]')].find(
+      (item) => {
+        try {
+          return new URL(item.href, location.origin).pathname === "/my/account";
+        } catch {
+          return !1;
+        }
+      }
+    );
+  }
+  __name(findFoundationSettingsItem, "findFoundationSettingsItem");
+  function getSettingsPopoverMenu() {
+    let legacyMenu = document.getElementById("settings-popover-menu");
+    if (legacyMenu) return legacyMenu;
+    for (let menu of document.querySelectorAll(FOUNDATION_MENU_SELECTOR2))
+      if (findFoundationSettingsItem(menu)) return menu;
+    return null;
+  }
+  __name(getSettingsPopoverMenu, "getSettingsPopoverMenu");
   function removePopoverButton() {
-    document.getElementById("settings-popover-menu")?.querySelector(
+    let existingLink = getSettingsPopoverMenu()?.querySelector(
       POPOVER_SETTINGS_LINK_SELECTOR
-    )?.closest("li")?.remove(), window.rovalraPopoverButtonAdded = !1;
+    );
+    existingLink?.parentElement?.tagName === "LI" ? existingLink.parentElement.remove() : existingLink?.remove(), window.rovalraPopoverButtonAdded = !1;
   }
   __name(removePopoverButton, "removePopoverButton");
   async function shouldHidePopoverButton() {
@@ -138154,34 +139574,58 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       removePopoverButton();
       return;
     }
-    let popoverMenu = document.getElementById("settings-popover-menu");
-    if (!popoverMenu) return;
-    if (window.rovalraPopoverButtonAdded) {
-      if (popoverMenu.querySelector(POPOVER_SETTINGS_LINK_SELECTOR)) return;
-      window.rovalraPopoverButtonAdded = !1;
+    let popoverMenu = getSettingsPopoverMenu();
+    if (popoverMenu) {
+      if (window.rovalraPopoverButtonAdded) {
+        if (popoverMenu.querySelector(POPOVER_SETTINGS_LINK_SELECTOR)) return;
+        window.rovalraPopoverButtonAdded = !1;
+      }
+      if (popoverMenu.querySelector(POPOVER_SETTINGS_LINK_SELECTOR)) {
+        window.rovalraPopoverButtonAdded = !0;
+        return;
+      }
+      popoverMenu.id === "settings-popover-menu" ? addLegacyPopoverButton(popoverMenu) : addFoundationPopoverButton(popoverMenu), window.rovalraPopoverButtonAdded = !0;
     }
-    if (popoverMenu.querySelector(POPOVER_SETTINGS_LINK_SELECTOR)) {
-      window.rovalraPopoverButtonAdded = !0;
-      return;
-    }
-    let assets7 = getAssets(), newButtonListItem = document.createElement("li"), newButtonLink = document.createElement("a");
+  }
+  __name(addPopoverButton, "addPopoverButton");
+  function handlePopoverButtonClick(e) {
+    e.preventDefault(), window.location.search.includes("rovalra=") ? window.location.reload() : window.location.href = "https://www.roblox.com/my/account?rovalra=info";
+  }
+  __name(handlePopoverButtonClick, "handlePopoverButtonClick");
+  function createPopoverLogo(size) {
+    let logo = document.createElement("img");
+    return logo.dataset.rovalraAsset = "rovalraIcon", logo.src = getAssets().rovalraIcon, Object.assign(logo.style, { width: size, height: size, flexShrink: "0" }), logo;
+  }
+  __name(createPopoverLogo, "createPopoverLogo");
+  function addLegacyPopoverButton(popoverMenu) {
+    let newButtonListItem = document.createElement("li"), newButtonLink = document.createElement("a");
     newButtonLink.className = "rbx-menu-item", newButtonLink.href = "https://www.roblox.com/my/account?rovalra=info", Object.assign(newButtonLink.style, {
       display: "flex",
       alignItems: "center",
       gap: "8px"
-    }), newButtonLink.addEventListener("click", (e) => {
-      e.preventDefault(), window.location.search.includes("rovalra=") ? window.location.reload() : window.location.href = "https://www.roblox.com/my/account?rovalra=info";
-    });
-    let logo = document.createElement("img");
-    logo.dataset.rovalraAsset = "rovalraIcon", logo.src = assets7.rovalraIcon, Object.assign(logo.style, { width: "18px", height: "18px" });
-    let buttonText = document.createTextNode("RoValra Settings");
-    newButtonLink.append(logo, buttonText), newButtonListItem.appendChild(newButtonLink);
+    }), newButtonLink.addEventListener("click", handlePopoverButtonClick);
+    let buttonText = document.createTextNode(ts2("common.rovalraSettings"));
+    newButtonLink.append(createPopoverLogo("18px"), buttonText), newButtonListItem.appendChild(newButtonLink);
     let nativeSettingsLink = popoverMenu.querySelector(
       'a.rbx-menu-item[href="/my/account"]'
     );
-    nativeSettingsLink?.parentElement ? nativeSettingsLink.parentElement.before(newButtonListItem) : popoverMenu.prepend(newButtonListItem), window.rovalraPopoverButtonAdded = !0;
+    nativeSettingsLink?.parentElement ? nativeSettingsLink.parentElement.before(newButtonListItem) : popoverMenu.prepend(newButtonListItem);
   }
-  __name(addPopoverButton, "addPopoverButton");
+  __name(addLegacyPopoverButton, "addLegacyPopoverButton");
+  function addFoundationPopoverButton(popoverMenu) {
+    let nativeSettingsItem = findFoundationSettingsItem(popoverMenu);
+    if (!nativeSettingsItem) return;
+    let newButtonLink = nativeSettingsItem.cloneNode(!0);
+    newButtonLink.removeAttribute("data-radix-collection-item"), newButtonLink.removeAttribute("id"), newButtonLink.setAttribute("tabindex", "-1"), newButtonLink.href = "https://www.roblox.com/my/account?rovalra=info", newButtonLink.style.columnGap = "8px", newButtonLink.addEventListener("click", handlePopoverButtonClick);
+    let title = newButtonLink.querySelector(
+      ".foundation-web-menu-item-title"
+    );
+    title ? (title.textContent = ts2("common.rovalraSettings"), title.parentElement.before(createPopoverLogo("20px"))) : newButtonLink.replaceChildren(
+      createPopoverLogo("20px"),
+      document.createTextNode(ts2("common.rovalraSettings"))
+    ), nativeSettingsItem.before(newButtonLink);
+  }
+  __name(addFoundationPopoverButton, "addFoundationPopoverButton");
   function handleNavbarDropdownSettingChange(value2) {
     if (value2 === !0) {
       removePopoverButton();
@@ -138677,6 +140121,21 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return buttonData.find((button) => STATIC_SETTINGS_TAB_IDS.has(button.id) ? button.id.toLowerCase() === lowerHashKey || button.text.toLowerCase() === lowerHashKey : !1);
   }
   __name(findStaticSettingsTab, "findStaticSettingsTab");
+  function isKnownSettingsTab(tab) {
+    if (!tab) return !1;
+    let normalizedTab = tab.toLowerCase();
+    return normalizedTab === "search" || findStaticSettingsTab(normalizedTab) ? !0 : Object.keys(SETTINGS_CONFIG).some(
+      (key) => key.toLowerCase() === normalizedTab
+    );
+  }
+  __name(isKnownSettingsTab, "isKnownSettingsTab");
+  function getRequestedSettingsTab() {
+    let urlParams = new URLSearchParams(window.location.search), rovalraTab = urlParams.get("rovalra"), hashTab = decodeURIComponent(
+      window.location.hash.replace("#!/", "").replace("#!", "")
+    );
+    return rovalraTab?.toLowerCase() === "search" && urlParams.has("q") ? "search" : isKnownSettingsTab(rovalraTab) ? rovalraTab : isKnownSettingsTab(hashTab) ? hashTab : "info";
+  }
+  __name(getRequestedSettingsTab, "getRequestedSettingsTab");
   async function isFunStuffTabEnabled() {
     return new Promise((resolve) => {
       chrome.storage.local.get("FunStuffEnabled", (settings2) => {
@@ -138686,8 +140145,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(isFunStuffTabEnabled, "isFunStuffTabEnabled");
   async function checkRoValraPage() {
-    let rovalraTab = new URLSearchParams(window.location.search).get("rovalra");
-    if (!rovalraTab) {
+    if (!new URLSearchParams(window.location.search).get("rovalra")) {
       isSettingsPage = !1;
       return;
     }
@@ -138777,15 +140235,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
     __name(loadTabContent, "loadTabContent");
     async function handleHashChange() {
-      let rovalraTabFromParam = new URLSearchParams(window.location.search).get("rovalra"), currentHash = decodeURIComponent(
-        window.location.hash.replace("#!/", "").replace("#!", "")
-      ) || rovalraTabFromParam || "info";
-      await loadTabContent(currentHash);
+      await loadTabContent(getRequestedSettingsTab());
     }
     __name(handleHashChange, "handleHashChange"), window.addEventListener("hashchange", handleHashChange, !1);
-    let initialHash = decodeURIComponent(
-      window.location.hash.replace("#!/", "").replace("#!", "")
-    ), debouncedSearch = /* @__PURE__ */ __name((func, wait) => {
+    let debouncedSearch = /* @__PURE__ */ __name((func, wait) => {
       let timeout;
       return /* @__PURE__ */ __name(function(...args) {
         let later = /* @__PURE__ */ __name(() => {
@@ -138803,7 +140256,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     });
     if (rovalraHeader && settingsContainer) {
       let unifiedMenu = document.getElementById("unified-menu");
-      await loadTabContent(initialHash || rovalraTab || "info"), await applyTheme(), regionDataPromise.then((loadedRegionData) => {
+      await loadTabContent(getRequestedSettingsTab()), await applyTheme(), regionDataPromise.then((loadedRegionData) => {
         regionData = loadedRegionData;
         let currentTab = new URLSearchParams(window.location.search).get(
           "rovalra"
@@ -138948,52 +140401,27 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         // @BossBoss2021
         new Contribution(10646979010, "locales.madeRo", "https://github.com/NotValra/RoValra/pull/215"),
         // @RecreationalActive
-        new Contribution(3121706, "locales.madeEs", "https://github.com/NotValra/RoValra/pull/215")
+        new Contribution(3121706, "locales.madeEs", "https://github.com/NotValra/RoValra/pull/215"),
         // @AuroxNova
+        new Contribution(9502859424, "locales.madeRu"),
+        // @moowi1337
+        new Contribution(2239549101, "locales.madeFr"),
+        // @TimorousShadow
+        new Contribution(519742979, "locales.madeZh", "https://github.com/NotValra/RoValra/pull/276"),
+        // @BBasilio2001
+        new Contribution(16147087, "locales.madeId")
+        // @Edward667
       ]
     }
   };
 
-  // src/content/core/apis/catalog.js
-  init_api();
-  var catalogItemDetailsCache = /* @__PURE__ */ new Map(), CATALOG_ITEM_TYPES = {
-    ASSET: "asset",
-    BUNDLE: "bundle"
-  }, CATALOG_ITEM_STATUSES = {
-    NEW: "New",
-    SALE: "Sale",
-    XBOX_EXCLUSIVE: "XboxExclusive",
-    AMAZON_EXCLUSIVE: "AmazonExclusive",
-    GOOGLE_PLAY_EXCLUSIVE: "GooglePlayExclusive",
-    IOS_EXCLUSIVE: "IosExclusive",
-    SALE_TIMER: "SaleTimer",
-    IS_FAE: "IsFae"
-  }, CATALOG_ITEM_STATUS_VALUES = Object.values(CATALOG_ITEM_STATUSES), CATALOG_ITEM_STATUS_ALIASES = {
-    IsFAE: CATALOG_ITEM_STATUSES.IS_FAE
-  };
-  function getCacheKey2(itemId, itemType) {
-    return `${itemId}|${itemType}`;
-  }
-  __name(getCacheKey2, "getCacheKey");
-  async function getCatalogItemDetails(itemId, itemType = CATALOG_ITEM_TYPES.ASSET, options = {}) {
-    if (!itemId) throw new Error("itemId is required");
-    if (!itemType) throw new Error("itemType is required");
-    let { noCache = !1 } = options, normalizedItemType = itemType.toString(), cacheKey = getCacheKey2(itemId, normalizedItemType);
-    if (!noCache && catalogItemDetailsCache.has(cacheKey))
-      return catalogItemDetailsCache.get(cacheKey);
-    let requestPromise = callRobloxApiJson({
-      subdomain: "catalog",
-      endpoint: `/v1/catalog/items/${itemId}/details?itemType=${encodeURIComponent(normalizedItemType)}`,
-      method: "GET",
-      noCache
-    }).catch((error3) => (catalogItemDetailsCache.delete(cacheKey), console.warn("RoValra: Failed to fetch catalog item details", error3), null));
-    return noCache || catalogItemDetailsCache.set(cacheKey, requestPromise), requestPromise;
-  }
-  __name(getCatalogItemDetails, "getCatalogItemDetails");
-
   // src/content/features/settings/index.js
   var assets6 = getAssets(), ui = /* @__PURE__ */ __name((key, options) => ts2(`settings.ui.${key}`, options), "ui"), CREDITS_USER_IDS = [
-    .../* @__PURE__ */ new Set([CREATOR_USER_ID, ...CONTRIBUTOR_USER_IDS])
+    ...new Set([
+      CREATOR_USER_ID,
+      ...CONTRIBUTOR_USER_IDS,
+      ...TRANSLATOR_USER_IDS
+    ].map((id) => String(id).trim()))
   ], REGIONS3 = {}, DONATOR_PERKS_UNIVERSE_ID = "9452973012", DONATOR_PERKS_GAME_URL = "https://www.roblox.com/games/store-section/" + DONATOR_PERKS_UNIVERSE_ID, DONATOR_PERKS_FALLBACK_ONSALE_URL = "https://www.roblox.com/catalog?taxonomy=2a2rf9qyeTd8W5iegK2Prc&CreatorName=Valra&CreatorType=Group&salesTypeFilter=1", CUSTOM_PROFILE_BADGE_ITEM_URL = "https://www.roblox.com/catalog/82011134345292/4000", GITHUB_SPONSORS_URL = "https://github.com/sponsors/NotValra", GITHUB_SPONSOR_BADGE_IMAGE_URL = "https://www.rovalra.com/badges/icons/github.webp", GITHUB_SPONSOR_TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=", ROVALRA_DISCORD_URL = "https://discord.gg/GHd5cSKJRk", CUSTOM_PROFILE_BADGE_CONFIRMATION_COOLDOWN_SECONDS = 5, requestedDonatorGameUnblock = !1, requestedDonatorGameUnblockChecked = !1, donatorGameUnblockConsentId = 0, parentAttchedToAccount = !1, parentAttchedToAccountChecked = !1, CHANGELOGS_ENDPOINT = "/static/json/changelogs.json";
   var APPEAL_STATUSES2 = [
     "standing.appealStatuses.notAppealed",
@@ -139006,7 +140434,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     { labelKey: "levels.veryLimited", color: "#f26522" },
     { labelKey: "levels.atRisk", color: "#f23f43" },
     { labelKey: "levels.suspended", color: "#8b0000" }
-  ], standingCache = null, topDonatorsCache = null, githubSponsorsCache = null, ownedBordersCache2 = null, changelogsCache = null, priceCache = /* @__PURE__ */ new Map(), artistCache = /* @__PURE__ */ new Map(), frameAssetDetailsCache = /* @__PURE__ */ new Map();
+  ], standingCache = null, topDonatorsCache = null, githubSponsorsCache = null, ownedBordersCache2 = null, priceCache = /* @__PURE__ */ new Map(), artistCache = /* @__PURE__ */ new Map(), frameAssetDetailsCache = /* @__PURE__ */ new Map();
   document.addEventListener("rovalra:moderationStatusUpdated", (event) => {
     standingCache = event.detail?.data || null;
     let standingCard = document.querySelector(
@@ -139027,7 +140455,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     let titleGroup = document.createElement("div");
     titleGroup.className = "rovalra-changelog-title-group";
     let title = document.createElement("h3");
-    title.className = "rovalra-changelog-title", title.textContent = release.name || release.tag_name || ui("changelogs.untitledRelease");
+    if (title.className = "rovalra-changelog-title", title.textContent = release.name || release.tag_name || ui("changelogs.untitledRelease"), isCurrentChangelogRelease(release)) {
+      let currentPill = document.createElement("span");
+      currentPill.className = "rovalra-changelog-current-pill", currentPill.textContent = ui("changelogs.current"), currentPill.setAttribute("aria-label", ui("changelogs.current")), title.appendChild(currentPill);
+    }
     let dates = document.createElement("div");
     if (dates.className = "rovalra-changelog-dates", release.published_date) {
       let githubDate = document.createElement("span");
@@ -139045,19 +140476,29 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }) || ui("changelogs.noNotes"), card.append(header, body), card;
   }
   __name(renderChangelogRelease, "renderChangelogRelease");
+  function isCurrentChangelogRelease(release) {
+    let currentVersion = chrome.runtime.getManifest()?.version;
+    if (!currentVersion) return !1;
+    let normalizeVersion = /* @__PURE__ */ __name((value2) => {
+      let match = String(value2 || "").match(
+        /\bv?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/
+      );
+      return match ? match[1] : null;
+    }, "normalizeVersion"), normalizedCurrentVersion = normalizeVersion(currentVersion);
+    return [release.version, release.tag_name, release.name].map(normalizeVersion).some((version) => version && version === normalizedCurrentVersion);
+  }
+  __name(isCurrentChangelogRelease, "isCurrentChangelogRelease");
   async function getChangelogs() {
-    if (changelogsCache) return changelogsCache;
     let response = await callRobloxApi({
       subdomain: "www",
       endpoint: CHANGELOGS_ENDPOINT,
       method: "GET",
-      isRovalraApi: !0,
-      noCache: !0
+      isRovalraApi: !0
     });
     if (!response.ok)
       throw new Error(`Changelog request failed with ${response.status}`);
     let data = await response.json();
-    return changelogsCache = Array.isArray(data?.releases) ? data.releases : [], changelogsCache;
+    return Array.isArray(data?.releases) ? data.releases : [];
   }
   __name(getChangelogs, "getChangelogs");
   async function renderChangelogs(container) {
@@ -140121,7 +141562,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(createContributorProfile, "createContributorProfile");
   function renderContributors(container, users, thumbMap) {
     container.replaceChildren();
-    let contributors = CREDITS_USER_IDS.map((id, index) => {
+    let translatorIds = new Set(TRANSLATOR_USER_IDS.map(String)), contributors = CREDITS_USER_IDS.map((id, index) => {
       let stringId = String(id);
       return {
         id: stringId,
@@ -140131,7 +141572,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       };
     }).filter(({ user }) => user), featureContributors = contributors.filter(({ contributionCount }) => contributionCount > 0).sort((a, b3) => (contributorsSortOrder === "least" ? a.contributionCount - b3.contributionCount : b3.contributionCount - a.contributionCount) || a.index - b3.index), backendContributors = contributors.filter(
       ({ contributionCount }) => contributionCount === 0
-    ), sortBar = document.createElement("div");
+    ), translators = contributors.filter(({ id }) => translatorIds.has(id)), sortBar = document.createElement("div");
     sortBar.className = "rovalra-contributors-toolbar";
     let sortLabel = document.createElement("span");
     sortLabel.className = "rovalra-contributors-sort-label", sortLabel.textContent = ts2("settings.credits.sortLabel");
@@ -140190,14 +141631,25 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }), link.appendChild(
         createContributorProfile(user, thumbMap.get(String(id)))
       ), item.appendChild(link), item.appendChild(count), listContainer.appendChild(item);
-    }), container.append(sortBar, listContainer), backendContributors.length === 0) return;
-    let backendNote = document.createElement("p");
-    backendNote.className = "rovalra-backend-contributors-note", backendNote.textContent = ts2("settings.credits.backendContributorsNote");
-    let backendList = document.createElement("div");
-    backendList.className = "rovalra-backend-contributors-list", backendContributors.forEach(({ id, user }) => {
+    }), container.append(sortBar, listContainer), backendContributors.length > 0) {
+      let backendNote = document.createElement("p");
+      backendNote.className = "rovalra-backend-contributors-note", backendNote.textContent = ts2(
+        "settings.credits.backendContributorsNote"
+      );
+      let backendList = document.createElement("div");
+      backendList.className = "rovalra-backend-contributors-list", backendContributors.forEach(({ id, user }) => {
+        let link = document.createElement("a");
+        link.className = "avatar-card-link rovalra-donator-card rovalra-backend-contributor-card", link.href = `https://www.roblox.com/users/${id}/profile`, link.target = "_blank", link.rel = "noopener noreferrer", addContributorTooltip(link, id), link.appendChild(createContributorProfile(user, thumbMap.get(id))), backendList.appendChild(link);
+      }), container.append(backendNote, backendList);
+    }
+    if (translators.length === 0) return;
+    let translatorsTitle = document.createElement("h3");
+    translatorsTitle.textContent = ts2("settings.credits.translatorsTitle"), translatorsTitle.style.cssText = "margin: 24px 0 10px; color: var(--rovalra-main-text-color);";
+    let translatorsList = document.createElement("div");
+    translatorsList.className = "rovalra-backend-contributors-list", translators.forEach(({ id, user }) => {
       let link = document.createElement("a");
-      link.className = "avatar-card-link rovalra-donator-card rovalra-backend-contributor-card", link.href = `https://www.roblox.com/users/${id}/profile`, link.target = "_blank", link.rel = "noopener noreferrer", addContributorTooltip(link, id), link.appendChild(createContributorProfile(user, thumbMap.get(id))), backendList.appendChild(link);
-    }), container.append(backendNote, backendList);
+      link.className = "avatar-card-link rovalra-donator-card rovalra-backend-contributor-card", link.href = `https://www.roblox.com/users/${id}/profile`, link.target = "_blank", link.rel = "noopener noreferrer", addContributorTooltip(link, id), link.appendChild(createContributorProfile(user, thumbMap.get(id))), translatorsList.appendChild(link);
+    }), container.append(translatorsTitle, translatorsList);
   }
   __name(renderContributors, "renderContributors");
   function renderContributorsShimmer(container) {
@@ -140344,8 +141796,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         isRovalraApi: !0,
         subdomain: "apis",
         endpoint,
-        method: "GET",
-        noCache: !0
+        method: "GET"
       });
       if (!response.ok)
         throw new Error(`Avatar request failed (${response.status})`);
@@ -140386,7 +141837,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       let sponsorName = sponsor.name || sponsor.login || "GitHub sponsor";
       link.setAttribute("aria-label", sponsorName), addTooltip(link, sponsorName);
       let avatar = document.createElement("img");
-      avatar.className = "rovalra-github-sponsor-avatar", avatar.classList.add("shimmer"), avatar.src = GITHUB_SPONSOR_TRANSPARENT_PIXEL, avatar.alt = sponsorName, avatar.title = sponsorName, avatar.loading = "lazy", avatar.referrerPolicy = "no-referrer", link.appendChild(avatar), grid.appendChild(link), loadGithubSponsorAvatar(avatar, sponsor, imageSource);
+      avatar.className = "rovalra-github-sponsor-avatar", avatar.classList.add("shimmer"), avatar.src = GITHUB_SPONSOR_TRANSPARENT_PIXEL, avatar.alt = sponsorName, avatar.title = sponsorName, avatar.loading = "lazy", avatar.referrerPolicy = "no-referrer", link.appendChild(avatar), grid.appendChild(link);
+      let avatarLoaded = !1, avatarObserver = observeIntersection(
+        avatar,
+        (entry) => {
+          !entry.isIntersecting || avatarLoaded || (avatarLoaded = !0, avatarObserver.unobserve(), loadGithubSponsorAvatar(avatar, sponsor, imageSource));
+        },
+        { rootMargin: "0px" }
+      );
     }), grid.childElementCount > 0 && container.appendChild(grid);
   }
   __name(renderGithubSponsors, "renderGithubSponsors");
@@ -140682,9 +142140,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         })), authenticatedUserId = await getAuthenticatedUserId(), userTier = getCurrentUserTierSync(), authedDonorInfo = null;
         if (authenticatedUserId && userTier >= 1 && toggleContainer)
           try {
-            let settings2 = await getUserSettings(authenticatedUserId, {
-              noCache: !0
-            }), userResponse = await callRobloxApi({
+            let settings2 = await getUserSettings(authenticatedUserId), userResponse = await callRobloxApi({
               subdomain: "users",
               endpoint: `/v1/users/${authenticatedUserId}`,
               method: "GET"
@@ -141242,9 +142698,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
       let userId = await getAuthenticatedUserId(), currentBorderValue = "none";
       if (userId) {
-        let userSettings = await getUserSettings(userId, {
-          noCache: !0
-        }).catch(() => null);
+        let userSettings = await getUserSettings(userId).catch(
+          () => null
+        );
         if (userSettings?.border && userSettings.border !== "none") {
           let apiBorderItem = findInBorders(
             borderCategories,
@@ -141706,9 +143162,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
       let currentFrameLink = null;
       if (userId) {
-        let userSettings = await getUserSettings(userId, {
-          noCache: !0
-        }).catch(() => null);
+        let userSettings = await getUserSettings(userId).catch(
+          () => null
+        );
         userSettings?.berts && userSettings.berts !== "none" && (currentFrameLink = userSettings.berts);
       }
       let currentFrame = findFrameByLink(frames, currentFrameLink), currentFrameValue = currentFrame ? currentFrame.value : "none";
@@ -141899,7 +143355,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(updatePreviewAndUI, "updatePreviewAndUI");
   function handleGlobalDomChange(event) {
-    document.getElementById("settings-popover-menu") ? addPopoverButton() : window.rovalraPopoverButtonAdded && (window.rovalraPopoverButtonAdded = !1), debouncedAddCustomButton(), debouncedAddPopoverButton();
+    getSettingsPopoverMenu() ? addPopoverButton() : window.rovalraPopoverButtonAdded && (window.rovalraPopoverButtonAdded = !1), debouncedAddCustomButton(), debouncedAddPopoverButton();
     let mutationsList = event.detail?.mutationsList;
     if (!mutationsList) return;
     mutationsList.some(
@@ -142128,7 +143584,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }).catch((e) => console.warn("Failed to load region data:", e)), await applyTheme(), window.location.href.includes("rovalra=") && injectStylesheet(
       "css/settings_layout.css",
       "rovalra-settings-layout-css"
-    ), await buildSettingsKey(), addCustomButton2(debouncedAddPopoverButton), addPopoverButton(), initializeSettingsEventListeners(), init156(), document.addEventListener("roblox-dom-changed", handleGlobalDomChange), observeElement("#settings-popover-menu", addPopoverButton, {
+    ), await buildSettingsKey(), addCustomButton2(debouncedAddPopoverButton), addPopoverButton(), initializeSettingsEventListeners(), init157(), document.addEventListener("roblox-dom-changed", handleGlobalDomChange), observeElement(SETTINGS_POPOVER_MENU_SELECTOR, () => addPopoverButton(), {
+      multiple: !0,
       onRemove: onPopoverRemoved
     }), observeElement(
       'ul.menu-vertical[role="tablist"]',
@@ -142142,10 +143599,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ), await checkRoValraPage();
   }
   __name(initializeExtension, "initializeExtension");
-  function init157() {
+  function init158() {
     document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", initializeExtension) : initializeExtension();
   }
-  __name(init157, "init");
+  __name(init158, "init");
   window.addEventListener("beforeunload", () => {
     document.removeEventListener("roblox-dom-changed", handleGlobalDomChange);
   });
@@ -142227,7 +143684,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_user();
   init_api();
   init_i18n();
-  var STORAGE_KEY11 = "rovalra_first_account_cache", TRUSTED_CREATOR_STORAGE_KEY = "rovalra_trusted_creator_cache", ONE_HOUR_MS = 36e5, pendingSections = /* @__PURE__ */ new WeakSet();
+  var STORAGE_KEY12 = "rovalra_first_account_cache", TRUSTED_CREATOR_STORAGE_KEY = "rovalra_trusted_creator_cache", ONE_HOUR_MS = 36e5, pendingSections = /* @__PURE__ */ new WeakSet();
   function isAccountSettingsPage() {
     return /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?my\/account(?:\/|$)/i.test(
       window.location.pathname
@@ -142364,7 +143821,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         let userId = await getAuthenticatedUserId();
         if (!userId) return;
         if (firstAccountEnabled) {
-          let userCache = ((await getLocalStorage([STORAGE_KEY11]))[STORAGE_KEY11] || {})[userId], now = Date.now();
+          let userCache = ((await getLocalStorage([STORAGE_KEY12]))[STORAGE_KEY12] || {})[userId], now = Date.now();
           if (userCache && now - userCache.timestamp < ONE_HOUR_MS)
             insertFirstAccountElement(
               section,
@@ -142383,12 +143840,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             if (!response.ok) throw new Error("API failed");
             let data = await response.json();
             if (data?.playerInfo) {
-              let isOriginalUser = data.playerInfo.isOriginalUser, creationTimestamp = data.playerInfo.originalAccountCreationTimestampMs, currentCache = (await getLocalStorage([STORAGE_KEY11]))[STORAGE_KEY11] || {};
+              let isOriginalUser = data.playerInfo.isOriginalUser, creationTimestamp = data.playerInfo.originalAccountCreationTimestampMs, currentCache = (await getLocalStorage([STORAGE_KEY12]))[STORAGE_KEY12] || {};
               currentCache[userId] = {
                 isOriginalUser,
                 originalAccountCreationTimestampMs: creationTimestamp,
                 timestamp: Date.now()
-              }, await setLocalStorage({ [STORAGE_KEY11]: currentCache }), insertFirstAccountElement(
+              }, await setLocalStorage({ [STORAGE_KEY12]: currentCache }), insertFirstAccountElement(
                 section,
                 isOriginalUser,
                 creationTimestamp
@@ -142405,7 +143862,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
   }
   __name(loadAccountInfo, "loadAccountInfo");
-  function init158() {
+  function init159() {
     isAccountSettingsPage() && chrome.storage.local.get(
       { firstAccountEnabled: !0, trustedCreatorEnabled: !0 },
       (result) => {
@@ -142420,7 +143877,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init158, "init");
+  __name(init159, "init");
 
   // src/content/features/settings/roblox/legacyThemeSwitcher.js
   init_observer();
@@ -142478,7 +143935,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return dropdown.element.classList.add("col-xs-12", "col-sm-6"), container.append(label, dropdown.element), container;
   }
   __name(createThemeDropdown, "createThemeDropdown");
-  async function init159() {
+  async function init160() {
     window.location.pathname.startsWith("/my/account") && chrome.storage.local.get({ legacyThemeSwitcherEnabled: !0 }, (result) => {
       result.legacyThemeSwitcherEnabled && observeElement("h2.setting-section-header", async (header) => {
         if (header.textContent.trim() !== "Personal") return;
@@ -142489,7 +143946,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }, { multiple: !0 });
     });
   }
-  __name(init159, "init");
+  __name(init160, "init");
 
   // src/content/features/home/accurateContinue.js
   init_api();
@@ -142781,7 +144238,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     });
   }
   __name(initializeAutoRefreshListeners, "initializeAutoRefreshListeners");
-  async function init160() {
+  async function init161() {
     let storedSettings = await chrome.storage.local.get({
       [ACCURATE_CONTINUE_SETTING]: !1,
       [AUTO_REFRESH_SETTING]: !0
@@ -142792,7 +144249,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
     await refreshAccurateContinue({ force: !0 });
   }
-  __name(init160, "init");
+  __name(init161, "init");
 
   // src/content/features/home/homeLayout.js
   init_observer();
@@ -143376,7 +144833,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(hydrateFromStorage, "hydrateFromStorage");
-  async function init161() {
+  async function init162() {
     if (!initialized21) {
       if (await settings.homeLayoutEnabled === !1) {
         initialized21 = !0, publishHomeLayoutState([], []);
@@ -143415,7 +144872,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     ));
   }
-  __name(init161, "init");
+  __name(init162, "init");
 
   // src/content/features/home/customThemeEditor.js
   init_buttons();
@@ -143597,7 +145054,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(restoreBackgroundEditor, "restoreBackgroundEditor");
-  function init162() {
+  function init163() {
     initialized22 || (initialized22 = !0, document.addEventListener("rovalra:openCustomThemeBackground", () => {
       sessionStorage.setItem(EDITOR_SESSION_KEY, "true"), openBackgroundEditor().catch(
         (error3) => console.error("RoValra: Failed to open custom background settings.", error3)
@@ -143606,7 +145063,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       event.detail?.name === BACKGROUND_IMAGE_ENABLED_SETTING && (backgroundEnabled = event.detail.value === !0, applyBgPreview());
     }), window.addEventListener("popstate", restoreBackgroundEditor), window.addEventListener("hashchange", restoreBackgroundEditor));
   }
-  __name(init162, "init");
+  __name(init163, "init");
 
   // src/content/features/home/friendLabels.js
   init_userCardElements();
@@ -143616,7 +145073,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_buttons();
   init_input();
   init_overlay();
-  var SETTING_NAME7 = "friendLabelsEnabled", STORAGE_KEY12 = "rovalra_friend_labels", CARD_SELECTOR2 = ".friends-carousel-tile", EXCLUDED_CONTAINER_SELECTOR = ".roseal-friends-carousel-container", DROPDOWN_LIST_SELECTOR = ".friend-tile-dropdown ul", MODERN_TOOLTIP_ROOT_SELECTOR = ".friend-tile-dropdown--iarc", MODERN_ACTIONS_SELECTOR = ".in-game-friend-card-actions", MODERN_PROFILE_LINK_SELECTOR = 'a[href*="/users/"][href*="/profile"]', HOST_CLASS = "rovalra-friend-label-host", LABEL_CLASS = "rovalra-friend-label", MENU_ITEM_CLASS = "rovalra-friend-label-menu-item", MENU_BUTTON_CLASS = "rovalra-friend-label-menu-button", MODERN_TOOLTIP_ITEM_CLASS = "rovalra-friend-label-modern-item", MODERN_TOOLTIP_BUTTON_CLASS = "rovalra-friend-label-modern-button", MAX_LABEL_LENGTH = 24, enabled6 = !1, observersRegistered2 = !1, storageListenerRegistered3 = !1, friendLabels = {}, lastInteractedFriendCard = null;
+  var SETTING_NAME7 = "friendLabelsEnabled", STORAGE_KEY13 = "rovalra_friend_labels", CARD_SELECTOR2 = ".friends-carousel-tile", EXCLUDED_CONTAINER_SELECTOR = ".roseal-friends-carousel-container", DROPDOWN_LIST_SELECTOR = ".friend-tile-dropdown ul", MODERN_TOOLTIP_ROOT_SELECTOR = ".friend-tile-dropdown--iarc", MODERN_ACTIONS_SELECTOR = ".in-game-friend-card-actions", MODERN_PROFILE_LINK_SELECTOR = 'a[href*="/users/"][href*="/profile"]', HOST_CLASS = "rovalra-friend-label-host", LABEL_CLASS = "rovalra-friend-label", MENU_ITEM_CLASS = "rovalra-friend-label-menu-item", MENU_BUTTON_CLASS = "rovalra-friend-label-menu-button", MODERN_TOOLTIP_ITEM_CLASS = "rovalra-friend-label-modern-item", MODERN_TOOLTIP_BUTTON_CLASS = "rovalra-friend-label-modern-button", MAX_LABEL_LENGTH = 24, enabled6 = !1, observersRegistered2 = !1, storageListenerRegistered3 = !1, friendLabels = {}, lastInteractedFriendCard = null;
   function isExcludedCarouselPresent() {
     return !!document.querySelector(EXCLUDED_CONTAINER_SELECTOR);
   }
@@ -143636,8 +145093,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(sanitizeLabels, "sanitizeLabels");
   async function loadFriendLabels() {
     try {
-      let result = await chrome.storage.local.get(STORAGE_KEY12);
-      return sanitizeLabels(result[STORAGE_KEY12]);
+      let result = await chrome.storage.local.get(STORAGE_KEY13);
+      return sanitizeLabels(result[STORAGE_KEY13]);
     } catch (error3) {
       return console.warn("RoValra: Failed to load friend labels", error3), {};
     }
@@ -143647,7 +145104,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     friendLabels = sanitizeLabels(nextLabels);
     try {
       await chrome.storage.local.set({
-        [STORAGE_KEY12]: friendLabels
+        [STORAGE_KEY13]: friendLabels
       });
     } catch (error3) {
       console.warn("RoValra: Failed to save friend labels", error3);
@@ -144070,7 +145527,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(attachActionsToExistingDropdowns, "attachActionsToExistingDropdowns");
   function registerStorageListener3() {
     storageListenerRegistered3 || (storageListenerRegistered3 = !0, chrome.storage.onChanged.addListener(async (changes, namespace) => {
-      if (namespace === "local" && (changes[STORAGE_KEY12] && (friendLabels = sanitizeLabels(changes[STORAGE_KEY12].newValue), enabled6 && refreshExistingCards()), !!changes[SETTING_NAME7])) {
+      if (namespace === "local" && (changes[STORAGE_KEY13] && (friendLabels = sanitizeLabels(changes[STORAGE_KEY13].newValue), enabled6 && refreshExistingCards()), !!changes[SETTING_NAME7])) {
         if (enabled6 = changes[SETTING_NAME7].newValue === !0, !enabled6) {
           removeFeatureUi();
           return;
@@ -144080,14 +145537,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }));
   }
   __name(registerStorageListener3, "registerStorageListener");
-  async function init163() {
+  async function init164() {
     if (registerStorageListener3(), enabled6 = await settings.friendLabelsEnabled === !0, !enabled6) {
       removeFeatureUi();
       return;
     }
     friendLabels = await loadFriendLabels(), registerObservers2(), refreshExistingCards(), attachActionsToExistingDropdowns();
   }
-  __name(init163, "init");
+  __name(init164, "init");
 
   // src/content/features/home/underratedGames.js
   init_api();
@@ -144366,7 +145823,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
     return rotationExpiresAt = Number.isNaN(rotationDate.getTime()) ? null : rotationDate.toISOString(), createUnderratedGamesSort(games3, await getUnderratedGamesLocale());
   }
   __name(loadUnderratedGames, "loadUnderratedGames");
-  async function init164() {
+  async function init165() {
     initialized23 || (initialized23 = !0, await settings.underratedGamesEnabled !== !1 && loadUnderratedGames().then((sort) => {
       sort && (publishUnderratedGamesSort(sort), document.body && replaceRotationMarker(document.body), observeElement(
         'a[data-testid="section-header-title-subtitle-container"], .game-sort-carousel-wrapper, .container-header, .game-sort-header-container',
@@ -144381,7 +145838,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       console.warn("RoValra: underrated games failed to load", error3);
     }));
   }
-  __name(init164, "init");
+  __name(init165, "init");
 
   // src/shared/gameBookmarks.js
   var BOOKMARKS_KEY = "rovalra_game_bookmarks", DEFAULT_CATEGORY_ID = "uncategorized";
@@ -144760,10 +146217,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }, "detailCleanup");
   }
   __name(attachDetail, "attachDetail");
-  function init165() {
+  function init166() {
     return initialization ||= initialize3(), initialization;
   }
-  __name(init165, "init");
+  __name(init166, "init");
   async function initialize3() {
     await Promise.all(
       Object.keys(labels).map(async (key) => {
@@ -144923,8 +146380,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
     return category?.id === DEFAULT_CATEGORY_ID ? bookmarkLabel("uncategorized") : category?.name || bookmarkLabel("all");
   }
   __name(filterLabel, "filterLabel");
-  async function init166() {
-    initialized24 || (initialized24 = !0, await settings.gameBookmarksEnabled !== !1 && (await init165(), subscribeBookmarks(() => {
+  async function init167() {
+    initialized24 || (initialized24 = !0, await settings.gameBookmarksEnabled !== !1 && (await init166(), subscribeBookmarks(() => {
       refresh3().catch(console.warn);
     }), observeElement(
       "#HomeContainer .home-sort-header-container, #HomeContainer .game-sort-header-container, #HomeContainer .container-header",
@@ -144947,7 +146404,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       { multiple: !0 }
     ), await refresh3()));
   }
-  __name(init166, "init");
+  __name(init167, "init");
 
   // src/content/features/home/playtime.js
   init_api();
@@ -145096,7 +146553,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }
   }
   __name(addDropdown2, "addDropdown");
-  async function init167() {
+  async function init168() {
     initialized25 || (initialized25 = !0, await settings.homePlaytimeEnabled === !0 && (periods = await Promise.all(
       PERIOD_KEYS.map(async ([value2, key]) => ({ value: value2, label: await t2(key) }))
     ), periodAriaLabel = await t2("playtime.period"), observeElement(
@@ -145111,7 +146568,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       (error3) => console.warn("RoValra: Failed to load playtime", error3)
     )));
   }
-  __name(init167, "init");
+  __name(init168, "init");
 
   // src/content/features/home/hideAddFriendsButton.js
   init_observer();
@@ -145166,14 +146623,14 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }));
   }
   __name(registerStorageListener4, "registerStorageListener");
-  async function init168() {
+  async function init169() {
     if (registerStorageListener4(), enabled7 = await settings.HideAddFriendsButton === !0, !enabled7) {
       removeHiddenButtonClasses();
       return;
     }
     registerObserver(), applyExistingAddFriendsButtons();
   }
-  __name(init168, "init");
+  __name(init169, "init");
 
   // src/content/features/home/friendsCarouselRedesign.js
   init_observer();
@@ -145186,7 +146643,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
   init_friendslist();
   init_userCard();
   init_launcher();
-  var SETTING_NAME9 = "friendsCarouselRedesignEnabled", STYLE_ID3 = "rovalra-friends-carousel-redesign-style", SCROLL_CLASS = "rovalra-friends-carousel-scroll", WRAPPER_CLASS = "rovalra-friends-carousel", ARROW_CLASS = "rovalra-fc-arrow", HOVER_CARD_CLASS = "rovalra-fc-hover-card", HIDDEN_ATTR = "data-rovalra-fc-hidden", CAROUSEL_SELECTOR2 = "#HomeContainer .react-friends-carousel-container", ROSEAL_CAROUSEL_SELECTOR = ".roseal-friends-carousel-container", ORIGINAL_LIST_SELECTOR = "#HomeContainer .react-friends-carousel-container .friends-carousel-list-container", FRIEND_ID_CAP = 500, RENDER_CHUNK = 40, PRESENCE_REFRESH_MS = 1e4, PRESENCE_BATCH_SIZE = 100, HOVER_SHOW_DELAY = 0, enabled8 = !1, observersRegistered3 = !1, storageListenerRegistered5 = !1, populateToken = 0;
+  var SETTING_NAME9 = "friendsCarouselRedesignEnabled", STYLE_ID3 = "rovalra-friends-carousel-redesign-style", SCROLL_CLASS = "rovalra-friends-carousel-scroll", WRAPPER_CLASS = "rovalra-friends-carousel", ARROW_CLASS = "rovalra-fc-arrow", HOVER_CARD_CLASS = "rovalra-fc-hover-card", HIDDEN_ATTR = "data-rovalra-fc-hidden", CAROUSEL_SELECTOR2 = "#HomeContainer .react-friends-carousel-container", ROSEAL_CAROUSEL_SELECTOR = ".roseal-friends-carousel-container", ORIGINAL_LIST_SELECTOR = "#HomeContainer .react-friends-carousel-container .friends-carousel-list-container", FRIEND_ID_CAP = 500, RENDER_CHUNK = 40, PRESENCE_REFRESH_MS = 1e4, PRESENCE_BATCH_SIZE = 100, HOVER_SHOW_DELAY = 0, THUMBNAIL_BATCH_DELAY_MS = 50, enabled8 = !1, observersRegistered3 = !1, storageListenerRegistered5 = !1, populateToken = 0;
   function isHomePage3() {
     return window.location.pathname.toLowerCase().replace(/^\/[a-z]{2}(?:-[a-z]{2})?\//, "/").startsWith("/home");
   }
@@ -145511,24 +146968,54 @@ ${locale4.suggestOnDiscord}`), subtitle;
       // Online
     };
     return {
-      friends: friends.filter((friend) => friendsById.has(friend.id)).sort(
-        (a, b3) => {
-          let priorityDifference = (presencePriority[onlinePresence.get(a.id)?.userPresenceType] ?? 3) - (presencePriority[onlinePresence.get(b3.id)?.userPresenceType] ?? 3);
-          if (priorityDifference !== 0) return priorityDifference;
-          let aScore = onlinePresence.get(a.id)?.sortScore ?? a.sortScore, bScore = onlinePresence.get(b3.id)?.sortScore ?? b3.sortScore;
-          return typeof aScore == "number" && typeof bScore == "number" ? bScore - aScore : typeof aScore == "number" ? -1 : typeof bScore == "number" ? 1 : 0;
-        }
-      ).slice(0, FRIEND_ID_CAP),
+      friends: friends.filter((friend) => friendsById.has(friend.id)).sort((a, b3) => {
+        let priorityDifference = (presencePriority[onlinePresence.get(a.id)?.userPresenceType] ?? 3) - (presencePriority[onlinePresence.get(b3.id)?.userPresenceType] ?? 3);
+        if (priorityDifference !== 0) return priorityDifference;
+        let aScore = onlinePresence.get(a.id)?.sortScore ?? a.sortScore, bScore = onlinePresence.get(b3.id)?.sortScore ?? b3.sortScore;
+        return typeof aScore == "number" && typeof bScore == "number" ? bScore - aScore : typeof aScore == "number" ? -1 : typeof bScore == "number" ? 1 : 0;
+      }).slice(0, FRIEND_ID_CAP),
       onlinePresence
     };
   }
   __name(loadFriends2, "loadFriends");
+  function createLazyThumbnailLoader() {
+    let pending2 = /* @__PURE__ */ new Set(), flushScheduled = !1, flush2 = /* @__PURE__ */ __name(async () => {
+      flushScheduled = !1;
+      let tiles = [...pending2];
+      pending2.clear();
+      let ids = tiles.map((tile) => Number(tile.dataset.rovalraUserId));
+      if (!ids.length) return;
+      let thumbs = await getBatchThumbnails(
+        ids,
+        "AvatarHeadshot",
+        "150x150"
+      ).catch(() => []), byId = new Map((thumbs || []).map((t3) => [Number(t3.targetId), t3]));
+      for (let tile of tiles) {
+        if (!tile.isConnected) continue;
+        let container = tile.querySelector(".avatar-card-image");
+        if (!container) continue;
+        let thumbData = byId.get(Number(tile.dataset.rovalraUserId)) || {
+          state: "Error"
+        };
+        container.replaceChildren(
+          createThumbnailElement(
+            thumbData,
+            tile.rovalraHoverData?.displayName || "",
+            "",
+            { width: "90px", height: "90px" }
+          )
+        );
+      }
+    }, "flush"), observer2 = new IntersectionObserver((entries2) => {
+      for (let entry of entries2)
+        entry.isIntersecting && (observer2.unobserve(entry.target), pending2.add(entry.target));
+      pending2.size && !flushScheduled && (flushScheduled = !0, setTimeout(flush2, THUMBNAIL_BATCH_DELAY_MS));
+    });
+    return observer2;
+  }
+  __name(createLazyThumbnailLoader, "createLazyThumbnailLoader");
   async function fetchChunkData(ids, onlinePresence) {
-    let thumbs = await getBatchThumbnails(
-      ids,
-      "AvatarHeadshot",
-      "150x150"
-    ).catch(() => []), presence = new Map(
+    let presence = new Map(
       ids.map((id) => [id, onlinePresence.get(id) || null])
     ), placeIdByUser = /* @__PURE__ */ new Map();
     for (let [uid, p2] of presence)
@@ -145551,7 +147038,6 @@ ${locale4.suggestOnDiscord}`), subtitle;
       }
     }
     return {
-      thumbs: new Map((thumbs || []).map((t3) => [t3.targetId, t3])),
       presence,
       placeThumbs
     };
@@ -145582,7 +147068,9 @@ ${locale4.suggestOnDiscord}`), subtitle;
           for (let presence of result?.userPresences || [])
             presenceById.set(Number(presence.userId), presence);
         for (let tile of tiles) {
-          let userId = Number(tile.dataset.rovalraUserId), presence = presenceById.get(userId) || { userPresenceType: 0 };
+          let userId = Number(tile.dataset.rovalraUserId);
+          if (!presenceById.has(userId)) continue;
+          let presence = presenceById.get(userId);
           if (tile.rovalraPresence = presence, updateUserCardPresence(
             tile,
             presence.userPresenceType ?? 0,
@@ -145608,42 +147096,43 @@ ${locale4.suggestOnDiscord}`), subtitle;
   async function populateCarousel(scrollEl, refresh4, token, originalList) {
     cloneAddFriendsTile(originalList, scrollEl);
     let { friends, onlinePresence } = await loadFriends2();
-    if (!(token !== populateToken || !scrollEl.isConnected)) {
-      for (let i2 = 0; i2 < friends.length; i2 += RENDER_CHUNK) {
-        let chunk = friends.slice(i2, i2 + RENDER_CHUNK), ids = chunk.map((friend) => friend.id), { thumbs, presence, placeThumbs } = await fetchChunkData(
-          ids,
-          onlinePresence
-        );
-        if (token !== populateToken || !scrollEl.isConnected) return;
-        for (let friend of chunk) {
-          let id = friend.id, displayName = friend.displayName || friend.username || "", tile = createFriendTile(
-            friend,
-            thumbs.get(id) || { state: "Error" },
-            {
-              displayName,
-              username: friend.username ? `@${friend.username}` : "",
-              isHidden: !1,
-              isVerified: friend.isVerified || !1,
-              isSubscribed: friend.hasRobloxSubscription === !0,
-              presence: presence.get(id)
-            }
-          );
-          tile.dataset.rovalraUserId = String(id), tile.dataset.rovalraUsername = friend.username ? `@${friend.username}` : "", tile.rovalraHoverData = {
-            userId: id,
+    if (token !== populateToken || !scrollEl.isConnected) return;
+    let thumbnailObserver = createLazyThumbnailLoader();
+    scrollEl.rovalraThumbnailObserver = thumbnailObserver;
+    for (let i2 = 0; i2 < friends.length; i2 += RENDER_CHUNK) {
+      let chunk = friends.slice(i2, i2 + RENDER_CHUNK), ids = chunk.map((friend) => friend.id), { presence, placeThumbs } = await fetchChunkData(
+        ids,
+        onlinePresence
+      );
+      if (token !== populateToken || !scrollEl.isConnected) return;
+      for (let friend of chunk) {
+        let id = friend.id, displayName = !friend.isDeleted && friend.combinedName || friend.displayName || friend.username || "", tile = createFriendTile(
+          friend,
+          { state: "Pending" },
+          {
             displayName,
-            presence: presence.get(id) || null,
-            placeThumb: placeThumbs.get(id) || null
-          }, attachHoverCard(tile, tile.rovalraHoverData), tile.addEventListener("mouseenter", () => {
-            tile.rovalraHoverData && (tile.rovalraHoverData.presence = tile.rovalraPresence || null);
-          }), scrollEl.appendChild(tile);
-        }
-        refresh4?.();
+            username: friend.username ? `@${friend.username}` : "",
+            isHidden: !1,
+            isVerified: friend.isVerified || !1,
+            isSubscribed: friend.hasRobloxSubscription === !0,
+            presence: presence.get(id)
+          }
+        );
+        tile.dataset.rovalraUserId = String(id), tile.dataset.rovalraUsername = friend.username ? `@${friend.username}` : "", tile.rovalraPresence = presence.get(id) || null, tile.rovalraHoverData = {
+          userId: id,
+          displayName,
+          presence: presence.get(id) || null,
+          placeThumb: placeThumbs.get(id) || null
+        }, attachHoverCard(tile, tile.rovalraHoverData), tile.addEventListener("mouseenter", () => {
+          tile.rovalraHoverData && (tile.rovalraHoverData.presence = tile.rovalraPresence || null);
+        }), scrollEl.appendChild(tile), thumbnailObserver.observe(tile);
       }
-      token === populateToken && scrollEl.isConnected && (refreshCarouselPresence(scrollEl, token), scrollEl.rovalraPresenceInterval = setInterval(
-        () => refreshCarouselPresence(scrollEl, token),
-        PRESENCE_REFRESH_MS
-      ));
+      refresh4?.();
     }
+    token === populateToken && scrollEl.isConnected && (refreshCarouselPresence(scrollEl, token), scrollEl.rovalraPresenceInterval = setInterval(
+      () => refreshCarouselPresence(scrollEl, token),
+      PRESENCE_REFRESH_MS
+    ));
   }
   __name(populateCarousel, "populateCarousel");
   function applyToCarousel(carousel) {
@@ -145664,7 +147153,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
   function teardown() {
     populateToken++, removeHoverCard(), document.querySelectorAll(`.${WRAPPER_CLASS}`).forEach((node) => {
       let scrollEl = node.querySelector(`.${SCROLL_CLASS}`);
-      clearInterval(scrollEl?.rovalraPresenceInterval), node.remove();
+      clearInterval(scrollEl?.rovalraPresenceInterval), scrollEl?.rovalraThumbnailObserver?.disconnect(), node.remove();
     }), document.querySelectorAll(`[${HIDDEN_ATTR}]`).forEach((node) => {
       node.style.removeProperty("display"), node.removeAttribute(HIDDEN_ATTR);
     });
@@ -145688,10 +147177,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }));
   }
   __name(registerStorageListener5, "registerStorageListener");
-  async function init169() {
+  async function init170() {
     registerStorageListener5(), enabled8 = await settings[SETTING_NAME9] === !0, enabled8 && (registerObservers3(), document.querySelectorAll(CAROUSEL_SELECTOR2).forEach(applyToCarousel));
   }
-  __name(init169, "init");
+  __name(init170, "init");
 
   // src/content/features/sitewide/pinnedFriends.js
   init_userCardElements();
@@ -145699,11 +147188,11 @@ ${locale4.suggestOnDiscord}`), subtitle;
   init_observer();
   init_getSettings();
   init_i18n();
-  var SETTING_NAME10 = "pinnedFriendsEnabled", STORAGE_KEY13 = "rovalra_pinned_friends", CARD_SELECTOR3 = ".friends-carousel-tile", EXCLUDED_CONTAINER_SELECTOR2 = ".roseal-friends-carousel-container", MENU_SELECTOR = ".friend-tile-dropdown, .friend-tile-dropdown--iarc", PROFILE_LINK_SELECTOR = 'a[href*="/users/"][href*="/profile"]', ITEM_CLASS = "rovalra-pin-friend-item", BUTTON_CLASS = "rovalra-pin-friend-button", PINNED_CLASS2 = "rovalra-pinned-friend", PENDING_FLAG = "rovalraPinnedFriendPending", enabled9 = !1, pinned = /* @__PURE__ */ new Set(), observersRegistered4 = !1, storageListenerRegistered6 = !1;
+  var SETTING_NAME10 = "pinnedFriendsEnabled", STORAGE_KEY14 = "rovalra_pinned_friends", CARD_SELECTOR3 = ".friends-carousel-tile", EXCLUDED_CONTAINER_SELECTOR2 = ".roseal-friends-carousel-container", MENU_SELECTOR = ".friend-tile-dropdown, .friend-tile-dropdown--iarc", PROFILE_LINK_SELECTOR = 'a[href*="/users/"][href*="/profile"]', ITEM_CLASS = "rovalra-pin-friend-item", BUTTON_CLASS = "rovalra-pin-friend-button", PINNED_CLASS2 = "rovalra-pinned-friend", PENDING_FLAG = "rovalraPinnedFriendPending", enabled9 = !1, pinned = /* @__PURE__ */ new Set(), observersRegistered4 = !1, storageListenerRegistered6 = !1;
   function loadPinned() {
     return new Promise((resolve) => {
-      chrome.storage.local.get({ [STORAGE_KEY13]: [] }, (data) => {
-        let stored = data?.[STORAGE_KEY13];
+      chrome.storage.local.get({ [STORAGE_KEY14]: [] }, (data) => {
+        let stored = data?.[STORAGE_KEY14];
         resolve(new Set(Array.isArray(stored) ? stored.map(String) : []));
       });
     });
@@ -145711,7 +147200,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
   __name(loadPinned, "loadPinned");
   function savePinned() {
     return new Promise((resolve) => {
-      chrome.storage.local.set({ [STORAGE_KEY13]: [...pinned] }, resolve);
+      chrome.storage.local.set({ [STORAGE_KEY14]: [...pinned] }, resolve);
     });
   }
   __name(savePinned, "savePinned");
@@ -145808,8 +147297,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
   function registerStorageListener6() {
     storageListenerRegistered6 || (storageListenerRegistered6 = !0, chrome.storage.onChanged.addListener(async (changes, namespace) => {
       if (namespace === "local") {
-        if (changes[STORAGE_KEY13]) {
-          let stored = changes[STORAGE_KEY13].newValue;
+        if (changes[STORAGE_KEY14]) {
+          let stored = changes[STORAGE_KEY14].newValue;
           pinned = new Set(Array.isArray(stored) ? stored.map(String) : []), enabled9 && applyCards();
         }
         if (changes[SETTING_NAME10]) {
@@ -145823,10 +147312,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }));
   }
   __name(registerStorageListener6, "registerStorageListener");
-  async function init170() {
+  async function init171() {
     registerStorageListener6(), enabled9 = await settings[SETTING_NAME10] === !0, enabled9 && (pinned = await loadPinned(), registerObservers4());
   }
-  __name(init170, "init");
+  __name(init171, "init");
 
   // src/content/features/create.roblox.com/download.js
   init_idExtractor();
@@ -146106,7 +147595,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
     targetContainer.prepend(downloadButton), delete buttonContainer.dataset.rovalraDownloadButtonPending;
   }
   __name(addButton, "addButton");
-  function init171() {
+  function init172() {
     window.location.href.includes("/store/asset/") && chrome.storage.local.get({ DownloadCreateEnabled: !0 }, (result) => {
       result.DownloadCreateEnabled && (observeElement(
         '[data-testid="assetButtonsDeprecatedTestId"]',
@@ -146121,7 +147610,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       ));
     });
   }
-  __name(init171, "init");
+  __name(init172, "init");
 
   // src/content/features/catalog/explorer.js
   init_idExtractor();
@@ -148651,17 +150140,40 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }
   }
   __name(addGameButton, "addGameButton");
-  async function init172() {
-    let path = window.location.pathname, onCatalog = /\/catalog\//.test(path), onBundle = /\/bundles\//.test(path), onGame = /\/games\//.test(path);
-    !onCatalog && !onBundle && !onGame || await settings.ExplorerEnabled && (onCatalog && observeElement(
+  function addCreateStoreButton(buttonContainer) {
+    let assetId = getAssetIdFromUrl(), pageKey = `create:${assetId || ""}`;
+    if (!assetId || buttonContainer.dataset.rovalraExplorerPageKey === pageKey && buttonContainer.querySelector(".rovalra-explorer-create-btn"))
+      return;
+    buttonContainer.querySelector(".rovalra-explorer-create-btn")?.remove(), buttonContainer.dataset.rovalraExplorerPageKey = pageKey;
+    let assets7 = getAssets(), button = document.createElement("button");
+    button.id = "rovalra-explorer-btn", button.type = "button", button.className = "rovalra-explorer-create-btn", button.setAttribute("aria-label", ts2("createRoblox.explorer.button"));
+    let icon = document.createElement("span");
+    icon.className = "rovalra-explorer-create-icon", applyMaskIcon(icon, assets7.explorerTreeIcon), button.appendChild(icon);
+    let text3 = document.createElement("span");
+    text3.textContent = ts2("createRoblox.explorer.button"), button.appendChild(text3), button.addEventListener("click", (e) => {
+      e.preventDefault();
+      let name = document.querySelector('[data-testid="assetHeadingDetailsTestId"] h1')?.textContent?.trim();
+      openExplorer(assetId, name, !0);
+    }), (buttonContainer.firstElementChild || buttonContainer).prepend(button);
+  }
+  __name(addCreateStoreButton, "addCreateStoreButton");
+  async function init173() {
+    let path = window.location.pathname, onCatalog = /\/catalog\//.test(path), onBundle = /\/bundles\//.test(path), onGame = /\/games\//.test(path), onCreateStore = /\/store\/asset\//.test(path);
+    !onCatalog && !onBundle && !onGame && !onCreateStore || await settings.ExplorerEnabled && (onCatalog && observeElement(
       ".item-details-info-header .right",
       (el3) => addCatalogButton(el3)
     ), onBundle && observeElement(
       ".item-details-info-header .right",
       (el3) => addBundleButton(el3)
-    ), onGame && observeElement("#game-context-menu", (el3) => addGameButton(el3)));
+    ), onGame && observeElement("#game-context-menu", (el3) => addGameButton(el3)), onCreateStore && (observeElement(
+      '[data-testid="assetButtonsTestId"]',
+      (el3) => addCreateStoreButton(el3)
+    ), observeElement(
+      '[data-testid="assetButtonsDeprecatedTestId"]',
+      (el3) => addCreateStoreButton(el3)
+    )));
   }
-  __name(init172, "init");
+  __name(init173, "init");
 
   // src/content/index.js
   init_handlesettings();
@@ -148672,8 +150184,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
       paths: ["*"],
       once: !0,
       features: [
-        init157,
-        init165,
+        init158,
+        init166,
         init70,
         init7,
         init8,
@@ -148688,7 +150200,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
         init17,
         initFriendsListTracking,
         initUnfriendDetectorTracking,
-        init144,
+        init145,
         initTransactionsTracking,
         initBadgesTracking,
         initAvatarInventoryTracking,
@@ -148697,55 +150209,54 @@ ${locale4.suggestOnDiscord}`), subtitle;
         init18,
         init25,
         init26,
-        init27,
         init10,
         init125,
+        init28,
         init29,
-        init30,
         init23,
         init127,
-        init31,
-        init34,
-        init133,
-        init32,
+        init30,
         init33,
+        init133,
+        init31,
+        init32,
         init20,
-        init148,
-        init49,
-        init2,
-        init28,
         init149,
+        init48,
+        init2,
+        init27,
+        init150,
         init139,
         init22,
         initializeModernIcons,
+        init35,
+        init37,
         init36,
         init38,
-        init37,
         init39,
         init40,
+        init47,
         init41,
-        init48,
         init42,
         init43,
-        init44,
+        init45,
         init46,
-        init47,
-        init162,
+        init163,
         initNotificationCenter,
-        init57,
+        init56,
         initSitewide,
-        init50,
-        init51
+        init49,
+        init50
       ]
     },
     // pretty much just the 40% method
     {
       paths: ["/catalog", "/bundles", "/game-pass", "/games"],
-      features: [init3, init64, init114]
+      features: [init3, init63, init114]
     },
     {
       paths: ["/developer-product/"],
-      features: [init64, init84]
+      features: [init63, init84]
     },
     // Game pass viewer for 404 pages
     {
@@ -148756,16 +150267,17 @@ ${locale4.suggestOnDiscord}`), subtitle;
     {
       paths: ["/catalog", "/bundles"],
       features: [
-        init59,
         init58,
-        init60,
+        init57,
+        init59,
+        init61,
         init62,
-        init63,
         init65,
         init66,
         init67,
         init68,
-        init172
+        init173,
+        init64
       ]
     },
     // Avatar pages
@@ -148811,7 +150323,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
         init123,
         init86,
         init124,
-        init172,
+        init173,
         init88
       ]
     },
@@ -148847,11 +150359,11 @@ ${locale4.suggestOnDiscord}`), subtitle;
     {
       paths: ["/my/avatar"],
       features: [
+        init51,
         init52,
         init53,
         init54,
-        init55,
-        init56
+        init55
       ]
     },
     // Roblox Plus Page
@@ -148868,7 +150380,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       paths: ["/users/"],
       features: [
         init114,
-        init147,
+        init148,
         init129,
         init113,
         init115,
@@ -148883,7 +150395,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
         init141,
         init142,
         init143,
-        init145,
+        init144,
+        init146,
         init134,
         init137,
         init138,
@@ -148891,27 +150404,27 @@ ${locale4.suggestOnDiscord}`), subtitle;
         init135,
         init139,
         init121,
-        init150,
+        init151,
         init120,
-        init146,
-        init152,
+        init147,
         init153,
-        init155,
+        init154,
+        init156,
         initProfileButton,
         initProfile
       ]
     },
     {
       paths: ["/users/profile/edit"],
-      features: [init154]
+      features: [init155]
     },
     {
       paths: ["/users/", "/banned-users/"],
-      features: [init126, init118, init151]
+      features: [init126, init118, init152]
     },
     {
       paths: ["/deleted-users/"],
-      features: [init151]
+      features: [init152]
     },
     // Transactions page
     {
@@ -148926,7 +150439,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
     },
     {
       paths: ["/upgrades/paymentmethods"],
-      features: [init45]
+      features: [init44]
     },
     // Trading
     {
@@ -148950,30 +150463,30 @@ ${locale4.suggestOnDiscord}`), subtitle;
     // create
     {
       paths: ["/store/asset"],
-      features: [init171]
+      features: [init172, init173]
     },
     {
       paths: ["/home"],
       features: [
-        init161,
-        init166,
+        init162,
         init167,
-        init164,
-        init160,
         init168,
-        init163,
+        init165,
+        init161,
         init169,
-        init170
+        init164,
+        init170,
+        init171
       ]
     },
     {
       paths: ["/my/account"],
-      features: [init158, init159]
+      features: [init159, init160]
     },
     // Scam prevention
     {
       paths: ["/NewLogin", "/Login"],
-      features: [init35]
+      features: [init34]
     },
     // Buy Robux Page
     {
@@ -149023,11 +150536,11 @@ ${locale4.suggestOnDiscord}`), subtitle;
       route.paths.some((p2) => {
         let lowerP = p2.toLowerCase();
         return lowerP === "*" || path.startsWith(lowerP) || normalizedPath.startsWith(lowerP);
-      }) && route.features && Array.isArray(route.features) && route.features.forEach((init173) => {
-        if (!featuresRunThisPass.has(init173) && !(route.once && initializedPersistentFeatures.has(init173))) {
-          featuresRunThisPass.add(init173), route.once && initializedPersistentFeatures.add(init173);
+      }) && route.features && Array.isArray(route.features) && route.features.forEach((init174) => {
+        if (!featuresRunThisPass.has(init174) && !(route.once && initializedPersistentFeatures.has(init174))) {
+          featuresRunThisPass.add(init174), route.once && initializedPersistentFeatures.add(init174);
           try {
-            init173();
+            init174();
           } catch (error3) {
             console.error("RoValra: Feature init failed", error3);
           }

@@ -15,7 +15,7 @@ authenticated background requests, static redirect adaptation, font loading,
 HTML sanitization, and packaging.
 
 Google's Material Icons fonts are included under Apache-2.0; their license and
-source URLs are in firefox/fonts/. DOMPurify is included under its LGPL-2.1-or-
+source URLs are in firefox/fonts/. DOMPurify is included under its Apache-2.0-or-
 MPL-2.0 license; see firefox/LICENSE-DOMPurify.txt and https://github.com/cure53/DOMPurify.
 
 Original release input is preserved in upstream/. Corresponding upstream source:

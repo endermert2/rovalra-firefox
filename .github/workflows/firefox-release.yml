@@ -31,7 +31,10 @@ jobs:
           cache-dependency-path: firefox-port/package-lock.json
       - run: npm ci
       - name: Audit build dependencies
-        run: npm audit --audit-level=moderate
+        shell: bash
+        run: |
+          mkdir -p build
+          npm audit --audit-level=moderate --json | tee build/audit.json
       - name: Check public repository and configuration
         run: |
           node --input-type=module <<'JS'
@@ -92,6 +95,7 @@ jobs:
         with:
           name: firefox-validation
           path: |
+            firefox-port/build/audit.json
             firefox-port/build/report.json
             firefox-port/build/lint.json
             firefox-port/build/html-review.json

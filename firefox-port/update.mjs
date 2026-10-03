@@ -2,13 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { unzipSync } from 'fflate';
-import { ROOT, sha256, readConfig, adaptFiles, writeBuild } from './adapter.mjs';
+import { ROOT, sha256, readConfig, adaptFiles, writeBuild, releaseVersion } from './adapter.mjs';
 
 const MAX_ZIP = 40 * 1024 * 1024;
 const MAX_UNPACKED = 160 * 1024 * 1024;
 export function releaseAsset(release) {
   if (release.draft || release.prerelease) throw new Error('Only stable upstream releases are accepted');
-  const assets = release.assets.filter(asset => /^rovalra-v?\d+\.\d+\.\d+\.zip$/i.test(asset.name));
+  const assets = release.assets.filter(asset => /^rovalra-v?\d+\.\d+\.\d+(?:\.\d+)?\.zip$/i.test(asset.name));
   if (assets.length !== 1) throw new Error('Expected one RoValra release ZIP; upstream packaging needs review');
   const asset = assets[0];
   const url = new URL(asset.browser_download_url);
@@ -68,19 +68,19 @@ export async function update() {
   if (asset.digest && asset.digest !== `sha256:${digest}`) throw new Error('GitHub release checksum does not match');
   const files = unpackRelease(bytes);
   const manifest = JSON.parse(files['manifest.json']);
-  if (release.tag_name.replace(/^v/, '') !== manifest.version) throw new Error('Release tag and manifest version disagree');
+  const upstreamVersion = releaseVersion(release.tag_name, manifest.version);
   // Preserve the previous build until the entire conversion and validation pass.
-  const result = await adaptFiles(files, config);
+  const result = await adaptFiles(files, config, upstreamVersion);
   result.report.releaseUrl = release.html_url;
   result.report.releaseAssetSha256 = digest;
   result.report.githubDigestVerified = Boolean(asset.digest);
   await fs.mkdir(path.join(ROOT, 'downloads'), { recursive: true });
   await fs.writeFile(path.join(ROOT, 'downloads', asset.name), bytes);
   await writeBuild(result);
-  const state = { upstreamVersion: manifest.version, firefoxVersion: result.manifest.version,
+  const state = { upstreamVersion, upstreamManifestVersion: manifest.version, firefoxVersion: result.manifest.version,
     tag: `firefox-v${result.manifest.version}`, releaseUrl: release.html_url };
   await fs.writeFile(path.join(ROOT, 'build/release.json'), JSON.stringify(state, null, 2) + '\n');
-  console.log(`Adapted upstream ${manifest.version}. Run npm run verify, npm run test:firefox and npm run test:install before publishing.`);
+  console.log(`Adapted upstream ${upstreamVersion}. Run npm run verify, npm run test:firefox and npm run test:install before publishing.`);
   return state;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

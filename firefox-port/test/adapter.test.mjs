@@ -4,12 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import vm from 'node:vm';
 import { zipSync } from 'fflate';
-import { ROOT, adaptManifest, adaptFiles, normalizedHash, validateFiles, filesIn } from '../adapter.mjs';
+import { ROOT, adaptManifest, adaptFiles, normalizedHash, validateFiles, filesIn, releaseVersion, firefoxVersion } from '../adapter.mjs';
 import { unpackRelease, releaseAsset } from '../update.mjs';
 import { updateManifest } from '../publish-manifest.mjs';
 
 const original = JSON.parse(await fs.readFile(path.join(ROOT, 'upstream/manifest.json')));
 const config = JSON.parse(await fs.readFile(path.join(ROOT, 'config.json')));
+const baseline = JSON.parse(await fs.readFile(path.join(ROOT, 'upstream-release.json')));
 
 test('MV3 adaptation preserves main-world order and static rules', () => {
   const result = adaptManifest(original, config);
@@ -29,6 +30,27 @@ test('MV3 adaptation preserves main-world order and static rules', () => {
 test('unsupported manifest generations and module workers stop adaptation', () => {
   assert.throws(() => adaptManifest({...original,manifest_version:2},config), /requires/);
   assert.throws(() => adaptManifest({...original,background:{service_worker:'bg.js',type:'module'}},config), /requires/);
+});
+
+test('upstream hotfix tags retain their identity when the manifest omits the hotfix', () => {
+  assert.equal(releaseVersion('v2.6.14.1', '2.6.14'), '2.6.14.1');
+  assert.equal(releaseVersion('v2.6.14.1', '2.6.14.1'), '2.6.14.1');
+  for (const tag of ['v2.6.15.1', 'v2.6.14.0', 'v2.6.14.1.2', 'v2.6.14-beta']) {
+    assert.throws(() => releaseVersion(tag, '2.6.14'), /disagree/);
+  }
+  const asset = {name:'rovalra-v2.6.14.1.zip', size:10,
+    browser_download_url:'https://github.com/NotValra/RoValra/releases/download/v2.6.14.1/rovalra-v2.6.14.1.zip'};
+  assert.equal(releaseAsset({assets:[asset]}), asset);
+});
+
+test('port versions preserve hotfix ordering and stay within four numeric components', () => {
+  assert.equal(firefoxVersion('2.6.14', 9), '2.6.14.9');
+  assert.equal(firefoxVersion('2.6.14.1', 9), '2.6.14.109');
+  assert.equal(firefoxVersion('2.6.14.2', 1), '2.6.14.201');
+  assert(Number(firefoxVersion('2.6.14.2', 1).split('.')[3]) >
+    Number(firefoxVersion('2.6.14.1', 99).split('.')[3]));
+  for (const revision of [0, 100, 1.5]) assert.throws(() => firefoxVersion('2.6.14', revision), /revision/);
+  assert.throws(() => firefoxVersion('2.6.14.656', 9), /limits/);
 });
 test('function contracts tolerate formatting but detect changed behavior', () => {
   assert.equal(normalizedHash('function x(){ return 1; }'),normalizedHash('function x() {\n return 1;\n}'));
@@ -122,9 +144,9 @@ test('storage listener removal stops both local and bridged session notification
 
 test('reviewed upstream baseline adapts successfully and unknown APIs still stop updates', async () => {
   const input=await filesIn(path.join(ROOT,'upstream'));
-  const result=await adaptFiles(input,config);
-  assert.equal(result.report.upstreamVersion,'2.6.12');
-  assert.equal(result.manifest.version,`2.6.12.${config.adapterRevision}`);
+  const result=await adaptFiles(input,config,baseline.version);
+  assert.equal(result.report.upstreamVersion,'2.6.14.1');
+  assert.equal(result.manifest.version,`2.6.14.${100 + config.adapterRevision}`);
   input['content.js']=Buffer.concat([input['content.js'],Buffer.from('\nchrome.unknownNewAPI();')]);
   await assert.rejects(adaptFiles(input,config),/New upstream API chrome.unknownNewAPI/);
 });
