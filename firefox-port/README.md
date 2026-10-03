@@ -2,16 +2,17 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.14.109: upstream release 2.6.14.1 plus adapter revision 9.
+The current version is 2.6.14.110: upstream release 2.6.14.1 plus adapter revision 10.
 
-See [the October updater repair](UPDATER-REPAIR-2026-10-04.md) for the audit fix,
-upstream hotfix support and upload instructions. Earlier subplace, font and security repairs remain included.
+See [the visual repair](VISUAL-REPAIR-2.6.14.110.md) for the Quick Play SVG icons,
+globe event bridge, packaged image fix, and current upload instructions.
+The [October updater repair](UPDATER-REPAIR-2026-10-04.md) remains included.
 
 ## Installation
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.14.109-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.14.110-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 

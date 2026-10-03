@@ -1,5 +1,9 @@
 # Restore Firefox updates (October 4, 2026)
 
+The latest upload and install package is **2.6.14.110**. See
+[the subsequent visual repair](VISUAL-REPAIR-2.6.14.110.md) for current steps.
+The diagnosis and original version 2.6.14.109 checklist below are historical.
+
 The workflow stopped at its dependency audit before downloading or adapting an
 upstream release. The repair keeps the moderate-or-higher audit gate enabled.
 

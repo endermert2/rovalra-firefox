@@ -143,6 +143,8 @@ export async function adaptFiles(input, config, upstreamVersion) {
     parseJS(bytes.toString());
   }
   let content = repairServers(input['content.js'].toString(),contracts);
+  content = replaceFunction(content, 'createSvgPath',
+    await fs.readFile(path.join(ROOT, 'patches/icons.js'), 'utf8'), contracts);
   const launcher = await fs.readFile(path.join(ROOT, 'patches/launcher.js'), 'utf8');
   for (const [name, nodes] of functions(launcher)) {
     const replacement = launcher.slice(nodes[0].start, nodes[0].end);

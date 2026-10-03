@@ -1,15 +1,15 @@
 # RoValra for Firefox Developer Edition
 
-The current port is **2.6.14.109**, based on upstream release **2.6.14.1** and
-adapter revision 9. The GitHub updater audit and current upstream compatibility
-have been repaired locally.
+The current port is **2.6.14.110**, based on upstream release **2.6.14.1** and
+adapter revision 10. It includes the GitHub updater audit repair and fixes for
+Quick Play icons, the region-selector globe, and its logo.
 
-See [the repair and upload checklist](firefox-port/UPDATER-REPAIR-2026-10-04.md).
-Extract `firefox-port/build/rovalra-firefox-upload-2.6.14.109.zip`, copy its contents
+See [the visual repair and upload checklist](firefox-port/VISUAL-REPAIR-2.6.14.110.md).
+Extract `firefox-port/build/rovalra-firefox-upload-2.6.14.110.zip`, copy its contents
 to the top of your GitHub clone, commit, push, and start a new workflow run.
 
 For local installation, open **about:addons → gear → Install Add-on From File**
-and select `firefox-port/build/rovalra-firefox-2.6.14.109-unsigned.xpi` over the
+and select `firefox-port/build/rovalra-firefox-2.6.14.110-unsigned.xpi` over the
 existing add-on. This requires Developer Edition with
 `xpinstall.signatures.required=false`. Refresh Roblox tabs after updating.
 The add-on ID and update URL are unchanged, so normal upgrades preserve settings.

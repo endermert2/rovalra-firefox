@@ -142,6 +142,24 @@ test('storage listener removal stops both local and bridged session notification
   assert.deepEqual(Array.from(context.seen),['local','session']);
 });
 
+test('globe initialization clones object payloads into the Firefox page world', async () => {
+  const cloned=[],page={};
+  const context=vm.createContext({console,window:page,
+    CustomEvent:function(type,options){return {type,...options};},
+    cloneInto:(value,target)=>{assert.equal(target,page);const copy={...value};cloned.push(copy);return copy;},
+    chrome:{storage:{onChanged:{addListener:()=>{}}}},
+    browser:{runtime:{onMessage:{addListener:()=>{}}}}});
+  vm.runInContext(await fs.readFile(path.join(ROOT,'runtime/content.js'),'utf8'),context);
+  const detail={REGIONS:{Europe:{DE:{coords:{lat:50,lon:10}}}},serverCounts:{DE:2}};
+  const event=new context.RoValraFirefoxCustomEvent('initRovalraGlobe',{detail});
+  assert.equal(cloned.length,1);
+  assert.notEqual(event.detail,detail);
+  assert.deepEqual(event.detail,detail);
+  const unrelated=new context.RoValraFirefoxCustomEvent('unrelated',{detail});
+  assert.equal(unrelated.detail,detail);
+  assert.equal(cloned.length,1);
+});
+
 test('reviewed upstream baseline adapts successfully and unknown APIs still stop updates', async () => {
   const input=await filesIn(path.join(ROOT,'upstream'));
   const result=await adaptFiles(input,config,baseline.version);

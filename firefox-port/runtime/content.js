@@ -1,4 +1,14 @@
 /* RoValra Firefox compatibility layer, GPL-3.0-or-later. */
+// Keep packaged image URLs in sanitized HTML. This exception applies only to
+// image sources in this extension; other attributes and protocols stay filtered.
+if (typeof DOMPurify !== 'undefined') {
+  const imageRoot = browser.runtime.getURL('');
+  DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+    if (node.localName === 'img' && data.attrName === 'src' && data.attrValue.startsWith(imageRoot)) {
+      data.forceKeepAttr = true;
+    }
+  });
+}
 // Firefox MV3 content fetches obey the Roblox page's CSP. Only the two
 // declared RoValra hosts use the privileged transport; Roblox stays on-page.
 async function RoValraFirefoxFetch(input,init) {
@@ -21,7 +31,7 @@ function RoValraFirefoxCustomEvent(type, options = {}) {
   const detail = options.detail;
   return new CustomEvent(type, {
     ...options,
-    detail: /^rovalra/i.test(type) && detail !== null && typeof detail === "object"
+    detail: (/^rovalra/i.test(type) || type === 'initRovalraGlobe') && detail !== null && typeof detail === "object"
       ? cloneInto(detail, window)
       : detail,
   });

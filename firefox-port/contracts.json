@@ -1,6 +1,7 @@
 {
   "upstreamVersion": "2.6.14.1",
   "functions": {
+    "createSvgPath": "f22e25746bbe123eb5298a3fcb4f0861b09d6872398c0b517d57f95e60428bb8",
     "executeLaunchScript": "d8a60a6900d85d083d7e0e9e1cce059d1340f5382f367248452ce518bf341948",
     "launchGame": "480cc031e5a4ac5fc9dcf9861fef3110ff6fc5c2bd1b794f4c95c4dbfb4e60df",
     "launchPrivateGame": "2d1f6bb9db4184da88a44387ec685f46c5010d52d373dd9e1004392a72f6b556",

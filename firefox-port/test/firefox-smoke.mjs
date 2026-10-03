@@ -10,12 +10,18 @@ import {zipSync} from 'fflate';
 import {filesIn} from '../adapter.mjs';
 import {subplaceFixtureSource} from './subplace-fixture.mjs';
 import {serverEventsFixtureSource} from './server-events-fixture.mjs';
+import {iconsFixtureSource,globeFixtureSource} from './visuals-fixture.mjs';
 
 // All browser state belongs to a new temporary WebDriver profile. The fixture
 // resolves a Roblox hostname to loopback in that profile only.
 const build = path.join(ROOT, 'build');
 const fixture = await fs.mkdtemp(path.join(build, 'smoke-extension-'));
 await fs.cp(path.join(build, 'extension'), fixture, { recursive: true });
+// Observe texture delivery without changing the packaged renderer's behavior.
+const globePath=path.join(fixture,'public/Assets/data/globe_initializer.js');
+await fs.writeFile(globePath,(await fs.readFile(globePath,'utf8')).replace(
+  'gl2.bindTexture(gl2.TEXTURE_2D, tex), gl2.pixelStorei',
+  'document.documentElement.dataset.globeTextureLoaded="true"; gl2.bindTexture(gl2.TEXTURE_2D, tex), gl2.pixelStorei'));
 const results = [];
 const fontFixture=await fs.readFile(path.join(ROOT,'assets/fonts/MaterialIcons.woff2'));
 const handler = async (req, res) => {
@@ -143,9 +149,12 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   const subplaces=await ${subplaceFixtureSource(true)};
   const serverEventsBefore=await ${serverEventsFixtureSource(false)};
   const serverEvents=await ${serverEventsFixtureSource(true)};
+  const iconsBefore=${iconsFixtureSource(false)},icons=${iconsFixtureSource(true)};
+  const globe=await ${globeFixtureSource()};
   await report({test:'content',event:document.documentElement.dataset.eventValue,session:session.firefoxSmokeKey,changed,
     response,launches,invalid,workerReady,pageFetchBlocked,publicSync,blockedHost,
-    fonts,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,serverEventsBefore,serverEvents,contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
+    fonts,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,serverEventsBefore,serverEvents,iconsBefore,icons,globe,
+    contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
 })().catch(error=>browser.runtime.sendMessage({action:'smokeReport',result:{error:String(error),stack:error.stack}}));
 `);
 
@@ -175,7 +184,7 @@ try {
   await driver.get(base + '/compatibility-fixture');
   await driver.wait(() => results.some(result => result.test === 'content') || results.some(result => result.error), 30000).catch(() => {});
   const page = await driver.executeScript('return {url:location.href,title:document.title,launches:window.launches,interceptor:window.__ROVALRA_INTERCEPTOR_SETUP__}');
-  await fs.writeFile(path.join(build,'bookmark-font-test.png'),Buffer.from(await driver.takeScreenshot(),'base64'));
+  await fs.writeFile(path.join(build,'firefox-visuals-test.png'),Buffer.from(await driver.takeScreenshot(),'base64'));
   await driver.setContext('chrome');
   const consoleErrors = await driver.executeScript('return Services.console.getMessageArray().map(e=>e.message).filter(m=>/moz-extension|Worker|worker|RoValra/.test(m)).slice(-20)');
   await driver.setContext('content');
@@ -186,6 +195,13 @@ try {
   const content = results.find(r => r.test === 'content');
   const before=content?.subplacesBefore,after=content?.subplaces;
   const eventsBefore=content?.serverEventsBefore,eventsAfter=content?.serverEvents;
+  if (content?.iconsBefore?.privateServer || content?.iconsBefore?.configure ||
+      !content?.icons || !Object.values(content.icons).every(Boolean) ||
+      !content.globe?.logoLoaded || content.globe.canvasCount!==2 ||
+      content.globe.unsafeHandlers || content.globe.foreignExtensionSource || content.globe.javascriptSource ||
+      (content.globe.webglSupported && !content.globe.textureLoaded)) {
+    throw new Error('Quick Play icons or region selector regression checks failed');
+  }
   if(!eventsBefore || eventsBefore.initialAttached || eventsBefore.errors.length || eventsBefore.ids.some(id=>id.startsWith('sub-')) ||
       !eventsAfter || !eventsAfter.initialAttached || eventsAfter.errors.length || eventsAfter.ids.length!==5 ||
       eventsAfter.unconfirmed.length!==3 || eventsAfter.loads.length!==2 ||
