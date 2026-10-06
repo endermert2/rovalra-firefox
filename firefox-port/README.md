@@ -2,21 +2,21 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.14.110: upstream release 2.6.14.1 plus adapter revision 10.
+The current version is 2.6.15.11: upstream release 2.6.15 plus adapter revision 11.
 
-The [October 6 audit repair](AUDIT-REPAIR-2026-10-06.md) updates source-map-js to
-1.2.2 in the lockfile and contains the current GitHub upload steps. The extension
-version remains unchanged because this is a build-tool dependency fix.
+The [2.6.15 updater repair](UPSTREAM-REPAIR-2.6.15.md) reviews the new server-row
+handling and contains the current GitHub upload steps. The [October 6 audit repair](AUDIT-REPAIR-2026-10-06.md)
+is retained: source-map-js stays at 1.2.2 in the lockfile.
 
 See [the visual repair](VISUAL-REPAIR-2.6.14.110.md) for the Quick Play SVG icons,
-globe event bridge, packaged image fix, and current upload instructions.
+globe event bridge and packaged image fix.
 The [October updater repair](UPDATER-REPAIR-2026-10-04.md) remains included.
 
 ## Installation
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.14.110-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.15.11-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -135,7 +135,7 @@ functions are unrelated to the removed Firefox browser launcher.
 
 `npm test` covers archive safety, patch contracts, manifest conversion, Roblox
 launcher argument preservation, unsigned update-manifest construction, outfit-hook ordering and failure fallback,
-storage-listener removal, adaptation of the reviewed 2.6.14.1 input, and hotfix version ordering.
+storage-listener removal, adaptation of the reviewed 2.6.15 input, and hotfix version ordering.
 `npm run verify` runs Mozilla's standalone addons-linter; this does not contact its signing
 service. Raw HTML warnings remain in `build/lint.json`. Each warning is now checked against
 sanitizer use in `build/html-review.json`; unguarded warnings and all errors fail.

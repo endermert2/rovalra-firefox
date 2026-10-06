@@ -1,5 +1,5 @@
 {
-  "upstreamVersion": "2.6.14.1",
+  "upstreamVersion": "2.6.15",
   "functions": {
     "createSvgPath": "f22e25746bbe123eb5298a3fcb4f0861b09d6872398c0b517d57f95e60428bb8",
     "executeLaunchScript": "d8a60a6900d85d083d7e0e9e1cce059d1340f5382f367248452ce518bf341948",
@@ -71,16 +71,17 @@
   ],
   "sanitizerSha256": "2c90a9b46d6463f26038a29b686e82bc91de01fdac9d5229e7cfe3b360134ea2",
   "serverFunctions": {
-    "enhanceServer": "6f2993a61c4d57a381a4c6065d1979f18d3c7d3ee61602f5a0f1cdec02f6c717",
+    "enhanceServer": "cbe5bfa9dc5636b45baa0f7409633f64087c2dfa4d59780f1779b2e9daa47c04",
     "processUptimeBatch": "ab003e580e552478e9d4c9012ee06258554fe33af5df444dd3e56fbc3db12e63",
     "createServerCardFromRobloxApi": "b1593c0f935a83e1026abfca221565cc06c39368d5852f5e3ca3fd8b653be86c",
     "createServerCardFromApi": "bf4fee794e4905e9aba7f7018d3b6a069171580a5ebeae4ff01c76458ab758d7",
     "createModernServerCard": "c398515b13a53d39b749c6d37bcf57025d869c380debe634933deef608e60ab0",
-    "fetchServerUptime": "f8a3b1052a4fe32f4e97179ae2c04c14b3e6dd2845ba0c13c1465db6bcecc9f8",
+    "fetchServerUptime": "6f8cfa17bb4849ec07703a9e6947966b10d9e15a5af2d7308dddf33e60403ee1",
     "displayInactivePlaceStatus": "fa528ac3133a146037b53ab5c0630251e0e41ec25f48f1fe52d1b9fdb7c9d234",
-    "fetchAndDisplayRegion": "664f223ae1af924d5ef43b8ba1f7fe9bf0b68557e4d259d55899fdc8cd8a969c",
+    "fetchAndDisplayRegion": "0cdb0d2de091cc909cbc53a9da1f75a3ee19113b3b3a99b5a2b81124d72337e2",
     "attachGlobalListeners2": "403c415afd18fe28b712eb511945550b686a4f87f335fee0e18e6942718a8f18",
     "renderAndAppendServers": "8066b32ec02c0bae02f4f80006bdb382ea59f75eaad36b9b7b65dd85812bb695",
-    "fetchServerRegion2": "56d103874fc3be54e9adcedddbefebf7cd56839110229f0c2fdfeec909f77e87"
+    "fetchServerRegion2": "56d103874fc3be54e9adcedddbefebf7cd56839110229f0c2fdfeec909f77e87",
+    "displayServerStatus": "3661c4ca0295f355b4b27bb54105d1ff3e88c61e7fef50d4dc670d756b261400"
   }
 }

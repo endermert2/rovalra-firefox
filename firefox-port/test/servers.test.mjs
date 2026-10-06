@@ -39,7 +39,7 @@ function metadataContext(response) {
   const errors=[],uptimes=[],full=[],card={};
   const context=vm.createContext({
     fetchServerDetails:async()=>response,console:{error:(...args)=>errors.push(args)},
-    document:{querySelectorAll:()=>[card]},getServerUptime:()=>null,getServerUptimeIsEstimate:()=>false,
+    getServerRows:()=>[card],getServerUptime:()=>null,getServerUptimeIsEstimate:()=>false,
     getServerRegion:()=>null,displayUptime:(...args)=>uptimes.push(args),displayServerFullStatus:el=>full.push(el)
   });
   return {context,errors,uptimes,full};
@@ -76,9 +76,11 @@ test('join checks preserve cards on unknown status or errors, while explicit ful
         if(outcome==='network-error')throw Error('offline');
         return {status:outcome};
       },getPlaceIdFromUrl:()=> '111',isFullServerIndicatorsEnabled:true,
+      __name:fn=>fn,getServerRows:()=>[server],
+      markJoinButtonFull:()=>{},
       displayServerFullStatus:()=>marks.push('full'),displayInactivePlaceStatus:()=>marks.push('unconfirmed')
     });
-    vm.runInContext(extract(['fetchAndDisplayRegion']),context);
+    vm.runInContext(extract(['fetchAndDisplayRegion','displayServerStatus']),context);
     await context.fetchAndDisplayRegion(server,'sub-a',{}, {},{serverStatuses:statuses});
     assert.deepEqual(marks,outcome===22?['full']:outcome===2?[]:['unconfirmed']);
     if(outcome===5)assert.equal(statuses['sub-a'],'unconfirmed');
@@ -87,32 +89,84 @@ test('join checks preserve cards on unknown status or errors, while explicit ful
 
 test('changed upstream server functions stop publication pending review',()=>{
   assert.throws(()=>repairServers(original.replace('function displayInactivePlaceStatus(server) {','function displayInactivePlaceStatus(server) { console.log("changed");'),contracts),/Server function displayInactivePlaceStatus changed/);
+  assert.throws(()=>repairServers(original.replace('function displayServerStatus(server, status) {','function displayServerStatus(server, status) { console.log("changed");'),contracts),/Server function displayServerStatus changed/);
+});
+
+test('region responses update every matching row and reject a different public game instance',async()=>{
+  const rows=[{id:'first'},{id:'second'}],marks=[],network=[],versions=[],statuses={};
+  let info={status:2,joinScript:{GameId:'OTHER',MachineAddress:'127.0.0.1',DataCenterId:7,PlaceVersion:42}};
+  const context=vm.createContext({__name:fn=>fn,getPlaceIdFromUrl:()=> '111',
+    fetchServerRegion2:async()=>info,getServerRows:id=>id==='same'?rows:[],
+    setServerNetworkInfo:(...args)=>network.push(args),displayIpAndDcId:row=>marks.push(row),
+    displayPlaceVersion:(row,version)=>versions.push([row,version]),getServerVersion:()=>null,
+    cacheReadyPromise:Promise.resolve(),getLocationFromDataCenterId:()=>null,
+    displayInactivePlaceStatus:row=>marks.push(row)
+  });
+  vm.runInContext(extract(['fetchAndDisplayRegion','displayServerStatus']),context);
+  const server={dataset:{placeid:'222'}};
+  await context.fetchAndDisplayRegion(server,'same',{}, {},{serverStatuses:statuses});
+  assert.equal(network.length,0);assert.equal(marks.length,0);assert.equal(versions.length,0);
+  info.joinScript.GameId='SAME';
+  await context.fetchAndDisplayRegion(server,'same',{}, {},{serverStatuses:statuses});
+  assert.deepEqual(network,[['same','127.0.0.1',7]]);
+  assert.deepEqual(marks,rows);assert.deepEqual(versions,rows.map(row=>[row,42]));
+  marks.length=0;info={status:5};
+  await context.fetchAndDisplayRegion(server,'same',{}, {},{serverStatuses:statuses});
+  assert.equal(statuses.same,'unconfirmed');assert.deepEqual(marks,rows);
+});
+
+test('missing place and failed region requests preserve matching rows without marking them full',async()=>{
+  for(const failure of ['missing-place','request-error']) {
+    const rows=[{id:'first'},{id:'second'}],marks=[];
+    const context=vm.createContext({__name:fn=>fn,getPlaceIdFromUrl:()=>null,
+      fetchServerRegion2:async()=>{throw Error('offline');},getServerRows:()=>rows,
+      displayInactivePlaceStatus:row=>marks.push(row),displayServerFullStatus:()=>{throw Error('False full status');}
+    });
+    vm.runInContext(extract(['fetchAndDisplayRegion']),context);
+    await context.fetchAndDisplayRegion({dataset:{placeid:failure==='request-error'?'222':undefined}},'same',{},{});
+    assert.deepEqual(marks,rows);
+  }
+});
+
+test('cached full status respects the indicator setting while unconfirmed rows stay visible',()=>{
+  const marks=[],row={};
+  const context=vm.createContext({isFullServerIndicatorsEnabled:false,
+    markJoinButtonFull:()=>marks.push('button'),displayServerFullStatus:()=>marks.push('full'),
+    displayInactivePlaceStatus:server=>{assert.equal(server,row);marks.push('unconfirmed');}
+  });
+  vm.runInContext(extract(['displayServerStatus']),context);
+  context.displayServerStatus(row,'full');assert.deepEqual(marks,[]);
+  context.displayServerStatus(row,'unconfirmed');assert.deepEqual(marks,['unconfirmed']);
+  context.isFullServerIndicatorsEnabled=true;context.displayServerStatus(row,'full');
+  assert.deepEqual(marks,['unconfirmed','button','full']);
 });
 
 test('enhancement preserves cached server data and recycled-card uptime listeners',async()=>{
-  const uptimes=[],scheduled=[],listeners={};
+  const uptimes=[],scheduled=[],listeners={},unconfirmed=[];
   const noop=()=>{},server={dataset:{rovalraServerid:'old',placeid:'222'},
     getAttribute:()=>server.dataset.rovalraServerid,
     classList:{contains:()=>false,add:noop},addEventListener:(name,fn)=>{listeners[name]=fn;}};
-  const state={serverLocations:{},serverUptimes:{},serverPerformanceCache:{},uptimeBatch:new Map(),
+  const state={serverLocations:{},serverStatuses:{old:'unconfirmed',new:'unconfirmed'},serverUptimes:{},serverPerformanceCache:{},uptimeBatch:new Map(),
     serverDataCache:new Map([['old',{id:'old',languageMatchCount:3}],['new',{id:'new',languageMatchCount:5}]])};
   const calls=[],context=vm.createContext({
     cacheReadyPromise:Promise.resolve(),isServerListModificationsEnabled:true,
     isServerUptimeEnabled:true,isServerRegionEnabled:true,isPlaceVersionEnabled:true,isFullServerIDEnabled:false,
-    injectStyles3:noop,cleanupServerUI:noop,attachCleanupObserver:noop,getOrCreateDetailsContainer:noop,
+    injectStyles4:noop,resetServerRow:el=>{el._rovalraApiData=null;},cleanupServerUI:noop,attachCleanupObserver:noop,getOrCreateDetailsContainer:noop,
     displayPerformance:noop,displayPlaceVersion:noop,displayRegion:noop,displayIpAndDcId:noop,
     addCopyJoinLinkButton:noop,enableAvatarLinks:noop,fetchAndDisplayRegion:noop,
     displayUptime:(el,value)=>uptimes.push(value),
+    displayInactivePlaceStatus:el=>unconfirmed.push(el),
     getServerUptime:()=>null,getServerUptimeIsEstimate:()=>false,getServerVersion:()=>null,
     normalizeRegionName:()=>'',getPlaceIdFromUrl:()=> '111',
     setTimeout:fn=>scheduled.push(fn),clearTimeout:noop,_state:{},
     fetchServerUptime:async(place,ids)=>calls.push([place,Array.from(ids)])
   });
-  vm.runInContext(extract(['enhanceServer','processUptimeBatch']),context);
+  vm.runInContext(extract(['enhanceServer','processUptimeBatch','getRowServerId','displayServerStatus']),context);
   await context.enhanceServer(server,state);
   server.dataset.rovalraServerid='new';
   await context.enhanceServer(server,state);
   assert.equal(server._rovalraApiData.id,'new');
+  assert.deepEqual(unconfirmed,[server,server]);
   assert.equal(state.uptimeBatch.get('new'),'222');
   uptimes.length=0;
   listeners['rovalra-uptime-update']({detail:{serverId:'old',uptime:1}});

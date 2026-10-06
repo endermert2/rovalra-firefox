@@ -38,16 +38,20 @@ export function repairServers(source,contracts) {
   }
   replace('fetchServerUptime',text=>{
     text=once(text,'!response.servers || response.servers.length === 0','!Array.isArray(response?.servers)');
-    return once(text,', !getServerRegion(id) && !serverStatuses[id] && displayServerFullStatus(el3)','');
+    return once(text,', !getServerRegion(id) && !serverStatuses[id] && displayServerFullStatus(el4)','');
   });
   replace('fetchAndDisplayRegion',text=>{
     text=once(text,'serverStatuses[serverId] = "inactive"','serverStatuses[serverId] = "unconfirmed"');
+    text=once(text,'(row) => displayServerStatus(row, "inactive")','(row) => displayServerStatus(row, "unconfirmed")');
     // Missing place information or a failed request cannot establish fullness.
     // Keep the explicit status === 22 full-server handling below unchanged.
-    const fallback='!serverLocations3[serverId] && !serverStatuses[serverId] && displayServerFullStatus(server)';
-    if(text.split(fallback).length!==3)throw new Error('Server status fallback changed; review required');
-    return text.replaceAll(fallback,'!serverLocations3[serverId] && !serverStatuses[serverId] && displayInactivePlaceStatus(server)');
+    return once(text,'getServerRows(serverId).forEach((row) => displayServerFullStatus(row))',
+      'getServerRows(serverId).forEach((row) => displayInactivePlaceStatus(row))');
   });
+  // Upstream 2.6.15 renders cached statuses through a shared row dispatcher.
+  // Preserve the unconfirmed indicator both on initial requests and re-renders.
+  replace('displayServerStatus',text=>once(text,'status === "inactive" && displayInactivePlaceStatus(server)',
+    '(status === "inactive" || status === "unconfirmed") && displayInactivePlaceStatus(server)'));
   // A join probe is an eligibility check, not an authoritative server list.
   // In particular, subplaces can reject a direct join while listing live servers.
   replace('displayInactivePlaceStatus',()=>`function displayInactivePlaceStatus(server) {

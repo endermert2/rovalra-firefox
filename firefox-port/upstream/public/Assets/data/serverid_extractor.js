@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.14
+ * rovalra v2.6.15
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -31,10 +31,15 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
         (k) => k.startsWith("__reactFiber$")
       );
       if (!reactKey) throw new Error("No React Fiber");
-      let fiber = element[reactKey], serverId = null, accessCode = null, vipServerId = null, isOwner = !1, isFriendServer = !1;
+      let fiber = element[reactKey];
+      const propsKey = Object.keys(element).find(
+        (k) => k.startsWith("__reactProps$")
+      );
+      fiber.alternate && propsKey && fiber.alternate.memoizedProps === element[propsKey] && (fiber = fiber.alternate);
+      let serverId = null, accessCode = null, vipServerId = null, isOwner = !1, isFriendServer = !1;
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, currentAssignedCode = element.getAttribute("data-access-code"), existingCodes = new Set(
         Array.from(document.querySelectorAll("[data-access-code]")).map((el) => el.getAttribute("data-access-code")).filter((c) => c && c !== currentAssignedCode)
-      ), isUsedAccessCode = /* @__PURE__ */ __name((code) => assignedAccessCodes.has(code) || existingCodes.has(code), "isUsedAccessCode"), findUUID = /* @__PURE__ */ __name((obj, excludePredicate, maxDepth = 3, currentDepth = 0) => {
+      ), isUsedAccessCode = /* @__PURE__ */ __name((code) => code === currentAssignedCode ? !1 : assignedAccessCodes.has(code) || existingCodes.has(code), "isUsedAccessCode"), findUUID = /* @__PURE__ */ __name((obj, excludePredicate, maxDepth = 3, currentDepth = 0) => {
         if (!obj || currentDepth > maxDepth || typeof obj != "object")
           return typeof obj == "string" && uuidRegex.test(obj) ? excludePredicate(obj) ? null : obj : null;
         if (obj.$$typeof || obj instanceof HTMLElement) return null;
@@ -77,8 +82,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
             }
           props.vipServerId && (vipServerId = props.vipServerId), props.isOwner && (isOwner = !!props.isOwner);
           const handlerName = props.onJoinClick ? "onJoinClick" : props.onClick ? "onClick" : props.onJoin ? "onJoin" : null, joinHandler = props[handlerName];
-          if (!accessCode && joinHandler && !joinHandler.__rovalra_checked) {
-            joinHandler.__rovalra_checked = !0;
+          if (!accessCode && joinHandler) {
             const handlerUUID = findUUID(
               joinHandler,
               isUsedAccessCode,

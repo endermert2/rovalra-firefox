@@ -13,7 +13,8 @@ export function serverEventsFixtureSource(fixed) {
     'normalizeGameJoinEndpoint','fetchServerRegion2','attachGlobalListeners2','renderAndAppendServers',
     'manageLoadMoreButton','createServerCardFromRobloxApi','createServerCardFromApi','createModernServerCard',
     'enhanceServer','processUptimeBatch','fetchServerUptime','fetchAndDisplayRegion','isServerActive2',
-    'displayInactivePlaceStatus','getOrCreateDetailsContainer','updateInfoElement','createInfoElement'],fixed?repaired:previous);
+    'getRowServerId','getServerRows','setServerNetworkInfo','displayServerStatus',
+    'displayInactivePlaceStatus','getOrCreateDetailsContainer','applyContainerMinHeight','updateInfoElement','createInfoElement'],fixed?repaired:previous);
   return `(async()=>{
     const subscriptions=[],errors=[],requests=[],events=[],loads=[];
     const document=new Proxy(globalThis.document,{get(target,key){
@@ -28,9 +29,10 @@ export function serverEventsFixtureSource(fixed) {
     const cacheReadyPromise=Promise.resolve(),isServerListModificationsEnabled=true,isServerUptimeEnabled=true,
       isServerRegionEnabled=true,isPlaceVersionEnabled=true,isFullServerIDEnabled=false,isFullServerIndicatorsEnabled=true;
     const CLASSES={CONTAINER:'event-details',INFO_ROW:'event-row',Inactive:'event-inactive'},ORDERS={Status:1},
-      STYLES2={row:'',icon:'',text:'',container:'',containerFriends:''};
+      STYLES3={row:'',icon:'',text:'',container:'',containerFriends:''};
     const purify=DOMPurify,console={error:(...args)=>errors.push(args.map(String).join(' ')),warn:()=>{}};
-    const noop=()=>{},__name=fn=>fn,injectStyles3=noop,cleanupServerUI=noop,attachCleanupObserver=noop,enableAvatarLinks=noop,
+    const serverNetworkInfo=new Map();
+    const noop=()=>{},__name=fn=>fn,injectStyles4=noop,resetServerRow=noop,markJoinButtonFull=noop,cleanupServerUI=noop,attachCleanupObserver=noop,enableAvatarLinks=noop,
       displayPerformance=noop,displayIpAndDcId=noop,addCopyJoinLinkButton=noop,addTooltip=noop,
       showAutoLoadingIndicator=noop,removeAutoLoadingIndicator=noop,equalizeCardHeights=noop,handleFilterActivation=noop;
     const getServerUptime=()=>null,getServerUptimeIsEstimate=()=>false,getServerVersion=()=>null,getServerRegion=()=>null,

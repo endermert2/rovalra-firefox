@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.14
+ * rovalra v2.6.15
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -485,6 +485,164 @@ else if (typeof exports === 'object')
     }
   });
 
+  // src/content/core/storage/cacheHandler.js
+  var CACHE_KEY, storageSupported, memoryFallback, writeQueue, cacheMemory, cacheLoadPromise, cacheWriteTimer, cacheWritePromise, createDeferred, this_tab, _ramcache, cachevaluemissing, getramcache, isValidCacheObject, handleGetCacheError, getCache, flushCacheWrite, queueCacheWrite, handleSetCacheError, setCache, TWENTY_FOUR_HOURS_MS, cleanupExpiredCache, set, get, remove, init_cacheHandler = __esm({
+    "src/content/core/storage/cacheHandler.js"() {
+      CACHE_KEY = "rovalra_cache", storageSupported = { session: !0, local: !0 }, memoryFallback = { session: {}, local: {} }, writeQueue = Promise.resolve(), cacheMemory = { session: null, local: null }, cacheLoadPromise = { session: null, local: null }, cacheWriteTimer = { session: null, local: null }, cacheWritePromise = { session: null, local: null }, createDeferred = /* @__PURE__ */ __name(() => {
+        let resolve, reject;
+        return { promise: new Promise((res, rej) => {
+          resolve = res, reject = rej;
+        }), resolve, reject };
+      }, "createDeferred"), this_tab = (() => {
+        let bytes = crypto.getRandomValues(new Uint8Array(12));
+        return "RoValra-TABUID:" + btoa(String.fromCharCode(...bytes));
+      })(), _ramcache = /* @__PURE__ */ new Map(), cachevaluemissing = /* @__PURE__ */ Symbol("CacheValueMissing"), getramcache = /* @__PURE__ */ __name((section, key, area) => ({
+        k: `(${area})-(${section})::(${key})`,
+        get x() {
+          return _ramcache.has(this.k) ? _ramcache.get(this.k) : cachevaluemissing;
+        },
+        set x(value2) {
+          _ramcache.set(this.k, value2);
+        }
+      }), "getramcache");
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        areaName !== "local" && areaName !== "session" || changes[CACHE_KEY + "-author"]?.newValue === this_tab || (cacheWriteTimer[areaName] && (clearTimeout(cacheWriteTimer[areaName]), cacheWriteTimer[areaName] = null, cacheWritePromise[areaName]?.resolve(), cacheWritePromise[areaName] = null), cacheMemory[areaName] = null, cacheLoadPromise[areaName] = null, _ramcache.clear());
+      });
+      isValidCacheObject = /* @__PURE__ */ __name((data) => !(data == null || typeof data != "object" || Array.isArray(data)), "isValidCacheObject"), handleGetCacheError = /* @__PURE__ */ __name((e, area) => (e?.message?.includes("Access to storage is not allowed") ? (storageSupported[area] = !1, cacheMemory[area] = memoryFallback[area]) : console.error(
+        `RoValra (CacheHandler): Failed to get cache from ${area}`,
+        e
+      ), memoryFallback[area]), "handleGetCacheError"), getCache = /* @__PURE__ */ __name(async (area = "session") => {
+        if (!storageSupported[area]) return memoryFallback[area];
+        if (cacheMemory[area]) return cacheMemory[area];
+        if (cacheLoadPromise[area])
+          try {
+            return await cacheLoadPromise[area];
+          } catch (e) {
+            return handleGetCacheError(e, area);
+          }
+        cacheLoadPromise[area] = (async () => {
+          if (!chrome?.storage?.[area])
+            return storageSupported[area] = !1, cacheMemory[area] = memoryFallback[area], memoryFallback[area];
+          let cacheData = (await chrome.storage[area].get(CACHE_KEY))[CACHE_KEY];
+          return isValidCacheObject(cacheData) ? (cacheMemory[area] = cacheData, cacheData) : (cacheData !== void 0 && (console.log(
+            `RoValra (CacheHandler): Cache corrupted in ${area} storage, deleting to prevent issues.`
+          ), await chrome.storage[area].remove(CACHE_KEY)), cacheMemory[area] = {}, {});
+        })();
+        try {
+          return await cacheLoadPromise[area];
+        } catch (e) {
+          return handleGetCacheError(e, area);
+        } finally {
+          cacheLoadPromise[area] = null;
+        }
+      }, "getCache"), flushCacheWrite = /* @__PURE__ */ __name(async (area) => {
+        cacheWriteTimer[area] = null;
+        let writePromise = cacheWritePromise[area];
+        cacheWritePromise[area] = null;
+        try {
+          await chrome.storage[area].set({
+            [CACHE_KEY]: cacheMemory[area] || {},
+            [CACHE_KEY + "-author"]: this_tab
+          }), writePromise.resolve();
+        } catch (e) {
+          writePromise.reject(e);
+        }
+      }, "flushCacheWrite"), queueCacheWrite = /* @__PURE__ */ __name((area) => (cacheWritePromise[area] || (cacheWritePromise[area] = createDeferred()), cacheWriteTimer[area] || (cacheWriteTimer[area] = setTimeout(() => flushCacheWrite(area), 0)), cacheWritePromise[area].promise), "queueCacheWrite"), handleSetCacheError = /* @__PURE__ */ __name((e, area) => {
+        if (e?.message?.includes("Access to storage is not allowed")) {
+          storageSupported[area] = !1, memoryFallback[area] = cacheMemory[area] || {};
+          return;
+        }
+        console.error(
+          `RoValra (CacheHandler): Failed to set cache in ${area}`,
+          e
+        );
+      }, "handleSetCacheError"), setCache = /* @__PURE__ */ __name(async (cache2, area = "session", waitForFlush = !0) => {
+        if (cacheMemory[area] = cache2, !storageSupported[area]) {
+          memoryFallback[area] = cache2;
+          return;
+        }
+        try {
+          let write = queueCacheWrite(area).catch(
+            (e) => handleSetCacheError(e, area)
+          );
+          waitForFlush && await write;
+        } catch (e) {
+          handleSetCacheError(e, area);
+        }
+      }, "setCache"), TWENTY_FOUR_HOURS_MS = 1440 * 60 * 1e3, cleanupExpiredCache = /* @__PURE__ */ __name(async () => (writeQueue = writeQueue.then(async () => {
+        for (let area of ["session", "local"]) {
+          let cache2 = await getCache(area), hasChanges = !1;
+          for (let section in cache2) {
+            if (typeof cache2[section] != "object" || cache2[section] === null) {
+              delete cache2[section], hasChanges = !0;
+              continue;
+            }
+            for (let key in cache2[section]) {
+              let entry = cache2[section][key];
+              if (entry && entry.ResetTimestamp) {
+                if (Date.now() - entry.ResetTimestamp > TWENTY_FOUR_HOURS_MS) {
+                  delete cache2[section][key], hasChanges = !0;
+                  let ramcache = getramcache(
+                    section,
+                    key,
+                    area
+                  );
+                  _ramcache.delete(ramcache.k);
+                }
+              } else entry && !entry.ResetTimestamp && (cache2[section][key] = {
+                value: entry,
+                ResetTimestamp: Date.now()
+              }, hasChanges = !0);
+            }
+            Object.keys(cache2[section]).length === 0 && (delete cache2[section], hasChanges = !0);
+          }
+          hasChanges && await setCache(cache2, area);
+        }
+      }).catch(
+        (e) => console.error("RoValra (CacheHandler): Cleanup error", e)
+      ), writeQueue), "cleanupExpiredCache");
+      setTimeout(cleanupExpiredCache, 0);
+      set = /* @__PURE__ */ __name(async (section, key, value2, area = "session") => {
+        let ram = getramcache(section, key, area);
+        return ram.x = value2, writeQueue = writeQueue.then(async () => {
+          let cache2 = await getCache(area);
+          cache2[section] = cache2[section] || {}, cache2[section][key] = {
+            value: value2,
+            ResetTimestamp: Date.now()
+          }, await setCache(cache2, area, !1);
+        }).catch(
+          (e) => console.error(`RoValra (CacheHandler): Error setting ${key}`, e)
+        ), writeQueue;
+      }, "set"), get = /* @__PURE__ */ __name(async (section, key, area = "session", maxAgeMs = TWENTY_FOUR_HOURS_MS) => {
+        let ram = getramcache(section, key, area);
+        if (maxAgeMs === TWENTY_FOUR_HOURS_MS && ram.x != cachevaluemissing)
+          return ram.x;
+        let cache2 = await getCache(area), entry = cache2[section] ? cache2[section][key] : void 0;
+        if (entry !== void 0 && !entry.ResetTimestamp && (cache2[section][key] = {
+          value: entry,
+          ResetTimestamp: Date.now()
+        }, await setCache(cache2, area, !1), entry = cache2[section][key]), entry && entry.ResetTimestamp) {
+          if (Date.now() - entry.ResetTimestamp > maxAgeMs) {
+            await remove(section, key, area);
+            return;
+          }
+          return ram.x = entry.value, entry.value;
+        }
+      }, "get"), remove = /* @__PURE__ */ __name(async (section, key, area = "session") => {
+        let ramcache = getramcache(section, key, area);
+        return _ramcache.delete(ramcache.k), writeQueue = writeQueue.then(async () => {
+          let cache2 = await getCache(area);
+          cache2[section] && (delete cache2[section][key], await setCache(cache2, area, !1));
+        }).catch(
+          (e) => console.error(
+            `RoValra (CacheHandler): Failed to remove item "${key}" from ${area}`,
+            e
+          )
+        ), writeQueue;
+      }, "remove");
+    }
+  });
+
   // src/content/core/user.js
   function waitForDom() {
     return new Promise((resolve) => {
@@ -522,9 +680,7 @@ else if (typeof exports === 'object')
       "DOMContentLoaded",
       () => scrapeAndCacheId(),
       { once: !0 }
-    ), cachedId) : (await new Promise((resolve) => {
-      document.addEventListener("DOMContentLoaded", resolve, { once: !0 });
-    }), await scrapeAndCacheId());
+    ), cachedId) : (await waitForDom(), await scrapeAndCacheId());
   }
   async function getAuthenticatedUsername() {
     await waitForDom();
@@ -536,13 +692,47 @@ else if (typeof exports === 'object')
     }
     return null;
   }
-  var inMemoryAuthenticatedUserId, isScrapingInProgress, scrapingPromise, init_user = __esm({
+  async function fetchAndCacheVerified(userId) {
+    let isVerified = (await callRobloxApiJson({
+      subdomain: "users",
+      endpoint: "/v1/users",
+      method: "POST",
+      body: { userIds: [userId] }
+    }))?.data?.find((u) => u.id === userId)?.hasVerifiedBadge === !0;
+    return await set(
+      VERIFIED_CACHE_SECTION,
+      userId.toString(),
+      isVerified,
+      "local"
+    ), isVerified;
+  }
+  async function getAuthenticatedUserVerified(refresh4 = !1) {
+    let userId = await getAuthenticatedUserId();
+    if (!userId) return !1;
+    if (!refresh4) {
+      let cached = await get(
+        VERIFIED_CACHE_SECTION,
+        userId.toString(),
+        "local"
+      );
+      if (typeof cached == "boolean") return cached;
+    }
+    return verifiedPromise || (verifiedPromise = fetchAndCacheVerified(userId).catch((error3) => (console.warn("RoValra: Failed to fetch verified status", error3), !1)).finally(() => {
+      verifiedPromise = null;
+    })), verifiedPromise;
+  }
+  var inMemoryAuthenticatedUserId, isScrapingInProgress, scrapingPromise, VERIFIED_CACHE_SECTION, verifiedPromise, init_user = __esm({
     "src/content/core/user.js"() {
+      init_api();
+      init_cacheHandler();
       __name(waitForDom, "waitForDom");
       inMemoryAuthenticatedUserId = null, isScrapingInProgress = !1, scrapingPromise = null;
       __name(scrapeAndCacheId, "scrapeAndCacheId");
       __name(getAuthenticatedUserId, "getAuthenticatedUserId");
       __name(getAuthenticatedUsername, "getAuthenticatedUsername");
+      VERIFIED_CACHE_SECTION = "authed_user_verified", verifiedPromise = null;
+      __name(fetchAndCacheVerified, "fetchAndCacheVerified");
+      __name(getAuthenticatedUserVerified, "getAuthenticatedUserVerified");
     }
   });
 
@@ -713,11 +903,11 @@ else if (typeof exports === 'object')
               headers.set(key, value2);
           }
           this.cookie && headers.set("cookie", this.cookie);
-          let init174 = {
+          let init181 = {
             ...params,
             headers
           };
-          return this.onSite && (init174.credentials = "include"), (this._fetchFn ?? fetch)(url, init174);
+          return this.onSite && (init181.credentials = "include"), (this._fetchFn ?? fetch)(url, init181);
         }
         /**
          * Generate the base headers required given unsigned BAT data, it may empty if the keys could not be retrieved, or only include `x-bound-auth-token`.
@@ -807,13 +997,13 @@ else if (typeof exports === 'object')
             } else
               doc = document;
             if (doc) {
-              let el3 = doc.querySelector?.(FETCH_TOKEN_METADATA_SELECTOR);
-              if (!el3)
+              let el4 = doc.querySelector?.(FETCH_TOKEN_METADATA_SELECTOR);
+              if (!el4)
                 return null;
               try {
-                isAuthenticated = !!doc.querySelector?.(FETCH_USER_DATA_SELECTOR), isSecureAuthenticationIntentEnabled = el3.getAttribute("data-is-secure-authentication-intent-enabled") === "true", isBoundAuthTokenEnabledForAllUrls = el3.getAttribute("data-is-bound-auth-token-enabled") === "true";
+                isAuthenticated = !!doc.querySelector?.(FETCH_USER_DATA_SELECTOR), isSecureAuthenticationIntentEnabled = el4.getAttribute("data-is-secure-authentication-intent-enabled") === "true", isBoundAuthTokenEnabledForAllUrls = el4.getAttribute("data-is-bound-auth-token-enabled") === "true";
                 try {
-                  boundAuthTokenWhitelist = JSON.parse(el3.getAttribute("data-bound-auth-token-whitelist"))?.Whitelist?.map((item) => ({
+                  boundAuthTokenWhitelist = JSON.parse(el4.getAttribute("data-bound-auth-token-whitelist"))?.Whitelist?.map((item) => ({
                     ...item,
                     sampleRate: Number(item.sampleRate)
                   }));
@@ -821,11 +1011,11 @@ else if (typeof exports === 'object')
                   boundAuthTokenWhitelist = [];
                 }
                 try {
-                  boundAuthTokenExemptlist = JSON.parse(el3.getAttribute("data-bound-auth-token-exemptlist"))?.Exemptlist;
+                  boundAuthTokenExemptlist = JSON.parse(el4.getAttribute("data-bound-auth-token-exemptlist"))?.Exemptlist;
                 } catch {
                   boundAuthTokenExemptlist = [];
                 }
-                hbaIndexedDbName = el3.getAttribute("data-hba-indexed-db-name"), hbaIndexedDbObjStoreName = el3.getAttribute("data-hba-indexed-db-obj-store-name"), hbaIndexedDbKeyName = el3.getAttribute("data-hba-indexed-db-key-name"), hbaIndexedDbVersion = parseInt(el3.getAttribute("data-hba-indexed-db-version"), 10) || 1;
+                hbaIndexedDbName = el4.getAttribute("data-hba-indexed-db-name"), hbaIndexedDbObjStoreName = el4.getAttribute("data-hba-indexed-db-obj-store-name"), hbaIndexedDbKeyName = el4.getAttribute("data-hba-indexed-db-key-name"), hbaIndexedDbVersion = parseInt(el4.getAttribute("data-hba-indexed-db-version"), 10) || 1;
               } catch {
                 return this.cachedTokenMetadata = void 0, null;
               }
@@ -1460,8 +1650,8 @@ Never used outside your local device.`;
                 return;
               }
               useApiKey && response2.status === 401 && invalidateApiKey();
-              let { body: body2, ...init174 } = response2;
-              resolve(new Response(body2, init174));
+              let { body: body2, ...init181 } = response2;
+              resolve(new Response(body2, init181));
             }
           );
         });
@@ -2387,7 +2577,10 @@ Never used outside your local device.`;
                   value: "ro"
                 },
                 {
-                  label: languageLabel("Indonesian (Bahasa Indonesia)", "id"),
+                  label: languageLabel(
+                    "Indonesian (Bahasa Indonesia)",
+                    "id"
+                  ),
                   value: "id"
                 },
                 {
@@ -2401,16 +2594,16 @@ Never used outside your local device.`;
                 {
                   label: languageLabel(
                     "Traditional Chinese (\u7E41\u9AD4\u4E2D\u6587)",
-                    "zh-CHT"
+                    "zh_TW"
                   ),
-                  value: "zh-CHT"
+                  value: "zh_TW"
                 },
                 {
                   label: languageLabel(
                     "Simplified Chinese (\u7B80\u4F53\u4E2D\u6587)",
-                    "zh-CHS"
+                    "zh_CN"
                   ),
-                  value: "zh-CHS"
+                  value: "zh_CN"
                 },
                 {
                   label: languageLabel("Arabic (\u0639\u0631\u0628\u064A)", "ar"),
@@ -3081,7 +3274,28 @@ Never used outside your local device.`;
                 "This allows you to quickly copy a private server link or generate a new private server link."
               ],
               type: "checkbox",
-              default: !0
+              default: !0,
+              childSettings: {
+                privateServerFriendsToggleEnabled: {
+                  label: "Friends Allowed Toggle",
+                  description: [
+                    "Adds a Friends Allowed switch under Allow Joining, so you can let friends in or keep them out without opening the server settings."
+                  ],
+                  type: "checkbox",
+                  default: !0,
+                  contributors: ["4489102289"]
+                }
+              }
+            },
+            autoFriendsAllowedEnabled: {
+              label: "Friends Allowed On New Private Servers",
+              description: [
+                "Turns on Friends Allowed as soon as you create a private server, so your friends can join without you going into its settings first.",
+                "Only new servers are changed. Servers you already have are left as they are."
+              ],
+              type: "checkbox",
+              default: !1,
+              contributors: ["4489102289"]
             }
           }
         },
@@ -4249,6 +4463,27 @@ Never used outside your local device.`;
               type: "checkbox",
               default: !1,
               contributors: ["1960518316"]
+            },
+            tradeRecentItemsEnabled: {
+              label: "Recent Trade Items",
+              description: [
+                "Remembers the items you recently offered and requested, and shows them above each inventory when making a trade.",
+                "Clicking one finds and selects it for you. Your history is only stored on this device."
+              ],
+              type: "checkbox",
+              default: !0,
+              storageKey: "rovalra_trade_recent_items",
+              contributors: ["2239549101"]
+            },
+            tradeQuickActionsEnabled: {
+              label: "Trade Quick Actions",
+              description: [
+                "Adds quick actions to the trades page, letting you only show trades above a certain value or hide trades that are a loss for you.",
+                "Also adds a button to decline every received trade that is a loss by value, after asking you to confirm."
+              ],
+              type: "checkbox",
+              default: !1,
+              contributors: ["2239549101"]
             }
           }
         },
@@ -4336,7 +4571,9 @@ Never used outside your local device.`;
               label: "Show Plus Transfer Limits",
               description: "Shows how much Robux you have left before the daily and monthly Roblox Plus transfer limits on the [Plus](https://www.roblox.com/plus) page.",
               type: "checkbox",
-              default: !0
+              default: !0,
+              storageKey: "rovalra_robux_transfer_limits_v1",
+              contributors: ["48255812", "447170745"]
             },
             plusReferralEnabled: {
               label: "Show RoValra Plus Referral",
@@ -4680,6 +4917,24 @@ Never used outside your local device.`;
         Miscellaneous: {
           title: "Miscellaneous",
           settings: {
+            richRobloxLinksEnabled: {
+              label: "Rich Roblox Links",
+              description: [
+                "Turns Roblox links in descriptions into pills with their icon, name and verified badge.",
+                "Hover a pill to preview the community, user, experience or item."
+              ],
+              type: "checkbox",
+              default: !0,
+              contributors: ["2239549101"]
+            },
+            sidebarVerifiedBadgeEnabled: {
+              label: "Fixes a few spots where the verified badge is missing",
+              description: [
+                "Shows the verified badge next to your name in the sidebar and top bar if you're verified."
+              ],
+              type: "checkbox",
+              default: !0
+            },
             disableThumbnailBackground: {
               label: "Disable Thumbnail Backgrounds",
               description: [
@@ -5551,6 +5806,23 @@ Standards{linkEnd}.`,
               ],
               type: "checkbox",
               default: !1
+            },
+            privateApiDocsEnabled: {
+              label: ["Private RoValra API docs"],
+              description: [
+                "Adds RoValra API documentation at https://www.roblox.com/rovalra-api-docs.",
+                "The documentation is loaded from RoValra and is only available to accounts with access to it."
+              ],
+              type: "checkbox",
+              default: !1,
+              childSettings: {
+                privateApiDocsSidebarLinkEnabled: {
+                  label: "RoValra API sidebar link",
+                  description: "Adds a RoValra API link below Communities in the Roblox sidebar.",
+                  type: "checkbox",
+                  default: !0
+                }
+              }
             },
             onboardingShown: {
               label: ["Show onboarding"],
@@ -7777,164 +8049,6 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
     }
   });
 
-  // src/content/core/storage/cacheHandler.js
-  var CACHE_KEY, storageSupported, memoryFallback, writeQueue, cacheMemory, cacheLoadPromise, cacheWriteTimer, cacheWritePromise, createDeferred, this_tab, _ramcache, cachevaluemissing, getramcache, isValidCacheObject, handleGetCacheError, getCache, flushCacheWrite, queueCacheWrite, handleSetCacheError, setCache, TWENTY_FOUR_HOURS_MS, cleanupExpiredCache, set, get, remove, init_cacheHandler = __esm({
-    "src/content/core/storage/cacheHandler.js"() {
-      CACHE_KEY = "rovalra_cache", storageSupported = { session: !0, local: !0 }, memoryFallback = { session: {}, local: {} }, writeQueue = Promise.resolve(), cacheMemory = { session: null, local: null }, cacheLoadPromise = { session: null, local: null }, cacheWriteTimer = { session: null, local: null }, cacheWritePromise = { session: null, local: null }, createDeferred = /* @__PURE__ */ __name(() => {
-        let resolve, reject;
-        return { promise: new Promise((res, rej) => {
-          resolve = res, reject = rej;
-        }), resolve, reject };
-      }, "createDeferred"), this_tab = (() => {
-        let bytes = crypto.getRandomValues(new Uint8Array(12));
-        return "RoValra-TABUID:" + btoa(String.fromCharCode(...bytes));
-      })(), _ramcache = /* @__PURE__ */ new Map(), cachevaluemissing = /* @__PURE__ */ Symbol("CacheValueMissing"), getramcache = /* @__PURE__ */ __name((section, key, area) => ({
-        k: `(${area})-(${section})::(${key})`,
-        get x() {
-          return _ramcache.has(this.k) ? _ramcache.get(this.k) : cachevaluemissing;
-        },
-        set x(value2) {
-          _ramcache.set(this.k, value2);
-        }
-      }), "getramcache");
-      chrome.storage.onChanged.addListener((changes, areaName) => {
-        areaName !== "local" && areaName !== "session" || changes[CACHE_KEY + "-author"]?.newValue === this_tab || (cacheWriteTimer[areaName] && (clearTimeout(cacheWriteTimer[areaName]), cacheWriteTimer[areaName] = null, cacheWritePromise[areaName]?.resolve(), cacheWritePromise[areaName] = null), cacheMemory[areaName] = null, cacheLoadPromise[areaName] = null, _ramcache.clear());
-      });
-      isValidCacheObject = /* @__PURE__ */ __name((data) => !(data == null || typeof data != "object" || Array.isArray(data)), "isValidCacheObject"), handleGetCacheError = /* @__PURE__ */ __name((e, area) => (e?.message?.includes("Access to storage is not allowed") ? (storageSupported[area] = !1, cacheMemory[area] = memoryFallback[area]) : console.error(
-        `RoValra (CacheHandler): Failed to get cache from ${area}`,
-        e
-      ), memoryFallback[area]), "handleGetCacheError"), getCache = /* @__PURE__ */ __name(async (area = "session") => {
-        if (!storageSupported[area]) return memoryFallback[area];
-        if (cacheMemory[area]) return cacheMemory[area];
-        if (cacheLoadPromise[area])
-          try {
-            return await cacheLoadPromise[area];
-          } catch (e) {
-            return handleGetCacheError(e, area);
-          }
-        cacheLoadPromise[area] = (async () => {
-          if (!chrome?.storage?.[area])
-            return storageSupported[area] = !1, cacheMemory[area] = memoryFallback[area], memoryFallback[area];
-          let cacheData = (await chrome.storage[area].get(CACHE_KEY))[CACHE_KEY];
-          return isValidCacheObject(cacheData) ? (cacheMemory[area] = cacheData, cacheData) : (cacheData !== void 0 && (console.log(
-            `RoValra (CacheHandler): Cache corrupted in ${area} storage, deleting to prevent issues.`
-          ), await chrome.storage[area].remove(CACHE_KEY)), cacheMemory[area] = {}, {});
-        })();
-        try {
-          return await cacheLoadPromise[area];
-        } catch (e) {
-          return handleGetCacheError(e, area);
-        } finally {
-          cacheLoadPromise[area] = null;
-        }
-      }, "getCache"), flushCacheWrite = /* @__PURE__ */ __name(async (area) => {
-        cacheWriteTimer[area] = null;
-        let writePromise = cacheWritePromise[area];
-        cacheWritePromise[area] = null;
-        try {
-          await chrome.storage[area].set({
-            [CACHE_KEY]: cacheMemory[area] || {},
-            [CACHE_KEY + "-author"]: this_tab
-          }), writePromise.resolve();
-        } catch (e) {
-          writePromise.reject(e);
-        }
-      }, "flushCacheWrite"), queueCacheWrite = /* @__PURE__ */ __name((area) => (cacheWritePromise[area] || (cacheWritePromise[area] = createDeferred()), cacheWriteTimer[area] || (cacheWriteTimer[area] = setTimeout(() => flushCacheWrite(area), 0)), cacheWritePromise[area].promise), "queueCacheWrite"), handleSetCacheError = /* @__PURE__ */ __name((e, area) => {
-        if (e?.message?.includes("Access to storage is not allowed")) {
-          storageSupported[area] = !1, memoryFallback[area] = cacheMemory[area] || {};
-          return;
-        }
-        console.error(
-          `RoValra (CacheHandler): Failed to set cache in ${area}`,
-          e
-        );
-      }, "handleSetCacheError"), setCache = /* @__PURE__ */ __name(async (cache2, area = "session", waitForFlush = !0) => {
-        if (cacheMemory[area] = cache2, !storageSupported[area]) {
-          memoryFallback[area] = cache2;
-          return;
-        }
-        try {
-          let write = queueCacheWrite(area).catch(
-            (e) => handleSetCacheError(e, area)
-          );
-          waitForFlush && await write;
-        } catch (e) {
-          handleSetCacheError(e, area);
-        }
-      }, "setCache"), TWENTY_FOUR_HOURS_MS = 1440 * 60 * 1e3, cleanupExpiredCache = /* @__PURE__ */ __name(async () => (writeQueue = writeQueue.then(async () => {
-        for (let area of ["session", "local"]) {
-          let cache2 = await getCache(area), hasChanges = !1;
-          for (let section in cache2) {
-            if (typeof cache2[section] != "object" || cache2[section] === null) {
-              delete cache2[section], hasChanges = !0;
-              continue;
-            }
-            for (let key in cache2[section]) {
-              let entry = cache2[section][key];
-              if (entry && entry.ResetTimestamp) {
-                if (Date.now() - entry.ResetTimestamp > TWENTY_FOUR_HOURS_MS) {
-                  delete cache2[section][key], hasChanges = !0;
-                  let ramcache = getramcache(
-                    section,
-                    key,
-                    area
-                  );
-                  _ramcache.delete(ramcache.k);
-                }
-              } else entry && !entry.ResetTimestamp && (cache2[section][key] = {
-                value: entry,
-                ResetTimestamp: Date.now()
-              }, hasChanges = !0);
-            }
-            Object.keys(cache2[section]).length === 0 && (delete cache2[section], hasChanges = !0);
-          }
-          hasChanges && await setCache(cache2, area);
-        }
-      }).catch(
-        (e) => console.error("RoValra (CacheHandler): Cleanup error", e)
-      ), writeQueue), "cleanupExpiredCache");
-      setTimeout(cleanupExpiredCache, 0);
-      set = /* @__PURE__ */ __name(async (section, key, value2, area = "session") => {
-        let ram = getramcache(section, key, area);
-        return ram.x = value2, writeQueue = writeQueue.then(async () => {
-          let cache2 = await getCache(area);
-          cache2[section] = cache2[section] || {}, cache2[section][key] = {
-            value: value2,
-            ResetTimestamp: Date.now()
-          }, await setCache(cache2, area, !1);
-        }).catch(
-          (e) => console.error(`RoValra (CacheHandler): Error setting ${key}`, e)
-        ), writeQueue;
-      }, "set"), get = /* @__PURE__ */ __name(async (section, key, area = "session", maxAgeMs = TWENTY_FOUR_HOURS_MS) => {
-        let ram = getramcache(section, key, area);
-        if (maxAgeMs === TWENTY_FOUR_HOURS_MS && ram.x != cachevaluemissing)
-          return ram.x;
-        let cache2 = await getCache(area), entry = cache2[section] ? cache2[section][key] : void 0;
-        if (entry !== void 0 && !entry.ResetTimestamp && (cache2[section][key] = {
-          value: entry,
-          ResetTimestamp: Date.now()
-        }, await setCache(cache2, area, !1), entry = cache2[section][key]), entry && entry.ResetTimestamp) {
-          if (Date.now() - entry.ResetTimestamp > maxAgeMs) {
-            await remove(section, key, area);
-            return;
-          }
-          return ram.x = entry.value, entry.value;
-        }
-      }, "get"), remove = /* @__PURE__ */ __name(async (section, key, area = "session") => {
-        let ramcache = getramcache(section, key, area);
-        return _ramcache.delete(ramcache.k), writeQueue = writeQueue.then(async () => {
-          let cache2 = await getCache(area);
-          cache2[section] && (delete cache2[section][key], await setCache(cache2, area, !1));
-        }).catch(
-          (e) => console.error(
-            `RoValra (CacheHandler): Failed to remove item "${key}" from ${area}`,
-            e
-          )
-        ), writeQueue;
-      }, "remove");
-    }
-  });
-
   // src/content/core/regions.js
   async function readDatacenterCache() {
     let stored = await chrome.storage.local.get(STORAGE_KEY_DATACENTERS);
@@ -8492,12 +8606,12 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
   function createShimmerGrid(count, itemStyle = { width: "150px", height: "240px" }) {
     let fragment2 = document.createDocumentFragment();
     for (let i2 = 0; i2 < count; i2++) {
-      let card = document.createElement("div");
-      card.style.cssText = `display: flex; flex-direction: column; justify-self: center; width: ${itemStyle.width}; height: ${itemStyle.height};`;
+      let card2 = document.createElement("div");
+      card2.style.cssText = `display: flex; flex-direction: column; justify-self: center; width: ${itemStyle.width}; height: ${itemStyle.height};`;
       let thumb = document.createElement("div");
       thumb.className = "thumbnail-2d-container shimmer", thumb.style.cssText = `width: 100%; height: ${itemStyle.width}; margin-bottom: 8px; border-radius: 8px;`;
       let nameBar = document.createElement("div");
-      nameBar.className = "thumbnail-2d-container shimmer", nameBar.style.cssText = "width: 90%; height: 14px; margin-top: 8px; border-radius: 4px;", card.append(thumb, nameBar), fragment2.appendChild(card);
+      nameBar.className = "thumbnail-2d-container shimmer", nameBar.style.cssText = "width: 90%; height: 14px; margin-top: 8px; border-radius: 4px;", card2.append(thumb, nameBar), fragment2.appendChild(card2);
     }
     return fragment2;
   }
@@ -8519,9 +8633,9 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
     let dropdownContentInner = document.createElement("div");
     dropdownContentInner.className = "flex-dropdown-menu", dropdownContentInner.style.overflowY = "auto", dropdownContentInner.style.maxHeight = `${maxHeight}px`, showScrollbar || dropdownContentInner.classList.add("rovalra-no-scrollbar"), contentPanel.appendChild(dropdownContentInner);
     let currentSelectedValue = initialValue, updateSelectedState = /* @__PURE__ */ __name((newValue) => {
-      currentSelectedValue = newValue, contentPanel.querySelectorAll(".rovalra-dropdown-item").forEach((el3) => {
-        let isSelected = el3.dataset.value === String(newValue);
-        el3.setAttribute("data-selected", isSelected), el3.setAttribute("aria-selected", isSelected), highlightSelected && el3.classList.add("highlight-enabled");
+      currentSelectedValue = newValue, contentPanel.querySelectorAll(".rovalra-dropdown-item").forEach((el4) => {
+        let isSelected = el4.dataset.value === String(newValue);
+        el4.setAttribute("data-selected", isSelected), el4.setAttribute("aria-selected", isSelected), highlightSelected && el4.classList.add("highlight-enabled");
       });
     }, "updateSelectedState"), renderItems2 = /* @__PURE__ */ __name(() => {
       if (dropdownContentInner.replaceChildren(), items.some((item) => item.group)) {
@@ -8964,9 +9078,9 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
             ...o
           };
           if (key == null) return !1;
-          let resolved = this.resolve(key, opt);
-          if (resolved?.res === void 0) return !1;
-          let isObject = shouldHandleAsObject(resolved.res);
+          let resolved2 = this.resolve(key, opt);
+          if (resolved2?.res === void 0) return !1;
+          let isObject = shouldHandleAsObject(resolved2.res);
           return !(opt.returnObjects === !1 && isObject);
         }
         extractFromKey(key, opt) {
@@ -9024,7 +9138,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
               usedNS: namespace,
               usedParams: this.getUsedParamsDetails(opt)
             } : key;
-          let resolved = this.resolve(keys, opt), res = resolved?.res, resUsedKey = resolved?.usedKey || key, resExactUsedKey = resolved?.exactUsedKey || key, noObject = ["[object Number]", "[object Function]", "[object RegExp]"], joinArrays = opt.joinArrays !== void 0 ? opt.joinArrays : this.options.joinArrays, handleAsObjectInI18nFormat = !this.i18nFormat || this.i18nFormat.handleAsObject, needsPluralHandling = opt.count !== void 0 && !isString(opt.count), hasDefaultValue = _Translator.hasDefaultValue(opt), defaultValueSuffix = needsPluralHandling ? this.pluralResolver.getSuffix(lng, opt.count, opt) : "", defaultValueSuffixOrdinalFallback = opt.ordinal && needsPluralHandling ? this.pluralResolver.getSuffix(lng, opt.count, {
+          let resolved2 = this.resolve(keys, opt), res = resolved2?.res, resUsedKey = resolved2?.usedKey || key, resExactUsedKey = resolved2?.exactUsedKey || key, noObject = ["[object Number]", "[object Function]", "[object RegExp]"], joinArrays = opt.joinArrays !== void 0 ? opt.joinArrays : this.options.joinArrays, handleAsObjectInI18nFormat = !this.i18nFormat || this.i18nFormat.handleAsObject, needsPluralHandling = opt.count !== void 0 && !isString(opt.count), hasDefaultValue = _Translator.hasDefaultValue(opt), defaultValueSuffix = needsPluralHandling ? this.pluralResolver.getSuffix(lng, opt.count, opt) : "", defaultValueSuffixOrdinalFallback = opt.ordinal && needsPluralHandling ? this.pluralResolver.getSuffix(lng, opt.count, {
             ordinal: !1
           }) : "", needsZeroSuffixLookup = needsPluralHandling && !opt.ordinal && opt.count === 0, defaultValue = needsZeroSuffixLookup && opt[`defaultValue${this.options.pluralSeparator}zero`] || opt[`defaultValue${defaultValueSuffix}`] || opt[`defaultValue${defaultValueSuffixOrdinalFallback}`] || opt.defaultValue, resForObjHndl = res;
           handleAsObjectInI18nFormat && !res && hasDefaultValue && (resForObjHndl = defaultValue);
@@ -9036,7 +9150,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
                 ...opt,
                 ns: namespaces
               }) : `key '${key} (${this.language})' returned an object instead of string.`;
-              return returnDetails ? (resolved.res = r, resolved.usedParams = this.getUsedParamsDetails(opt), resolved) : r;
+              return returnDetails ? (resolved2.res = r, resolved2.usedParams = this.getUsedParamsDetails(opt), resolved2) : r;
             }
             if (keySeparator) {
               let resTypeIsArray = Array.isArray(resForObjHndl), copy2 = resTypeIsArray ? [] : {}, newKeyToUse = resTypeIsArray ? resExactUsedKey : resUsedKey;
@@ -9086,17 +9200,17 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
                 });
               }) : send(lngs, key, defaultValue));
             }
-            res = this.extendTranslation(res, keys, opt, resolved, lastKey), usedKey && res === key && this.options.appendNamespaceToMissingKey && (res = `${namespace}${nsSeparator}${key}`), (usedKey || usedDefault) && this.options.parseMissingKeyHandler && (res = this.options.parseMissingKeyHandler(this.options.appendNamespaceToMissingKey ? `${namespace}${nsSeparator}${key}` : key, usedDefault ? res : void 0, opt));
+            res = this.extendTranslation(res, keys, opt, resolved2, lastKey), usedKey && res === key && this.options.appendNamespaceToMissingKey && (res = `${namespace}${nsSeparator}${key}`), (usedKey || usedDefault) && this.options.parseMissingKeyHandler && (res = this.options.parseMissingKeyHandler(this.options.appendNamespaceToMissingKey ? `${namespace}${nsSeparator}${key}` : key, usedDefault ? res : void 0, opt));
           }
-          return returnDetails ? (resolved.res = res, resolved.usedParams = this.getUsedParamsDetails(opt), resolved) : res;
+          return returnDetails ? (resolved2.res = res, resolved2.usedParams = this.getUsedParamsDetails(opt), resolved2) : res;
         }
-        extendTranslation(res, key, opt, resolved, lastKey) {
+        extendTranslation(res, key, opt, resolved2, lastKey) {
           if (this.i18nFormat?.parse)
             res = this.i18nFormat.parse(res, {
               ...this.options.interpolation.defaultVariables,
               ...opt
-            }, opt.lng || this.language || resolved.usedLng, resolved.usedNS, resolved.usedKey, {
-              resolved
+            }, opt.lng || this.language || resolved2.usedLng, resolved2.usedNS, resolved2.usedKey, {
+              resolved: resolved2
             });
           else if (!opt.skipInterpolation) {
             opt.interpolation && this.interpolator.init({
@@ -9115,16 +9229,16 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
             if (this.options.interpolation.defaultVariables && (data = {
               ...this.options.interpolation.defaultVariables,
               ...data
-            }), res = this.interpolator.interpolate(res, data, opt.lng || this.language || resolved.usedLng, opt), skipOnVariables) {
+            }), res = this.interpolator.interpolate(res, data, opt.lng || this.language || resolved2.usedLng, opt), skipOnVariables) {
               let na = res.match(this.interpolator.nestingRegexp), nestAft = na && na.length;
               nestBef < nestAft && (opt.nest = !1);
             }
-            !opt.lng && resolved && resolved.res && (opt.lng = this.language || resolved.usedLng), opt.nest !== !1 && (res = this.interpolator.nest(res, (...args) => lastKey?.[0] === args[0] && !opt.context ? (this.logger.warn(`It seems you are nesting recursively key: ${args[0]} in key: ${key[0]}`), null) : this.translate(...args, key), opt)), opt.interpolation && this.interpolator.reset();
+            !opt.lng && resolved2 && resolved2.res && (opt.lng = this.language || resolved2.usedLng), opt.nest !== !1 && (res = this.interpolator.nest(res, (...args) => lastKey?.[0] === args[0] && !opt.context ? (this.logger.warn(`It seems you are nesting recursively key: ${args[0]} in key: ${key[0]}`), null) : this.translate(...args, key), opt)), opt.interpolation && this.interpolator.reset();
           }
           let postProcess = opt.postProcess || this.options.postProcess, postProcessorNames = isString(postProcess) ? [postProcess] : postProcess;
           return res != null && postProcessorNames?.length && opt.applyPostProcessor !== !1 && (res = postProcessor.handle(postProcessorNames, res, key, this.options && this.options.postProcessPassResolved ? {
             i18nResolved: {
-              ...resolved,
+              ...resolved2,
               usedParams: this.getUsedParamsDetails(opt)
             },
             ...opt
@@ -9563,22 +9677,22 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
           super(), this.backend = backend, this.store = store, this.services = services, this.languageUtils = services.languageUtils, this.options = options, this.logger = baseLogger.create("backendConnector"), this.waitingReads = [], this.maxParallelReads = options.maxParallelReads || 10, this.readingCalls = 0, this.maxRetries = options.maxRetries >= 0 ? options.maxRetries : 5, this.retryTimeout = options.retryTimeout >= 1 ? options.retryTimeout : 350, this.state = {}, this.queue = [], this.backend?.init?.(services, options.backend, options);
         }
         queueLoad(languages, namespaces, options, callback) {
-          let toLoad = {}, pending2 = {}, toLoadLanguages = {}, toLoadNamespaces = {};
+          let toLoad = {}, pending3 = {}, toLoadLanguages = {}, toLoadNamespaces = {};
           return languages.forEach((lng) => {
             let hasAllNamespaces = !0;
             namespaces.forEach((ns) => {
               let name = `${lng}|${ns}`;
-              !options.reload && this.store.hasResourceBundle(lng, ns) ? this.state[name] = 2 : this.state[name] < 0 || (this.state[name] === 1 ? pending2[name] === void 0 && (pending2[name] = !0) : (this.state[name] = 1, hasAllNamespaces = !1, pending2[name] === void 0 && (pending2[name] = !0), toLoad[name] === void 0 && (toLoad[name] = !0), toLoadNamespaces[ns] === void 0 && (toLoadNamespaces[ns] = !0)));
+              !options.reload && this.store.hasResourceBundle(lng, ns) ? this.state[name] = 2 : this.state[name] < 0 || (this.state[name] === 1 ? pending3[name] === void 0 && (pending3[name] = !0) : (this.state[name] = 1, hasAllNamespaces = !1, pending3[name] === void 0 && (pending3[name] = !0), toLoad[name] === void 0 && (toLoad[name] = !0), toLoadNamespaces[ns] === void 0 && (toLoadNamespaces[ns] = !0)));
             }), hasAllNamespaces || (toLoadLanguages[lng] = !0);
-          }), (Object.keys(toLoad).length || Object.keys(pending2).length) && this.queue.push({
-            pending: pending2,
-            pendingCount: Object.keys(pending2).length,
+          }), (Object.keys(toLoad).length || Object.keys(pending3).length) && this.queue.push({
+            pending: pending3,
+            pendingCount: Object.keys(pending3).length,
             loaded: {},
             errors: [],
             callback
           }), {
             toLoad: Object.keys(toLoad),
-            pending: Object.keys(pending2),
+            pending: Object.keys(pending3),
             toLoadLanguages: Object.keys(toLoadLanguages),
             toLoadNamespaces: Object.keys(toLoadNamespaces)
           };
@@ -10648,7 +10762,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           setActive: "Set Active",
           noServersFound: "No {{status}} private servers found.",
           byCreator: "By ",
-          allowJoining: "Allow Joining"
+          allowJoining: "Allow Joining",
+          friendsAllowed: "Friends Allowed"
         },
         firstAccount: {
           label: "First Account",
@@ -11233,7 +11348,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           transactions: "Transactions",
           apiDocs: "API Docs",
           incidentLearnMore: "Click here to learn more.",
-          incidentHideNotice: "You can hide this notice here"
+          incidentHideNotice: "You can hide this notice here",
+          rovalraApi: "RoValra API"
         },
         sidebarCollapse: {
           collapseSidebar: "Collapse sidebar",
@@ -11706,6 +11822,27 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           offSale: "Went off sale",
           backOnSale: "Back on sale"
         },
+        tradeRecentItems: {
+          offer: "Recently offered",
+          request: "Recently requested",
+          clear: "Clear"
+        },
+        tradeQuickActions: {
+          minValue: "Min value they give",
+          hideLosses: "Hide losses",
+          bulkTitle: "Bulk action",
+          bulkHint: "Declines every received trade where you lose value. You confirm first.",
+          declineLosses: "Decline losing trades",
+          loadingTrades: "Loading received trades...",
+          checking: "Checking trades {{done}}/{{total}}...",
+          noLosses: "No losing received trades found",
+          confirmTitle: "Decline losing trades",
+          confirmMessage: "{{count}} of your {{total}} received trades are a loss by value ({{value}} total). Decline all of them? This can't be undone.",
+          declineConfirm: "Decline",
+          declining: "Declining {{done}}/{{total}}...",
+          declined: "Declined {{count}} trades",
+          declinedWithFailures: "Declined {{count}} trades, {{failed}} failed"
+        },
         time: {
           justNow: "just now",
           secondsAgo: "{{count}}s ago",
@@ -12057,7 +12194,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           renderOptions: "Render Options",
           darkLighting: "Dark Lighting",
           baseplate: "Baseplate",
-          rotatePreview: "Rotate preview"
+          rotatePreview: "Rotate preview",
+          itemOnly: "Show item only"
         },
         groupFilters: {
           sort: {
@@ -12092,6 +12230,9 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             monthlyLimitLeft: "Monthly limit left",
             sentToday: "Sent today",
             sentThisMonth: "Sent this month",
+            nextRefill: "Next refill",
+            leftAfter: "{{amount}} left",
+            refillNote: "Each transfer counts toward the monthly limit for 30 days, then those Robux become available again.",
             caption: "Daily limit is {{dailyLimit}}. Monthly limit is {{monthlyLimit}}. Updates every 5 minutes. The remaining are estimates and may be inaccurate."
           },
           referral: {
@@ -12195,6 +12336,78 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         pinnedFriends: {
           pin: "Pin to top",
           unpin: "Unpin"
+        },
+        richLinks: {
+          by: "By {{name}}",
+          members: "{{count}} Members",
+          playing: "{{count}} Playing",
+          visits: "{{count}} Visits",
+          loading: "Loading...",
+          free: "Free",
+          offSale: "Off sale"
+        },
+        privateApiDocs: {
+          title: "RoValra API",
+          loading: "Loading API documentation...",
+          loadFailed: "Failed to load API documentation: {{error}}",
+          noAccess: "You don't have access to these docs.",
+          serverError: "The server responded with {{status}}.",
+          invalidSpec: "The server returned an invalid OpenAPI document.",
+          baseUrl: "Base URL: {{url}}",
+          apiVersion: "API version",
+          openApiVersion: "OpenAPI version",
+          server: "Server",
+          sendToken: "Send my RoValra access token",
+          filterLabel: "Filter endpoints",
+          filterPlaceholder: "Path, summary or tag",
+          hideDeprecated: "Hide deprecated",
+          noEndpoints: "No endpoints found.",
+          deprecated: "Deprecated",
+          deprecatedTooltip: "This endpoint is deprecated.",
+          authRequired: "Authentication required",
+          authOptional: "Authentication optional",
+          schemeNotSent: "Requires {{name}}, which this page doesn't send.",
+          operationId: "Operation ID",
+          security: "Auth: {{schemes}}",
+          securityOptional: "Auth: {{schemes}} (optional)",
+          securityTooltip: "Security requirements",
+          parameters: "Parameters",
+          noParameters: "No parameters",
+          tryItOut: "Try it out",
+          name: "Name",
+          description: "Description",
+          required: "required",
+          availableValues: "Available values: {{values}}",
+          requestBody: "Request body",
+          requestContentType: "Request content type",
+          exampleValue: "Example Value",
+          schema: "Schema",
+          responses: "Responses",
+          noResponses: "No documented responses",
+          code: "Code",
+          details: "Details",
+          execute: "Execute",
+          clear: "Clear",
+          missingParams: "Missing required parameters: {{params}}",
+          invalidJson: "Request body is not valid JSON: {{error}}",
+          bodyRequired: "A request body is required.",
+          confirmTitle: "Send request?",
+          confirmMessage: "This will send a {{method}} request to {{path}}. Only continue if you understand what it does.",
+          send: "Send",
+          sending: "Sending request...",
+          requestFailed: "Request failed: {{error}}",
+          curl: "Curl",
+          requestUrl: "Request URL",
+          serverResponse: "Server response",
+          responseBody: "Response body",
+          responseHeaders: "Response headers",
+          emptyResponse: "(empty response)",
+          responseImage: "Response image",
+          duration: "{{ms}} ms",
+          durationTooltip: "Request duration",
+          contentType: "Content type",
+          redirected: "Redirected",
+          copy: "Copy"
         }
       };
     }
@@ -13130,7 +13343,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         modernRobuxIcon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='16' height='16'%3E%3Cpath d='M15.0762 7.29574C15.6479 6.96571 16.3521 6.96571 16.9238 7.29574L23.0762 10.8479C23.6479 11.1779 24 11.7878 24 12.4479V19.5521C24 20.2122 23.6479 20.8221 23.0762 21.1521L16.9238 24.7043C16.3521 25.0343 15.6479 25.0343 15.0762 24.7043L8.92376 21.1521C8.35214 20.8221 8 20.2122 8 19.5521V12.4479C8 11.7878 8.35214 11.1779 8.92376 10.8479L15.0762 7.29574ZM11.9998 13V19C11.9998 19.5523 12.4475 20 12.9998 20H18.9998C19.5521 20 19.9998 19.5523 19.9998 19V13C19.9998 12.4477 19.5521 12 18.9998 12H12.9998C12.4475 12 11.9998 12.4477 11.9998 13Z' fill='%2393979a'/%3E %3Cpath d='M13.8556 2.56068C15.1825 1.81311 16.8175 1.81311 18.1444 2.56068L26.8556 7.46819C28.1825 8.21577 29 9.59734 29 11.0925V20.9075C29 22.4027 28.1825 23.7842 26.8556 24.5318L18.1444 29.4393C16.8175 30.1869 15.1825 30.1869 13.8556 29.4393L5.14444 24.5318C3.81746 23.7842 3 22.4027 3 20.9075V11.0925C3 9.59734 3.81746 8.21577 5.14444 7.46819L13.8556 2.56068ZM17.1628 4.30319C16.4452 3.89894 15.5548 3.89894 14.8372 4.30319L6.12611 9.2107C5.41362 9.61209 5 10.336 5 11.0925V20.9075C5 21.664 5.41362 22.3879 6.12611 22.7893L14.8372 27.6968C15.5548 28.1011 16.4452 28.1011 17.1628 27.6968L25.8739 22.7893C26.5864 22.3879 27 21.664 27 20.9075V11.0925C27 10.336 26.5864 9.61209 25.8739 9.2107L17.1628 4.30319Z' fill='%2393979a'/%3E%3C/svg%3E",
         brokenAvatar: "https://www.rovalra.com/static/img/broken-avatar-200px.png",
         verifiedBadgeMono: "data:image/svg+xml," + encodeURIComponent(
-          "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32'><path d='M10.1641 3.06852C9.09906 2.78315 8.00434 3.41518 7.71897 4.48022L3.06852 21.8359C2.78315 22.9009 3.41518 23.9957 4.48022 24.281L21.8359 28.9315C22.9009 29.2169 23.9957 28.5848 24.281 27.5198L28.9315 10.1641C29.2169 9.09906 28.5848 8.00434 27.5198 7.71897L10.1641 3.06852ZM21.7071 12.2929C22.0976 12.6834 22.0976 13.3166 21.7071 13.7071L14.7071 20.7071C14.3166 21.0976 13.6834 21.0976 13.2929 20.7071L10.2929 17.7071C9.90237 17.3166 9.90237 16.6834 10.2929 16.2929C10.6834 15.9024 11.3166 15.9024 11.7071 16.2929L14 18.5858L20.2929 12.2929C20.6834 11.9024 21.3166 11.9024 21.7071 12.2929Z' fill='#335fff'/></svg>"
+          "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32'><circle cx='16' cy='16' r='8' fill='white'/><path d='M10.1641 3.06852C9.09906 2.78315 8.00434 3.41518 7.71897 4.48022L3.06852 21.8359C2.78315 22.9009 3.41518 23.9957 4.48022 24.281L21.8359 28.9315C22.9009 29.2169 23.9957 28.5848 24.281 27.5198L28.9315 10.1641C29.2169 9.09906 28.5848 8.00434 27.5198 7.71897L10.1641 3.06852ZM21.7071 12.2929C22.0976 12.6834 22.0976 13.3166 21.7071 13.7071L14.7071 20.7071C14.3166 21.0976 13.6834 21.0976 13.2929 20.7071L10.2929 17.7071C9.90237 17.3166 9.90237 16.6834 10.2929 16.2929C10.6834 15.9024 11.3166 15.9024 11.7071 16.2929L14 18.5858L20.2929 12.2929C20.6834 11.9024 21.3166 11.9024 21.7071 12.2929Z' fill='#335fff'/></svg>"
         ),
         playingIcon: "data:image/svg+xml," + encodeURIComponent(
           "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32'><path d='M11.7142 2.56785C12.0165 1.43977 13.176 0.77031 14.3041 1.07258L20.4318 2.71451C21.5599 3.01678 22.2294 4.17631 21.9271 5.3044L20.2852 11.4321C19.9829 12.5602 18.8234 13.2297 17.6953 12.9274L11.5676 11.2855C10.4395 10.9832 9.77001 9.82369 10.0723 8.6956L11.7142 2.56785Z' fill='currentColor'/><path d='M6.83768 18.9378C7.33735 16.6394 9.37144 15 11.7236 15H20.2758C22.2895 15 24.0702 16.2016 24.8544 17.9896C22.0823 16.4893 18.9997 18.6863 18.9997 21.558V30.292C18.9997 30.4921 19.0147 30.689 19.0435 30.8816C18.1348 30.9572 17.1239 31 15.9997 31C9.18851 31 6.53782 29.4282 5.57598 28.5242C5.06195 28.0411 5.00192 27.3824 5.1067 26.9004L6.83768 18.9378Z' fill='currentColor'/><path d='M30.5172 25.0405C31.1605 25.4412 31.1605 26.4088 30.5172 26.8095L23.5048 31.1764C22.8901 31.5592 22.1202 31.1604 22.0124 30.4603C22.0041 30.4059 21.9997 30.3497 21.9997 30.292V21.558C21.9997 20.7563 22.8424 20.2611 23.5048 20.6736L30.5172 25.0405Z' fill='currentColor'/></svg>"
@@ -13409,33 +13622,33 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     return outfitDetailsCache.set(key, request), request;
   }
   async function applyOutfit(outfitId, currentAvatarType2 = null) {
-    let details = await getOutfitDetails(outfitId);
-    if (details?.playerAvatarType && details.playerAvatarType !== currentAvatarType2 && !(await callRobloxApi({
+    let details2 = await getOutfitDetails(outfitId);
+    if (details2?.playerAvatarType && details2.playerAvatarType !== currentAvatarType2 && !(await callRobloxApi({
       subdomain: "avatar",
       endpoint: "/v1/avatar/set-player-avatar-type",
       method: "POST",
-      body: { playerAvatarType: details.playerAvatarType },
+      body: { playerAvatarType: details2.playerAvatarType },
       noCache: !0
     })).ok)
       return !1;
     let requests = [];
-    return details?.bodyColor3s && requests.push(setBodyColors(details.bodyColor3s)), details?.assets && requests.push(
+    return details2?.bodyColor3s && requests.push(setBodyColors(details2.bodyColor3s)), details2?.assets && requests.push(
       callRobloxApi({
         subdomain: "avatar",
         endpoint: "/v2/avatar/set-wearing-assets",
         method: "POST",
-        body: { assets: details.assets },
+        body: { assets: details2.assets },
         noCache: !0
       })
-    ), details?.scale && requests.push(
+    ), details2?.scale && requests.push(
       callRobloxApi({
         subdomain: "avatar",
         endpoint: "/v1/avatar/set-scales",
         method: "POST",
-        body: details.scale,
+        body: details2.scale,
         noCache: !0
       })
-    ), requests.length === 0 ? !!details?.playerAvatarType : (await Promise.all(requests)).every((response) => response.ok);
+    ), requests.length === 0 ? !!details2?.playerAvatarType : (await Promise.all(requests)).every((response) => response.ok);
   }
   var avatarCache, BODY_COLOR_KEYS, outfitDetailsCache, init_avatar = __esm({
     "src/content/core/apis/avatar.js"() {
@@ -13762,7 +13975,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         backgroundPosition: "center",
         backgroundSize: "contain"
       }), container.appendChild(icon), applyStyles2(container);
-    }, "createCenteredIcon"), applyStyles2 = /* @__PURE__ */ __name((el3) => (el3.alt = altText, Object.assign(el3.style, style), el3), "applyStyles"), createImage = /* @__PURE__ */ __name((imageUrl) => {
+    }, "createCenteredIcon"), applyStyles2 = /* @__PURE__ */ __name((el4) => (el4.alt = altText, Object.assign(el4.style, style), el4), "applyStyles"), createImage = /* @__PURE__ */ __name((imageUrl) => {
       let image = document.createElement("img");
       return image.className = baseClass, image.src = imageUrl, image.onerror = () => {
         image.parentNode && image.replaceWith(createCenteredIcon("icon-broken"));
@@ -14774,8 +14987,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     let textElement = document.createElement("div");
     textElement.className = "text-heading-medium rovalra-gamelaunch-text", textElement.style.color = "var(--rovalra-main-text-color)", textElement.innerHTML = purify.sanitize(
       parseMarkdown("Searching For Servers...")
-    ), textElement.querySelectorAll(".rovalra-markdown *").forEach((el3) => {
-      el3.style.color = "inherit";
+    ), textElement.querySelectorAll(".rovalra-markdown *").forEach((el4) => {
+      el4.style.color = "inherit";
     }), bodyWrapper.appendChild(textElement);
     let infoContainer = document.createElement("div");
     infoContainer.className = "rovalra-gamelaunch-info-container", bodyWrapper.appendChild(infoContainer);
@@ -14822,7 +15035,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
   function updateLoadingOverlayText(text3) {
     activeInstance?.textElement && (activeInstance.textElement.innerHTML = purify.sanitize(
       parseMarkdown(text3)
-    ), activeInstance.textElement.querySelectorAll(".rovalra-markdown *").forEach((el3) => el3.style.color = "inherit"));
+    ), activeInstance.textElement.querySelectorAll(".rovalra-markdown *").forEach((el4) => el4.style.color = "inherit"));
   }
   function updateServerInfo(gameName, iconUrl, detailsHtml) {
     if (!activeInstance?.infoContainer) return;
@@ -15153,9 +15366,9 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         let chunkSize = 5;
         for (let j2 = 0; j2 < servers.length; j2 += chunkSize) {
           if (stopCheck && stopCheck()) return null;
-          let chunk = servers.slice(j2, j2 + chunkSize);
+          let chunk2 = servers.slice(j2, j2 + chunkSize);
           await Promise.all(
-            chunk.map(async (server) => {
+            chunk2.map(async (server) => {
               if (joinedServerIds2.has(server.id)) return;
               let regionId = await fetchServerRegion(
                 server,
@@ -15656,9 +15869,9 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     ), stripped = originalName.replace(prefixPattern, "").replace(/^[-–—:|>]+\s*/u, "").replace(/\s*[\])]+$/u, "").trim();
     return stripped && stripped.toLowerCase() !== rootName.toLowerCase() ? stripped : originalName;
   }
-  function appendCardLine(card, className, text3, title = "") {
+  function appendCardLine(card2, className, text3, title = "") {
     let element = document.createElement("div");
-    return element.className = className, element.textContent = text3, title && (element.title = title), card.appendChild(element), element;
+    return element.className = className, element.textContent = text3, title && (element.title = title), card2.appendChild(element), element;
   }
   function getJoinIds(place, presence) {
     return getPresenceIds({
@@ -15698,34 +15911,34 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     return joinSubplacePersonInstance(place, presence);
   }
   function buildCard({ place, presence, loading: loading2 = !1, failed = !1 }) {
-    let card = document.createElement("div");
-    if (card.className = "rovalra-subplace-hover-card", appendCardLine(card, "rovalra-subplace-hover-kicker", "Subplace"), loading2)
-      return appendCardLine(card, "rovalra-subplace-hover-title", "Loading..."), card;
+    let card2 = document.createElement("div");
+    if (card2.className = "rovalra-subplace-hover-card", appendCardLine(card2, "rovalra-subplace-hover-kicker", "Subplace"), loading2)
+      return appendCardLine(card2, "rovalra-subplace-hover-title", "Loading..."), card2;
     if (failed || !place || place.root)
-      return appendCardLine(card, "rovalra-subplace-hover-title", "Unavailable"), card;
+      return appendCardLine(card2, "rovalra-subplace-hover-title", "Unavailable"), card2;
     let subplaceName = getSubplaceName(place, presence?.lastLocation || "");
     return appendCardLine(
-      card,
+      card2,
       "rovalra-subplace-hover-title",
       subplaceName,
       subplaceName
     ), appendCardLine(
-      card,
+      card2,
       "rovalra-subplace-hover-meta",
       `Subplace ID: ${place.placeId}`
     ), place.rootPlaceId && appendCardLine(
-      card,
+      card2,
       "rovalra-subplace-hover-meta",
       `Root place ID: ${place.rootPlaceId}`
-    ), card;
+    ), card2;
   }
   async function buildDetailedHoverCard({ place, presence }) {
     if (!place || place.root) return null;
-    let card = document.createElement("div");
-    card.className = "rovalra-subplace-hover-card rovalra-subplace-hover-card-detailed";
+    let card2 = document.createElement("div");
+    card2.className = "rovalra-subplace-hover-card rovalra-subplace-hover-card-detailed";
     let list = await createProfileSubplaceListCard(presence);
     if (!list) return null;
-    list.classList.add("rovalra-subplace-hover-list"), card.appendChild(list);
+    list.classList.add("rovalra-subplace-hover-list"), card2.appendChild(list);
     let meta = document.createElement("div");
     return meta.className = "rovalra-subplace-hover-details", appendCardLine(
       meta,
@@ -15735,29 +15948,29 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       meta,
       "rovalra-subplace-hover-meta",
       `Root place ID: ${place.rootPlaceId}`
-    ), card.appendChild(meta), card;
+    ), card2.appendChild(meta), card2;
   }
-  function positionCard(target, card) {
-    let rect = target.getBoundingClientRect(), margin = 8, cardRect = card.getBoundingClientRect(), top = rect.bottom + margin + window.scrollY, left = rect.left + rect.width / 2 - cardRect.width / 2 + window.scrollX;
+  function positionCard(target, card2) {
+    let rect = target.getBoundingClientRect(), margin = 8, cardRect = card2.getBoundingClientRect(), top = rect.bottom + margin + window.scrollY, left = rect.left + rect.width / 2 - cardRect.width / 2 + window.scrollX;
     left = Math.max(
       margin + window.scrollX,
       Math.min(
         left,
         window.scrollX + window.innerWidth - cardRect.width - margin
       )
-    ), top + cardRect.height > window.scrollY + window.innerHeight - margin && (top = rect.top - cardRect.height - margin + window.scrollY), card.style.top = `${Math.max(margin + window.scrollY, top)}px`, card.style.left = `${left}px`;
+    ), top + cardRect.height > window.scrollY + window.innerHeight - margin && (top = rect.top - cardRect.height - margin + window.scrollY), card2.style.top = `${Math.max(margin + window.scrollY, top)}px`, card2.style.left = `${left}px`;
   }
   function attachSubplaceCardToPresenceTarget(target, presence, options = {}) {
     if (!target || !presence || presence.userPresenceType !== 2) return;
     let ids = getPresenceIds(presence);
     if (!ids.placeId || ids.rootPlaceId && ids.placeId === ids.rootPlaceId) return;
     clearSubplaceCardFromPresenceTarget(target), target.classList.add("rovalra-subplace-hover-target"), target.dataset.rovalraPresencePlaceId = ids.placeId, ids.rootPlaceId && (target.dataset.rovalraPresenceRootPlaceId = ids.rootPlaceId), ids.universeId && (target.dataset.rovalraPresenceUniverseId = ids.universeId), presence.userId && (target.dataset.rovalraPresenceUserId = String(presence.userId)), presence.gameId && (target.dataset.rovalraPresenceGameId = String(presence.gameId));
-    let card = null, hideTimer = null, removeTimer = null, loadedPlace = null, loadingPromise = null, detailedCardPromise = null, isPointerOnCard = !1, isPointerOnTarget = !1, boundHoverCards = /* @__PURE__ */ new WeakSet(), clearRemoveTimer = /* @__PURE__ */ __name(() => {
+    let card2 = null, hideTimer = null, removeTimer = null, loadedPlace = null, loadingPromise = null, detailedCardPromise = null, isPointerOnCard = !1, isPointerOnTarget = !1, boundHoverCards = /* @__PURE__ */ new WeakSet(), clearRemoveTimer = /* @__PURE__ */ __name(() => {
       removeTimer && (clearTimeout(removeTimer), removeTimer = null);
     }, "clearRemoveTimer"), removeCard = /* @__PURE__ */ __name(({ immediate = !1 } = {}) => {
-      if (clearTimeout(hideTimer), hideTimer = null, clearRemoveTimer(), !card) return;
-      let cardToRemove = card;
-      if (card = null, immediate) {
+      if (clearTimeout(hideTimer), hideTimer = null, clearRemoveTimer(), !card2) return;
+      let cardToRemove = card2;
+      if (card2 = null, immediate) {
         cardToRemove.remove(), cardToRemove.classList.remove(
           "rovalra-subplace-hover-card-visible",
           "rovalra-subplace-hover-card-leaving"
@@ -15768,28 +15981,28 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         cardToRemove.remove(), cardToRemove.classList.remove(
           "rovalra-subplace-hover-card-visible",
           "rovalra-subplace-hover-card-leaving"
-        ), card || (removeTimer = null);
+        ), card2 || (removeTimer = null);
       }, 190);
     }, "removeCard"), scheduleHide = /* @__PURE__ */ __name(() => {
       clearTimeout(hideTimer), hideTimer = setTimeout(() => {
         !isPointerOnTarget && !isPointerOnCard && removeCard();
       }, 180);
     }, "scheduleHide"), bindCardHover = /* @__PURE__ */ __name(() => {
-      !card || boundHoverCards.has(card) || (boundHoverCards.add(card), card.addEventListener("mouseenter", () => {
-        isPointerOnCard = !0, clearTimeout(hideTimer), clearRemoveTimer(), card?.classList.remove("rovalra-subplace-hover-card-leaving"), card?.classList.add("rovalra-subplace-hover-card-visible");
-      }), card.addEventListener("mouseleave", () => {
+      !card2 || boundHoverCards.has(card2) || (boundHoverCards.add(card2), card2.addEventListener("mouseenter", () => {
+        isPointerOnCard = !0, clearTimeout(hideTimer), clearRemoveTimer(), card2?.classList.remove("rovalra-subplace-hover-card-leaving"), card2?.classList.add("rovalra-subplace-hover-card-visible");
+      }), card2.addEventListener("mouseleave", () => {
         isPointerOnCard = !1, scheduleHide();
       }));
     }, "bindCardHover"), mountCard = /* @__PURE__ */ __name((nextCard) => {
       if (nextCard) {
-        if (clearRemoveTimer(), nextCard.classList.remove("rovalra-subplace-hover-card-leaving"), nextCard.classList.remove("rovalra-subplace-hover-card-visible"), card && card !== nextCard)
+        if (clearRemoveTimer(), nextCard.classList.remove("rovalra-subplace-hover-card-leaving"), nextCard.classList.remove("rovalra-subplace-hover-card-visible"), card2 && card2 !== nextCard)
           removeCard({ immediate: !0 });
-        else if (card === nextCard) {
-          positionCard(target, card);
+        else if (card2 === nextCard) {
+          positionCard(target, card2);
           return;
         }
-        card = nextCard, options.className && card.classList.add(options.className), document.body.appendChild(card), positionCard(target, card), nextCard.offsetWidth, requestAnimationFrame(() => {
-          card === nextCard && nextCard.classList.add("rovalra-subplace-hover-card-visible");
+        card2 = nextCard, options.className && card2.classList.add(options.className), document.body.appendChild(card2), positionCard(target, card2), nextCard.offsetWidth, requestAnimationFrame(() => {
+          card2 === nextCard && nextCard.classList.add("rovalra-subplace-hover-card-visible");
         }), bindCardHover();
       }
     }, "mountCard"), render2 = /* @__PURE__ */ __name((state5 = {}) => {
@@ -15826,7 +16039,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     }, "onTargetEnter"), onTargetLeave = /* @__PURE__ */ __name(() => {
       isPointerOnTarget = !1, scheduleHide();
     }, "onTargetLeave"), onWindowMove = /* @__PURE__ */ __name(() => {
-      card && positionCard(target, card);
+      card2 && positionCard(target, card2);
     }, "onWindowMove");
     target.addEventListener("mouseenter", onTargetEnter), target.addEventListener("mouseleave", onTargetLeave), window.addEventListener("scroll", onWindowMove, !0), window.addEventListener("resize", onWindowMove), activeCards.set(target, {
       cleanup() {
@@ -15883,8 +16096,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       subplace,
       rootName,
       presence.lastLocation || ""
-    ), icons = await getPlaceIconMap([rootPlaceId, subplace.placeId]), card = document.createElement("div");
-    card.className = "rovalra-profile-subplace-list";
+    ), icons = await getPlaceIconMap([rootPlaceId, subplace.placeId]), card2 = document.createElement("div");
+    card2.className = "rovalra-profile-subplace-list";
     let heading = document.createElement("div");
     heading.className = "rovalra-profile-subplace-list-heading", heading.textContent = ts2("common.subplaceUpper");
     let rootRow = createProfileRow({
@@ -15903,7 +16116,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       universeId: subplace.universeId || presence.universeId || null,
       onClick: /* @__PURE__ */ __name(() => joinSubplacePersonInstance(subplace, presence), "onClick")
     });
-    return card.append(heading, rootRow, subplaceRow), card;
+    return card2.append(heading, rootRow, subplaceRow), card2;
   }
   async function createSubplaceDetailsCard(presence, options = {}) {
     if (!presence || presence.userPresenceType !== 2) return null;
@@ -15911,18 +16124,18 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     if (!place || place.root) return null;
     let list = await createProfileSubplaceListCard(presence);
     if (!list) return null;
-    let card = document.createElement("div");
-    card.className = "rovalra-subplace-details-card", options.className && card.classList.add(options.className), card.appendChild(list);
-    let details = document.createElement("div");
-    return details.className = "rovalra-subplace-hover-details", appendCardLine(
-      details,
+    let card2 = document.createElement("div");
+    card2.className = "rovalra-subplace-details-card", options.className && card2.classList.add(options.className), card2.appendChild(list);
+    let details2 = document.createElement("div");
+    return details2.className = "rovalra-subplace-hover-details", appendCardLine(
+      details2,
       "rovalra-subplace-hover-meta",
       `Subplace ID: ${place.placeId}`
     ), place.rootPlaceId && appendCardLine(
-      details,
+      details2,
       "rovalra-subplace-hover-meta",
       `Root place ID: ${place.rootPlaceId}`
-    ), card.appendChild(details), card;
+    ), card2.appendChild(details2), card2;
   }
   async function createPersistentSubplaceCard(presence, options = {}) {
     if (!presence || presence.userPresenceType !== 2) return null;
@@ -15932,17 +16145,17 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       place,
       rootName,
       presence.lastLocation || ""
-    ), card = document.createElement(options.href ? "a" : "button");
-    card.className = "rovalra-current-subplace-card", card.tagName === "BUTTON" && (card.type = "button"), options.href && (card.href = options.href), options.launchOnClick !== !1 && card.addEventListener("click", async (event) => {
+    ), card2 = document.createElement(options.href ? "a" : "button");
+    card2.className = "rovalra-current-subplace-card", card2.tagName === "BUTTON" && (card2.type = "button"), options.href && (card2.href = options.href), options.launchOnClick !== !1 && card2.addEventListener("click", async (event) => {
       event.preventDefault(), event.stopPropagation(), await joinSubplacePersonInstance(place, presence);
     });
     let label = document.createElement("span");
     label.className = "rovalra-current-subplace-label", label.textContent = ts2("common.subplace");
     let name = document.createElement("span");
-    return name.className = "rovalra-current-subplace-name", name.textContent = subplaceName, name.title = subplaceName, card.append(label, name), options.attachHover !== !1 && attachSubplaceCardToPresenceTarget(card, presence, {
+    return name.className = "rovalra-current-subplace-name", name.textContent = subplaceName, name.title = subplaceName, card2.append(label, name), options.attachHover !== !1 && attachSubplaceCardToPresenceTarget(card2, presence, {
       className: "rovalra-subplace-hover-card-profile",
       detailedHover: !!options.detailedHover
-    }), card;
+    }), card2;
   }
   var placeDetailsCache, activeCards, init_subplaceCard = __esm({
     "src/content/core/ui/profile/subplaceCard.js"() {
@@ -16019,10 +16232,10 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       ));
     });
   }
-  function updateUserCardPresence(card, presenceType, gameName, presenceData = null) {
-    let presence = PRESENCE_MAP[presenceType] || PRESENCE_MAP[0], presenceTitle = presenceType === 2 && gameName ? gameName : presence.title, icon = card.querySelector('[data-testid="presence-icon"]');
+  function updateUserCardPresence(card2, presenceType, gameName, presenceData = null) {
+    let presence = PRESENCE_MAP[presenceType] || PRESENCE_MAP[0], presenceTitle = presenceType === 2 && gameName ? gameName : presence.title, icon = card2.querySelector('[data-testid="presence-icon"]');
     icon && (icon.className = presence.class, icon.title = presenceTitle);
-    let sublabel = card.querySelector(".user-card-subname");
+    let sublabel = card2.querySelector(".user-card-subname");
     sublabel && (clearSubplaceCardFromPresenceTarget(sublabel), gameName && (sublabel.textContent = gameName, sublabel.style.fontSize = "9.6px"), presenceType === 2 && gameName && presenceData && isSubplaceHoverCardEnabled().then((enabled10) => {
       enabled10 && sublabel.isConnected && attachSubplaceCardToPresenceTarget(sublabel, presenceData);
     }).catch(() => {
@@ -16122,7 +16335,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     } = options, hasProvidedPresence = Object.prototype.hasOwnProperty.call(
       options,
       "presence"
-    ), suppliedPresence = hasProvidedPresence ? options.presence : null, presenceType = suppliedPresence?.userPresenceType ?? 0, gameName = presenceType === 2 && suppliedPresence?.lastLocation ? suppliedPresence.lastLocation : null, href = isHidden ? "" : `https://www.roblox.com/users/${item.id}/profile`, card = createUserCard({
+    ), suppliedPresence = hasProvidedPresence ? options.presence : null, presenceType = suppliedPresence?.userPresenceType ?? 0, gameName = presenceType === 2 && suppliedPresence?.lastLocation ? suppliedPresence.lastLocation : null, href = isHidden ? "" : `https://www.roblox.com/users/${item.id}/profile`, card2 = createUserCard({
       displayName: displayName || "",
       username: isHidden ? "" : username || "",
       thumbData: thumbData || { state: "Error" },
@@ -16140,17 +16353,17 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       method: "GET"
     }).then((user) => {
       if (user && user.name) {
-        let nameSpan = card.querySelector(
+        let nameSpan = card2.querySelector(
           ".rovalra-user-card-display-name"
-        ), subname = card.querySelector(".user-card-subname");
+        ), subname = card2.querySelector(".user-card-subname");
         nameSpan && (nameSpan.textContent = user.displayName), subname && (subname.textContent = `@${user.name}`);
       }
     }).catch(() => {
     }), !isHidden && !hasProvidedPresence && fetchPresenceBatched(item.id).then((presence) => {
       if (!presence) return;
       let presenceType2 = presence.userPresenceType ?? 0, gameName2 = presenceType2 === 2 && presence.lastLocation ? presence.lastLocation : null;
-      updateUserCardPresence(card, presenceType2, gameName2, presence);
-    }), card;
+      updateUserCardPresence(card2, presenceType2, gameName2, presence);
+    }), card2;
   }
   var presenceQueue, PRESENCE_MAP, init_userCard = __esm({
     "src/content/core/ui/profile/userCard.js"() {
@@ -16335,8 +16548,12 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         // textuired
         "2020751790",
         // Orellius
-        "200565345"
+        "200565345",
         // krampuszc
+        "2239549101",
+        // TimorousShadow
+        "519742979"
+        // BBasilio2001
       ], TESTER_USER_IDS = [
         "1163412141"
         //Tino
@@ -16357,7 +16574,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         // TimorousShadow
         "519742979",
         // BBasilio2001
-        "3733653415 ",
+        "3733653415",
         // kurdo3660
         "16147087"
         // Edward667
@@ -17283,8 +17500,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     let userSettings = await getUserSettings(userId).catch(() => null);
     return userSettings?.border && userSettings.border !== "none" ? userSettings.border : null;
   }
-  function handleTile(tile, card) {
-    let userId = card?.userId, avatarEl = card?.avatar;
+  function handleTile(tile, card2) {
+    let userId = card2?.userId, avatarEl = card2?.avatar;
     !userId || !avatarEl || tile.dataset.rovalraBorderApplied !== "true" && tile.dataset.rovalraBorderApplied !== String(userId) && (tile.dataset.rovalraBorderApplied = String(userId), removeBorderFromContainer(avatarEl), resolveBorderUrl(userId).then((borderUrl) => {
       let currentUserId = getUserCardContext(tile).userId;
       if (String(currentUserId) !== String(userId) || !borderUrl) return;
@@ -17450,7 +17667,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     let [displayRes, thumbnails] = await Promise.all([
       getUserDisplayName(userId),
       getBatchThumbnails([userId], "AvatarHeadshot", "150x150")
-    ]), card = createUserCard({
+    ]), card2 = createUserCard({
       displayName: displayRes || "User",
       username: "",
       thumbData: thumbnails[0] || { state: "Error" },
@@ -17458,9 +17675,9 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       presenceInfo: 1,
       hidePresence: !0
     });
-    card.style.transform = "scale(1.1)", card.style.margin = "20px 0", container.innerHTML = "", container.appendChild(card);
+    card2.style.transform = "scale(1.1)", card2.style.margin = "20px 0", container.innerHTML = "", container.appendChild(card2);
     let lastBorder = null, lastGradient = null, updatePreview = /* @__PURE__ */ __name(async (liveData = null) => {
-      let avatarEl = card.querySelector(".avatar.avatar-card-fullbody");
+      let avatarEl = card2.querySelector(".avatar.avatar-card-fullbody");
       if (!avatarEl) return;
       let settings2 = await loadSettings(), borderChoice = settings2.avatarBorderChoice || "none", grad = liveData || settings2.profileGradient;
       if (borderChoice !== lastBorder) {
@@ -18435,21 +18652,21 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       subdomain: "catalog",
       endpoint: `/v1/catalog/items/${itemId}/details?itemType=${itemType}`,
       method: "GET"
-    }).then(async (details) => {
-      if (details && details.collectibleItemId)
+    }).then(async (details2) => {
+      if (details2 && details2.collectibleItemId)
         try {
           let marketplaceData = await getMarketplaceItemDetails(
-            details.collectibleItemId
+            details2.collectibleItemId
           );
           if (Array.isArray(marketplaceData) && marketplaceData.length > 0)
-            return { ...details, ...marketplaceData[0] };
+            return { ...details2, ...marketplaceData[0] };
         } catch (error3) {
           console.warn(
             "RoValra: Failed to fetch marketplace details for item",
             error3
           );
         }
-      return details;
+      return details2;
     }).catch((error3) => {
       throw itemDetailsCache.delete(key), error3;
     });
@@ -20023,14 +20240,14 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           ), isUnified = modalWindow.classList.contains("unified-purchase-dialog-content") || modalWindow.classList.contains("foundation-web-dialog-content") || modalWindow.querySelector(".unified-purchase-dialog-content"), robuxPriceElement = null, potentialPrices = modalWindow.querySelectorAll(
             ".text-robux, .text-robux-lg"
           );
-          for (let el3 of potentialPrices)
+          for (let el4 of potentialPrices)
             if (isUnified) {
-              if (!el3.closest("#rbx-unified-purchase-heading")) {
-                robuxPriceElement = el3;
+              if (!el4.closest("#rbx-unified-purchase-heading")) {
+                robuxPriceElement = el4;
                 break;
               }
             } else {
-              robuxPriceElement = el3;
+              robuxPriceElement = el4;
               break;
             }
           let buttonContainer = (buyNowButton ? buyNowButton.parentElement : null) || modalWindow.querySelector(
@@ -20202,12 +20419,12 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
               if (item.id && item.price) {
                 let itemSavingsPercent = 0.4;
                 try {
-                  let details = await getItemDetails(
+                  let details2 = await getItemDetails(
                     item.id,
                     item.type || "Asset"
                   );
-                  if (details && details.assetType) {
-                    let subcategoryId = assetToSubcategoryMap[String(details.assetType)];
+                  if (details2 && details2.assetType) {
+                    let subcategoryId = assetToSubcategoryMap[String(details2.assetType)];
                     classicClothingSubcategories.includes(
                       subcategoryId
                     ) && (itemSavingsPercent = 0.4);
@@ -20544,10 +20761,10 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       "pointer-events",
       "none",
       "important"
-    )), inputElement.type === "checkbox" && (inputElement.disabled = !0)) : isDisabled2 ? (wrapper.classList.add("disabled-setting"), wrapper.style.opacity = "0.5", wrapper.style.setProperty("pointer-events", "none", "important"), wrapper.querySelectorAll("input, select, button").forEach((el3) => {
-      el3.disabled = !0;
-    })) : (wrapper.classList.remove("disabled-setting"), wrapper.style.opacity = "1", wrapper.classList.contains("setting-locked") || wrapper.style.setProperty("pointer-events", "auto"), wrapper.querySelectorAll("input, select, button").forEach((el3) => {
-      wrapper.classList.contains("setting-locked") || (el3.disabled = !1);
+    )), inputElement.type === "checkbox" && (inputElement.disabled = !0)) : isDisabled2 ? (wrapper.classList.add("disabled-setting"), wrapper.style.opacity = "0.5", wrapper.style.setProperty("pointer-events", "none", "important"), wrapper.querySelectorAll("input, select, button").forEach((el4) => {
+      el4.disabled = !0;
+    })) : (wrapper.classList.remove("disabled-setting"), wrapper.style.opacity = "1", wrapper.classList.contains("setting-locked") || wrapper.style.setProperty("pointer-events", "auto"), wrapper.querySelectorAll("input, select, button").forEach((el4) => {
+      wrapper.classList.contains("setting-locked") || (el4.disabled = !1);
     }), toggleSwitch && (toggleSwitch.style.opacity = "1", wrapper.classList.contains("setting-locked") || toggleSwitch.style.setProperty("pointer-events", "auto")));
   }
   function updateConditionalSettingsVisibility(settingsContent, currentSettings) {
@@ -20581,7 +20798,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       let controlledSettingName = toggle.dataset.controlsSetting, numberInputContainer = settingsContent.querySelector(`#${controlledSettingName}`)?.closest(".rovalra-number-input-container");
       if (numberInputContainer) {
         let isDisabled2 = !toggle.checked;
-        numberInputContainer.style.opacity = isDisabled2 ? "0.5" : "1", numberInputContainer.style.pointerEvents = isDisabled2 ? "none" : "auto", numberInputContainer.querySelectorAll("input, button").forEach((el3) => el3.disabled = isDisabled2);
+        numberInputContainer.style.opacity = isDisabled2 ? "0.5" : "1", numberInputContainer.style.pointerEvents = isDisabled2 ? "none" : "auto", numberInputContainer.querySelectorAll("input, button").forEach((el4) => el4.disabled = isDisabled2);
       }
     });
   }
@@ -21538,18 +21755,18 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           let reasonLine = document.createElement("div");
           reasonLine.className = "lock-reason-text", reasonLine.textContent = reason, notice.append(statusLine, reasonLine), wrapper.prepend(notice), isLocked ? (Array.from(wrapper.children).forEach((child) => {
             child.classList.contains("rovalra-lock-notice") || (child.style.opacity = "0.5");
-          }), wrapper.querySelectorAll("input, select, button").forEach((el3) => {
-            el3.dataset.forceEnabled || (el3.disabled = !0);
+          }), wrapper.querySelectorAll("input, select, button").forEach((el4) => {
+            el4.dataset.forceEnabled || (el4.disabled = !0);
           })) : (Array.from(wrapper.children).forEach((child) => {
             child.style.opacity = "";
-          }), wrapper.querySelectorAll("input, select, button").forEach((el3) => {
-            !wrapper.classList.contains("disabled-setting") && !wrapper.classList.contains("setting-locked") && (el3.disabled = !1);
+          }), wrapper.querySelectorAll("input, select, button").forEach((el4) => {
+            !wrapper.classList.contains("disabled-setting") && !wrapper.classList.contains("setting-locked") && (el4.disabled = !1);
           }));
         } else
           wrapper.classList.remove("setting-locked"), wrapper.classList.remove("donator-locked"), wrapper.style.removeProperty("opacity"), wrapper.style.removeProperty("filter"), wrapper.classList.contains("disabled-setting") || wrapper.style.setProperty("pointer-events", "auto"), Array.from(wrapper.children).forEach((child) => {
             child.style.opacity = "";
-          }), wrapper.querySelectorAll("input, select, button").forEach((el3) => {
-            !wrapper.classList.contains("disabled-setting") && !wrapper.classList.contains("setting-locked") && (el3.disabled = !1);
+          }), wrapper.querySelectorAll("input, select, button").forEach((el4) => {
+            !wrapper.classList.contains("disabled-setting") && !wrapper.classList.contains("setting-locked") && (el4.disabled = !1);
           });
       }, "applyLockedState"), checkSettingLocks = /* @__PURE__ */ __name(async (settingsContent, currentSettings) => {
         let data = await chrome.storage.local.get([
@@ -22265,10 +22482,10 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     }
     let allPending = (await new Promise(
       (resolve) => chrome.storage.local.get([UNFRIEND_PENDING_KEY], resolve)
-    ))[UNFRIEND_PENDING_KEY] || {}, pending2 = allPending[userId] || [], stillUnfriended = pending2.filter(
+    ))[UNFRIEND_PENDING_KEY] || {}, pending3 = allPending[userId] || [], stillUnfriended = pending3.filter(
       (friend) => !currentIds.has(friend.id)
     );
-    stillUnfriended.length !== pending2.length && (allPending[userId] = stillUnfriended, await new Promise(
+    stillUnfriended.length !== pending3.length && (allPending[userId] = stillUnfriended, await new Promise(
       (resolve) => chrome.storage.local.set(
         { [UNFRIEND_PENDING_KEY]: allPending },
         resolve
@@ -22468,7 +22685,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     placeQueue.clear(), placeTimer = null;
     let ids = Array.from(currentMap.keys());
     for (let i2 = 0; i2 < ids.length; i2 += MAX_BATCH) {
-      let chunk = ids.slice(i2, i2 + MAX_BATCH), query = chunk.map((id) => `placeIds=${encodeURIComponent(id)}`).join("&");
+      let chunk2 = ids.slice(i2, i2 + MAX_BATCH), query = chunk2.map((id) => `placeIds=${encodeURIComponent(id)}`).join("&");
       fetchWithRetry("games", `/v1/games/multiget-place-details?${query}`).then((data) => {
         let detailsByPlaceId = new Map(
           (Array.isArray(data) ? data : []).map((detail) => [
@@ -22476,7 +22693,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             detail
           ])
         );
-        chunk.forEach((id) => {
+        chunk2.forEach((id) => {
           let resolvers = currentMap.get(id), detail = detailsByPlaceId.get(id);
           detail ? resolvers.forEach(
             (resolver) => resolver.resolve(detail)
@@ -22485,7 +22702,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           );
         });
       }).catch((error3) => {
-        chunk.forEach((id) => {
+        chunk2.forEach((id) => {
           let resolvers = currentMap.get(id);
           resolvers && resolvers.forEach((resolver) => resolver.reject(error3));
         });
@@ -22503,15 +22720,15 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     fallbackVoteQueue.clear(), fallbackVoteTimer = null;
     let ids = Array.from(currentMap.keys());
     for (let i2 = 0; i2 < ids.length; i2 += MAX_BATCH) {
-      let chunk = ids.slice(i2, i2 + MAX_BATCH);
+      let chunk2 = ids.slice(i2, i2 + MAX_BATCH);
       fetchWithRetry(
         "games",
-        `/v1/games/votes?universeIds=${chunk.join(",")}`
+        `/v1/games/votes?universeIds=${chunk2.join(",")}`
       ).then((data) => {
         let voteMap = new Map(
           (data?.data || []).map((vote) => [String(vote.id), vote])
         );
-        chunk.forEach((id) => {
+        chunk2.forEach((id) => {
           let vote = voteMap.get(id) || {
             upVotes: 0,
             downVotes: 0
@@ -22519,7 +22736,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           currentMap.get(id).forEach((resolver) => resolver.resolve(vote));
         });
       }).catch((error3) => {
-        chunk.forEach((id) => {
+        chunk2.forEach((id) => {
           currentMap.get(id).forEach((resolver) => resolver.reject(error3));
         });
       });
@@ -22541,17 +22758,17 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
     let ids = Array.from(currentMap.keys());
     if (ids.length !== 0)
       for (let i2 = 0; i2 < ids.length; i2 += MAX_BATCH) {
-        let chunk = ids.slice(i2, i2 + MAX_BATCH), idsStr = [1, ...chunk].join(",");
+        let chunk2 = ids.slice(i2, i2 + MAX_BATCH), idsStr = [1, ...chunk2].join(",");
         fetchWithRetry("games", `/v1/games?universeIds=${idsStr}`).then((gamesData) => {
           let games3 = gamesData?.data || [], gameMap = new Map(games3.map((g2) => [g2.id, g2]));
-          chunk.forEach((id) => {
+          chunk2.forEach((id) => {
             let resolvers = currentMap.get(id), game = gameMap.get(id);
             game ? resolvers.forEach((r) => r.resolve({ game })) : resolvers.forEach(
               (r) => r.reject(new Error("Game not found"))
             );
           });
         }).catch((err4) => {
-          chunk.forEach((id) => {
+          chunk2.forEach((id) => {
             let resolvers = currentMap.get(id);
             resolvers && resolvers.forEach((r) => r.reject(err4));
           });
@@ -22587,8 +22804,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       customInfoText = null
     } = options;
     if ((!game || !stats) && (gameId || placeId || game?.id || game?.rootPlaceId)) {
-      let card2 = document.createElement("div");
-      return card2.className = "rovalra-game-card", card2.innerHTML = `
+      let card3 = document.createElement("div");
+      return card3.className = "rovalra-game-card", card3.innerHTML = `
             <div class="game-card-thumb-container shimmer"></div>
             <div class="game-card-name game-name-title shimmer"></div>
             <div class="game-card-name game-name-title game-name-title-half shimmer"></div>
@@ -22676,15 +22893,15 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             thumbStyle,
             friendData: fetchedFriendData
           });
-          card2.replaceWith(realCard);
+          card3.replaceWith(realCard);
         } catch (e) {
-          console.warn("RoValra: Error creating game card from ID", e), card2.innerHTML = `<div style="padding: 10px; color: var(--text-error);">${ts2("games.failedToLoad")}</div>`;
+          console.warn("RoValra: Error creating game card from ID", e), card3.innerHTML = `<div style="padding: 10px; color: var(--text-error);">${ts2("games.failedToLoad")}</div>`;
         }
-      })(), card2;
+      })(), card3;
     }
     if (!game) return document.createElement("div");
-    let voteData = stats?.likes?.get(game.id) || { ratio: 0, total: 0 }, playerCount = stats?.players?.get(game.id) || 0, formattedPlayerCount = formatPlayerCount(playerCount), thumbnailData = stats?.thumbnails?.get(game.id), card = document.createElement("div");
-    card.className = "rovalra-game-card";
+    let voteData = stats?.likes?.get(game.id) || { ratio: 0, total: 0 }, playerCount = stats?.players?.get(game.id) || 0, formattedPlayerCount = formatPlayerCount(playerCount), thumbnailData = stats?.thumbnails?.get(game.id), card2 = document.createElement("div");
+    card2.className = "rovalra-game-card";
     let infoHtml;
     if (friendData ? infoHtml = `
             <div class="game-card-friend-info game-card-info" data-testid="game-tile-stats-friends">
@@ -22717,19 +22934,19 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
                         <span class="info-label playing-counts-label" title="${playerCount.toLocaleString()}">${formattedPlayerCount}</span>
                     ` : ""}
                 </div>
-            `, card.innerHTML = `
+            `, card2.innerHTML = `
         <a class="game-card-link" href="https://www.roblox.com/games/${placeId || game.rootPlaceId}/unnamed">
             <div class="game-card-thumb-container"></div>
             ${safeHtml`<div class="game-card-name" title="${game.name}">${game.name}</div>`}
             ${infoHtml}
         </a>
     `, friendData?.allFriends && friendData.allFriends.length > 0) {
-      let friendInfoElement = card.querySelector(".game-card-friend-info");
+      let friendInfoElement = card2.querySelector(".game-card-friend-info");
       friendInfoElement && (friendInfoElement.style.cursor = "pointer", friendInfoElement.addEventListener("click", (e) => {
         e.preventDefault(), e.stopPropagation(), showFriendListOverlay(friendData.allFriends, game.name);
       }));
     }
-    let thumbContainer = card.querySelector(".game-card-thumb-container");
+    let thumbContainer = card2.querySelector(".game-card-thumb-container");
     return thumbContainer && thumbContainer.appendChild(
       createThumbnailElement(
         thumbnailData,
@@ -22737,7 +22954,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
         "game-card-thumb",
         thumbStyle
       )
-    ), card;
+    ), card2;
   }
   var BATCH_WAIT, MAX_BATCH, placeQueue, placeTimer, universeQueue, universeTimer, fallbackVoteQueue, fallbackVoteTimer, friendCachePromise, init_gameCard = __esm({
     "src/content/core/ui/games/gameCard.js"() {
@@ -22762,6 +22979,549 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       __name(createGameCard, "createGameCard");
     }
   });
+
+  // src/firefox/scrollbarCss.mjs
+  var RULE_REGEX = /([^{}]+)\{([^{}]*)\}/g, PSEUDO_REGEX = /::-webkit-scrollbar(-thumb|-track)?$/;
+  function getDeclaration(declarations, property) {
+    let match = declarations.match(
+      new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+)`, "i")
+    );
+    return match ? match[1].trim() : null;
+  }
+  __name(getDeclaration, "getDeclaration");
+  function getColor(declarations) {
+    let value2 = getDeclaration(declarations, "background-color") || getDeclaration(declarations, "background");
+    return !value2 || /url\(|gradient\(/i.test(value2) ? null : value2.replace(/\s*!important\s*$/i, "");
+  }
+  __name(getColor, "getColor");
+  function isZeroOrHidden(declarations) {
+    if (/(?:^|;)\s*display\s*:\s*none/i.test(declarations)) return !0;
+    let width = getDeclaration(declarations, "width"), height = getDeclaration(declarations, "height"), isZero = /* @__PURE__ */ __name((value2) => value2 && /^0(px)?\b/.test(value2), "isZero");
+    return isZero(width) || isZero(height);
+  }
+  __name(isZeroOrHidden, "isZeroOrHidden");
+  function convertWebkitScrollbarCss(cssText) {
+    if (!cssText || !cssText.includes("::-webkit-scrollbar")) return "";
+    let scrollbars = /* @__PURE__ */ new Map(), getEntry = /* @__PURE__ */ __name((selector) => (scrollbars.has(selector) || scrollbars.set(selector, {}), scrollbars.get(selector)), "getEntry");
+    for (let [, selectorText, declarations] of cssText.matchAll(RULE_REGEX))
+      if (selectorText.includes("::-webkit-scrollbar"))
+        for (let rawSelector of selectorText.split(",")) {
+          let selector = rawSelector.trim(), match = selector.match(PSEUDO_REGEX);
+          if (!match) continue;
+          let base = selector.slice(0, match.index).trim() || "*", entry = getEntry(base);
+          /!important/i.test(declarations) && (entry.important = !0), match[1] ? match[1] === "-thumb" ? entry.thumb = getColor(declarations) ?? entry.thumb : match[1] === "-track" && (entry.track = getColor(declarations) ?? entry.track) : isZeroOrHidden(declarations) ? entry.width = "none" : (getDeclaration(declarations, "width") || getDeclaration(declarations, "height")) && (entry.width ??= "thin");
+        }
+    let output = "";
+    for (let [selector, entry] of scrollbars) {
+      let important = entry.important ? " !important" : "", declarations = [];
+      entry.width && declarations.push(`scrollbar-width: ${entry.width}${important}`), entry.thumb && entry.width !== "none" && declarations.push(
+        `scrollbar-color: ${entry.thumb} ${entry.track || "transparent"}${important}`
+      ), declarations.length && (output += `${selector} { ${declarations.join("; ")}; }
+`);
+    }
+    return output;
+  }
+  __name(convertWebkitScrollbarCss, "convertWebkitScrollbarCss");
+
+  // src/content/core/firefoxCompat.js
+  var CSP_ALLOWED_HOST = /(^|\.)(roblox\.com|rbxcdn\.com|rblx\.org|robloxlabs\.com|rbx\.com)$/i;
+  function getCspBlockedUrl(url) {
+    if (!url) return null;
+    try {
+      let parsed = new URL(url, location.href);
+      return parsed.protocol !== "https:" && parsed.protocol !== "http:" || CSP_ALLOWED_HOST.test(parsed.hostname) ? null : parsed.href;
+    } catch {
+      return null;
+    }
+  }
+  __name(getCspBlockedUrl, "getCspBlockedUrl");
+  function getHttpUrl(url) {
+    if (!url) return null;
+    try {
+      let parsed = new URL(url, location.href);
+      return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+    } catch {
+      return null;
+    }
+  }
+  __name(getHttpUrl, "getHttpUrl");
+  function arrayBufferToBase64(buffer2) {
+    let bytes = new Uint8Array(buffer2), binary = "";
+    for (let i2 = 0; i2 < bytes.length; i2 += 32768)
+      binary += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
+    return btoa(binary);
+  }
+  __name(arrayBufferToBase64, "arrayBufferToBase64");
+  function sendBackgroundMessage(message) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(message, (response) => {
+        chrome.runtime.lastError ? reject(new Error(chrome.runtime.lastError.message)) : resolve(response);
+      });
+    });
+  }
+  __name(sendBackgroundMessage, "sendBackgroundMessage");
+  function patchHoverState() {
+    let hoveredElement = null, isTracking = !1, onOver = /* @__PURE__ */ __name((event) => {
+      isTracking = !0, hoveredElement = event.target;
+    }, "onOver"), onOut = /* @__PURE__ */ __name((event) => {
+      isTracking = !0, hoveredElement = event.relatedTarget;
+    }, "onOut");
+    for (let [type, handler] of [
+      ["pointerover", onOver],
+      ["mouseover", onOver],
+      ["pointerout", onOut],
+      ["mouseout", onOut]
+    ])
+      window.addEventListener(type, handler, {
+        capture: !0,
+        passive: !0
+      });
+    let nativeMatches = Element.prototype.matches;
+    Element.prototype.matches = /* @__PURE__ */ __name(function(selector) {
+      return isTracking && typeof selector == "string" && selector.trim() === ":hover" ? !!hoveredElement?.isConnected && (this === hoveredElement || this.contains(hoveredElement)) : nativeMatches.call(this, selector);
+    }, "matches");
+  }
+  __name(patchHoverState, "patchHoverState");
+  function bindWindowFunctions() {
+    [
+      "setTimeout",
+      "clearTimeout",
+      "setInterval",
+      "clearInterval",
+      "requestAnimationFrame",
+      "cancelAnimationFrame",
+      "requestIdleCallback",
+      "cancelIdleCallback",
+      "queueMicrotask",
+      "getComputedStyle",
+      "matchMedia",
+      "getSelection",
+      "atob",
+      "btoa"
+    ].forEach((name) => {
+      typeof window[name] == "function" && (window[name] = window[name].bind(window));
+    });
+  }
+  __name(bindWindowFunctions, "bindWindowFunctions");
+  function patchCustomEventDetail() {
+    let NativeCustomEvent = window.CustomEvent, PatchedCustomEvent = /* @__PURE__ */ __name(function(type, init181) {
+      if (init181 && init181.detail !== null && typeof init181.detail == "object")
+        try {
+          init181 = { ...init181, detail: cloneInto(init181.detail, window) };
+        } catch {
+        }
+      return new NativeCustomEvent(type, init181);
+    }, "CustomEvent");
+    PatchedCustomEvent.prototype = NativeCustomEvent.prototype, window.CustomEvent = PatchedCustomEvent, globalThis.CustomEvent = PatchedCustomEvent;
+    let nativeDetailGetter = Object.getOwnPropertyDescriptor(
+      NativeCustomEvent.prototype,
+      "detail"
+    ).get, detailCopies = /* @__PURE__ */ new WeakMap();
+    Object.defineProperty(NativeCustomEvent.prototype, "detail", {
+      configurable: !0,
+      enumerable: !0,
+      get() {
+        let detail = nativeDetailGetter.call(this);
+        if (detail === null || typeof detail != "object") return detail;
+        if (detailCopies.has(this)) return detailCopies.get(this);
+        let copy2 = detail;
+        try {
+          copy2 = structuredClone(detail);
+        } catch {
+          try {
+            copy2 = JSON.parse(JSON.stringify(detail));
+          } catch {
+          }
+        }
+        return detailCopies.set(this, copy2), copy2;
+      }
+    });
+  }
+  __name(patchCustomEventDetail, "patchCustomEventDetail");
+  function replayMissedPageEvents() {
+    let REPLAY_PREFIX = "rovalra-firefox-replay", proto = EventTarget.prototype, nativeAddEventListener = proto.addEventListener, nativeRemoveEventListener = proto.removeEventListener, replayResponse = null;
+    nativeAddEventListener.call(
+      document,
+      `${REPLAY_PREFIX}-response`,
+      (event) => {
+        replayResponse = event.detail;
+      }
+    ), proto.addEventListener = /* @__PURE__ */ __name(function(type, listener, options) {
+      nativeAddEventListener.call(this, type, listener, options);
+      let targetName = this === window ? "window" : this === document ? "document" : null;
+      if (!listener || !targetName || typeof type != "string" || !/^rovalra[-:_]/i.test(type) || type.startsWith(REPLAY_PREFIX))
+        return;
+      replayResponse = null, document.dispatchEvent(
+        new CustomEvent(`${REPLAY_PREFIX}-request`, {
+          detail: { type, target: targetName }
+        })
+      );
+      let missedDetails = replayResponse?.details || [];
+      if (replayResponse = null, !missedDetails.length) return;
+      let newerEventArrived = !1, markNewerEvent = /* @__PURE__ */ __name(() => {
+        newerEventArrived = !0;
+      }, "markNewerEvent");
+      nativeAddEventListener.call(this, type, markNewerEvent, { once: !0 }), Promise.resolve().then(() => {
+        if (nativeRemoveEventListener.call(this, type, markNewerEvent), newerEventArrived) return;
+        let once = typeof options == "object" && options?.once;
+        once && nativeRemoveEventListener.call(this, type, listener, options);
+        for (let detail of once ? missedDetails.slice(-1) : missedDetails) {
+          let event = new CustomEvent(type, { detail });
+          try {
+            typeof listener == "function" ? listener.call(this, event) : listener.handleEvent?.(event);
+          } catch (error3) {
+            console.error(error3);
+          }
+        }
+      });
+    }, "addEventListener");
+  }
+  __name(replayMissedPageEvents, "replayMissedPageEvents");
+  function patchResponseBodies() {
+    let toOwnBuffer = /* @__PURE__ */ __name((buffer2) => structuredClone(buffer2), "toOwnBuffer");
+    Response.prototype.json = /* @__PURE__ */ __name(async function() {
+      return JSON.parse(await this.text());
+    }, "json");
+    let nativeResponseArrayBuffer = Response.prototype.arrayBuffer;
+    Response.prototype.arrayBuffer = /* @__PURE__ */ __name(async function() {
+      return toOwnBuffer(await nativeResponseArrayBuffer.call(this));
+    }, "arrayBuffer"), typeof Response.prototype.bytes == "function" && (Response.prototype.bytes = /* @__PURE__ */ __name(async function() {
+      return new Uint8Array(await this.arrayBuffer());
+    }, "bytes"));
+    let nativeBlobArrayBuffer = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = /* @__PURE__ */ __name(async function() {
+      return toOwnBuffer(await nativeBlobArrayBuffer.call(this));
+    }, "arrayBuffer"), typeof Blob.prototype.bytes == "function" && (Blob.prototype.bytes = /* @__PURE__ */ __name(async function() {
+      return new Uint8Array(await this.arrayBuffer());
+    }, "bytes"));
+    let nativeXhrResponse = Object.getOwnPropertyDescriptor(
+      XMLHttpRequest.prototype,
+      "response"
+    );
+    Object.defineProperty(XMLHttpRequest.prototype, "response", {
+      configurable: !0,
+      enumerable: !0,
+      get() {
+        let response = nativeXhrResponse.get.call(this);
+        if (response && typeof response == "object" && (this.responseType === "arraybuffer" || this.responseType === "json"))
+          try {
+            return structuredClone(response);
+          } catch {
+            return response;
+          }
+        return response;
+      }
+    });
+  }
+  __name(patchResponseBodies, "patchResponseBodies");
+  function patchIterables() {
+    [window.Headers, window.URLSearchParams, window.FormData].forEach(
+      (Ctor) => {
+        if (!Ctor?.prototype?.forEach) return;
+        let proto = Ctor.prototype, nativeForEach = proto.forEach, getPairs = /* @__PURE__ */ __name((target) => {
+          let pairs = [];
+          return nativeForEach.call(
+            target,
+            (value2, key) => pairs.push([key, value2])
+          ), pairs;
+        }, "getPairs");
+        proto.entries = /* @__PURE__ */ __name(function() {
+          return getPairs(this)[Symbol.iterator]();
+        }, "entries"), proto.keys = /* @__PURE__ */ __name(function() {
+          return getPairs(this).map(([key]) => key)[Symbol.iterator]();
+        }, "keys"), proto.values = /* @__PURE__ */ __name(function() {
+          return getPairs(this).map(([, value2]) => value2)[Symbol.iterator]();
+        }, "values"), proto[Symbol.iterator] = proto.entries;
+      }
+    );
+  }
+  __name(patchIterables, "patchIterables");
+  function patchFetch() {
+    let nativeFetch = globalThis.fetch.bind(globalThis), NULL_BODY_STATUSES = [101, 204, 205, 304], headersToObject = /* @__PURE__ */ __name((headers) => {
+      let result = {};
+      return new Headers(headers || {}).forEach((value2, key) => {
+        result[key] = value2;
+      }), result;
+    }, "headersToObject"), proxiedFetch = /* @__PURE__ */ __name(async function(input, init181 = {}) {
+      let isRequest = input instanceof Request, url = getCspBlockedUrl(isRequest ? input.url : String(input));
+      if (!url) return nativeFetch(input, init181);
+      let { method, headers, body, credentials, cache: cache2, redirect, signal } = init181;
+      if (isRequest && (method ??= input.method, headers ??= input.headers, credentials ??= input.credentials, cache2 ??= input.cache, redirect ??= input.redirect, signal ??= input.signal, body === void 0 && !["GET", "HEAD"].includes(input.method) && (body = await input.clone().arrayBuffer())), typeof ReadableStream < "u" && body instanceof ReadableStream)
+        return nativeFetch(input, init181);
+      body instanceof URLSearchParams && (body = body.toString()), body instanceof Blob && (body = await body.arrayBuffer()), body instanceof FormData && (body = await new Response(body).arrayBuffer()), signal?.throwIfAborted();
+      let response = await sendBackgroundMessage({
+        action: "proxyFetch",
+        url,
+        options: {
+          method,
+          headers: headersToObject(headers),
+          body,
+          credentials,
+          cache: cache2,
+          redirect
+        }
+      }).catch(() => null);
+      if (signal?.throwIfAborted(), !response || response.error)
+        throw new TypeError(
+          response?.error || "NetworkError when attempting to fetch resource."
+        );
+      let { body: responseBody, ...responseInit } = response;
+      return new Response(
+        NULL_BODY_STATUSES.includes(responseInit.status) ? null : responseBody,
+        responseInit
+      );
+    }, "fetch");
+    window.fetch = proxiedFetch, globalThis.fetch = proxiedFetch;
+  }
+  __name(patchFetch, "patchFetch");
+  function loadRemoteFonts() {
+    let FONT_FACE_REGEX = /@font-face\s*\{[^}]*\}/gi, SRC_URL_REGEX = /url\(\s*(['"]?)([^'")]+)\1\s*\)\s*(?:format\(\s*(['"]?)([^'")]+)\3\s*\))?/gi, fontDataUrls = /* @__PURE__ */ new Map(), handledFonts = /* @__PURE__ */ new Set(), handledLinks = /* @__PURE__ */ new WeakSet(), getDescriptor = /* @__PURE__ */ __name((block, name) => block.match(
+      new RegExp(`(?:^|[{;\\s])${name}\\s*:\\s*([^;}]+)`, "i")
+    )?.[1]?.trim().replace(/^['"]|['"]$/g, ""), "getDescriptor"), fetchAsDataUrl = /* @__PURE__ */ __name((url) => (fontDataUrls.has(url) || fontDataUrls.set(
+      url,
+      /* Verified */
+      fetch(url).then(async (response) => {
+        if (!response.ok) throw new Error(response.status);
+        let type = response.headers.get("content-type")?.split(";")[0] || "font/woff2", base64 = arrayBufferToBase64(
+          await response.arrayBuffer()
+        );
+        return `data:${type};base64,${base64}`;
+      }).catch(() => null)
+    ), fontDataUrls.get(url)), "fetchAsDataUrl"), loadFontFace = /* @__PURE__ */ __name(async (block, baseUrl) => {
+      let family = getDescriptor(block, "font-family");
+      if (!family) return;
+      let sources = [...block.matchAll(SRC_URL_REGEX)].map((match) => {
+        try {
+          return {
+            url: getHttpUrl(new URL(match[2], baseUrl).href),
+            format: match[4]
+          };
+        } catch {
+          return { url: null };
+        }
+      }).filter((source2) => source2.url), source = sources.find((s) => /woff2/i.test(s.format || s.url)) || sources[0];
+      if (!source) return;
+      let descriptors = {};
+      for (let [property, key] of [
+        ["font-weight", "weight"],
+        ["font-style", "style"],
+        ["font-stretch", "stretch"],
+        ["font-display", "display"],
+        ["unicode-range", "unicodeRange"]
+      ]) {
+        let value2 = getDescriptor(block, property);
+        value2 && (descriptors[key] = value2);
+      }
+      let fontKey = `${family}|${JSON.stringify(descriptors)}|${source.url}`;
+      if (handledFonts.has(fontKey)) return;
+      handledFonts.add(fontKey);
+      let dataUrl = await fetchAsDataUrl(source.url);
+      if (!dataUrl) return;
+      let format = source.format ? ` format("${source.format}")` : "";
+      try {
+        let face = new FontFace(
+          family,
+          `url("${dataUrl}")${format}`,
+          cloneInto(descriptors, window)
+        );
+        document.fonts.add(face), await face.load();
+      } catch (error3) {
+        console.warn("RoValra: Failed to load font", family, error3);
+      }
+    }, "loadFontFace"), loadFontsFromCss = /* @__PURE__ */ __name((cssText, baseUrl) => Promise.all(
+      (cssText.match(FONT_FACE_REGEX) || []).map(
+        (block) => loadFontFace(block, baseUrl)
+      )
+    ), "loadFontsFromCss");
+    [
+      ...new Set(
+        chrome.runtime.getManifest().content_scripts.flatMap((script) => script.css || [])
+      )
+    ].forEach((file) => {
+      let url = chrome.runtime.getURL(file);
+      fetch(url).then((response) => response.text()).then((css) => loadFontsFromCss(css, url)).catch(() => {
+      });
+    });
+    let handleLink = /* @__PURE__ */ __name((link) => {
+      if (handledLinks.has(link) || !/\bstylesheet\b/i.test(link.rel || "")) return;
+      let url = getCspBlockedUrl(link.href);
+      url && (handledLinks.add(link), fetch(url).then((response) => {
+        if (!response.ok) throw new Error(response.status);
+        return response.text();
+      }).then((css) => {
+        let rules = css.replace(FONT_FACE_REGEX, "").trim();
+        if (rules) {
+          let style = (
+            /* Verified */
+            document.createElement("style")
+          );
+          style.dataset.rovalraFirefoxStylesheet = url, style.textContent = rules, link.after(style);
+        }
+        return loadFontsFromCss(css, url);
+      }).catch(() => {
+      }));
+    }, "handleLink"), handleTree = /* @__PURE__ */ __name((node) => {
+      node.nodeType === Node.ELEMENT_NODE && (node.tagName === "LINK" ? handleLink(node) : node.querySelectorAll('link[rel~="stylesheet"]').forEach(
+        handleLink
+      ));
+    }, "handleTree");
+    new MutationObserver((mutations) => {
+      for (let mutation of mutations)
+        mutation.addedNodes.forEach(handleTree);
+    }).observe(document, { childList: !0, subtree: !0 }), document.documentElement && handleTree(document.documentElement);
+  }
+  __name(loadRemoteFonts, "loadRemoteFonts");
+  function patchIconSizeAttribute() {
+    if (CSS.supports("width: attr(size type(<length>))")) return;
+    let PRESET_SIZES = /* @__PURE__ */ new Set([
+      "xsmall",
+      "x-small",
+      "xs",
+      "small",
+      "s",
+      "medium",
+      "med",
+      "m",
+      "large",
+      "l",
+      "xl",
+      "x-large",
+      "xlarge",
+      "xxl",
+      "xxlarge",
+      "xx-large"
+    ]), syncIconSize = /* @__PURE__ */ __name((icon) => {
+      let size = icon.getAttribute("size")?.trim();
+      size && !PRESET_SIZES.has(size) && CSS.supports("width", size) ? icon.style.getPropertyValue("--icon-size") !== size && icon.style.setProperty("--icon-size", size) : icon.style.getPropertyValue("--icon-size") && icon.style.removeProperty("--icon-size");
+    }, "syncIconSize"), syncTree = /* @__PURE__ */ __name((node) => {
+      node.nodeType === Node.ELEMENT_NODE && (node.tagName === "ICON" && syncIconSize(node), node.querySelectorAll("icon[size]").forEach(syncIconSize));
+    }, "syncTree");
+    new MutationObserver((mutations) => {
+      for (let mutation of mutations)
+        mutation.type === "attributes" ? syncIconSize(mutation.target) : mutation.addedNodes.forEach(syncTree);
+    }).observe(document, {
+      childList: !0,
+      subtree: !0,
+      attributes: !0,
+      attributeFilter: ["size"]
+    }), document.documentElement && syncTree(document.documentElement);
+  }
+  __name(patchIconSizeAttribute, "patchIconSizeAttribute");
+  function patchScrollbarStyles() {
+    let companions = /* @__PURE__ */ new WeakMap(), syncStyle = /* @__PURE__ */ __name((style) => {
+      if (style.dataset.rovalraFirefoxScrollbars) return;
+      let firefoxCss = convertWebkitScrollbarCss(style.textContent), companion = companions.get(style);
+      if (!firefoxCss) {
+        companion?.remove();
+        return;
+      }
+      companion || (companion = /* Verified */
+      document.createElement("style"), companion.dataset.rovalraFirefoxScrollbars = "true", companions.set(style, companion)), companion.textContent !== firefoxCss && (companion.textContent = firefoxCss), companion.previousSibling !== style && style.after(companion);
+    }, "syncStyle"), syncTree = /* @__PURE__ */ __name((node) => {
+      node.nodeType === Node.ELEMENT_NODE && (node.tagName === "STYLE" ? syncStyle(node) : node.querySelectorAll("style").forEach(syncStyle));
+    }, "syncTree");
+    new MutationObserver((mutations) => {
+      for (let mutation of mutations) {
+        let target = mutation.target.nodeType === Node.ELEMENT_NODE ? mutation.target : mutation.target.parentElement;
+        target?.tagName === "STYLE" && syncStyle(target), mutation.addedNodes.forEach(syncTree);
+      }
+    }).observe(document, {
+      childList: !0,
+      subtree: !0,
+      characterData: !0
+    }), document.documentElement && syncTree(document.documentElement);
+  }
+  __name(patchScrollbarStyles, "patchScrollbarStyles");
+  function initExternalImageProxy() {
+    let CSS_URL_REGEX = /url\(\s*(['"]?)(.*?)\1\s*\)/g, dataUrlCache = /* @__PURE__ */ new Map(), toDataUrl = /* @__PURE__ */ __name((url) => (dataUrlCache.has(url) || dataUrlCache.set(
+      url,
+      sendBackgroundMessage({ action: "fetchImageAsDataUrl", url }).then((response) => {
+        if (!response?.dataUrl) throw new Error("No image");
+        return response.dataUrl;
+      }).catch(() => (dataUrlCache.delete(url), null))
+    ), dataUrlCache.get(url)), "toDataUrl"), imgProto = HTMLImageElement.prototype, nativeSrc = Object.getOwnPropertyDescriptor(imgProto, "src"), nativeSrcset = Object.getOwnPropertyDescriptor(imgProto, "srcset"), nativeSetAttribute = Element.prototype.setAttribute, nativeRemoveAttribute = Element.prototype.removeAttribute, proxiedSources = /* @__PURE__ */ new WeakMap(), getProxiedImageUrl = /* @__PURE__ */ __name((img, url) => getCspBlockedUrl(url) || (img.hasAttribute("crossorigin") ? getHttpUrl(url) : null), "getProxiedImageUrl"), setImageSrc = /* @__PURE__ */ __name((img, value2) => {
+      let blockedUrl = getProxiedImageUrl(img, String(value2));
+      if (!blockedUrl) {
+        proxiedSources.delete(img), nativeSrc.set.call(img, value2);
+        return;
+      }
+      proxiedSources.set(img, blockedUrl), toDataUrl(blockedUrl).then((dataUrl) => {
+        proxiedSources.get(img) === blockedUrl && nativeSrc.set.call(img, dataUrl || blockedUrl);
+      });
+    }, "setImageSrc"), setImageSrcset = /* @__PURE__ */ __name((img, value2) => {
+      let candidates = String(value2).split(",").map((part) => part.trim().split(/\s+/)[0]).filter(Boolean);
+      if (!candidates.some((candidate) => getCspBlockedUrl(candidate))) {
+        nativeSrcset.set.call(img, value2);
+        return;
+      }
+      !img.getAttribute("src") && candidates[0] && setImageSrc(img, candidates[0]);
+    }, "setImageSrcset");
+    Object.defineProperty(imgProto, "src", {
+      configurable: !0,
+      enumerable: !0,
+      get() {
+        let current = nativeSrc.get.call(this), original = proxiedSources.get(this);
+        return original && (!current || current.startsWith("data:")) ? original : current;
+      },
+      set(value2) {
+        setImageSrc(this, value2);
+      }
+    }), Object.defineProperty(imgProto, "srcset", {
+      configurable: !0,
+      enumerable: !0,
+      get() {
+        return nativeSrcset.get.call(this);
+      },
+      set(value2) {
+        setImageSrcset(this, value2);
+      }
+    }), Element.prototype.setAttribute = /* @__PURE__ */ __name(function(name, value2) {
+      if (this.tagName === "IMG") {
+        let attribute = String(name).toLowerCase();
+        if (attribute === "src") return setImageSrc(this, value2);
+        if (attribute === "srcset") return setImageSrcset(this, value2);
+      }
+      return nativeSetAttribute.call(this, name, value2);
+    }, "setAttribute"), Element.prototype.removeAttribute = /* @__PURE__ */ __name(function(name) {
+      return this.tagName === "IMG" && String(name).toLowerCase() === "src" && proxiedSources.delete(this), nativeRemoveAttribute.call(this, name);
+    }, "removeAttribute");
+    let fixImage = /* @__PURE__ */ __name((img) => {
+      let srcset = img.getAttribute("srcset");
+      srcset && srcset.split(",").some((part) => getCspBlockedUrl(part.trim().split(/\s+/)[0])) && (img.removeAttribute("srcset"), img.getAttribute("src") || img.setAttribute("src", srcset.trim().split(/\s+/)[0]));
+      let src = img.getAttribute("src"), blockedUrl = getProxiedImageUrl(img, src);
+      blockedUrl && toDataUrl(blockedUrl).then((dataUrl) => {
+        dataUrl && img.getAttribute("src") === src && (img.dataset.rovalraOriginalSrc = blockedUrl, img.setAttribute("src", dataUrl));
+      });
+    }, "fixImage"), fixInlineBackground = /* @__PURE__ */ __name((el4) => {
+      let style = el4.getAttribute("style");
+      if (!style || !style.includes("url(")) return;
+      let backgroundImage = el4.style.backgroundImage, blockedUrls = [...backgroundImage.matchAll(CSS_URL_REGEX)].map((match) => [match[2], getCspBlockedUrl(match[2])]).filter(([, blockedUrl]) => blockedUrl);
+      blockedUrls.length && Promise.all(
+        blockedUrls.map(([, blockedUrl]) => toDataUrl(blockedUrl))
+      ).then((dataUrls) => {
+        if (el4.style.backgroundImage !== backgroundImage) return;
+        let updated = backgroundImage;
+        blockedUrls.forEach(([original], i2) => {
+          dataUrls[i2] && (updated = updated.split(original).join(dataUrls[i2]));
+        }), updated !== backgroundImage && (el4.style.backgroundImage = updated);
+      });
+    }, "fixInlineBackground"), fixElement = /* @__PURE__ */ __name((el4) => {
+      el4.tagName === "IMG" && fixImage(el4), fixInlineBackground(el4);
+    }, "fixElement"), fixTree = /* @__PURE__ */ __name((root) => {
+      root.nodeType === Node.ELEMENT_NODE && (fixElement(root), root.querySelectorAll('img, [style*="url("]').forEach(fixElement));
+    }, "fixTree");
+    new MutationObserver((mutations) => {
+      for (let mutation of mutations)
+        mutation.type === "attributes" ? fixElement(mutation.target) : mutation.addedNodes.forEach(fixTree);
+    }).observe(document, {
+      childList: !0,
+      subtree: !0,
+      attributes: !0,
+      attributeFilter: ["src", "srcset", "style"]
+    }), document.documentElement && fixTree(document.documentElement);
+  }
+  __name(initExternalImageProxy, "initExternalImageProxy");
+  typeof cloneInto == "function" && (bindWindowFunctions(), patchHoverState(), patchCustomEventDetail(), replayMissedPageEvents(), patchResponseBodies(), patchIterables(), patchFetch(), patchScrollbarStyles(), patchIconSizeAttribute(), loadRemoteFonts(), initExternalImageProxy());
 
   // src/content/index.js
   init_observer();
@@ -23114,15 +23874,15 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
   __name(stopLiveUptimeTicker, "stopLiveUptimeTicker");
   function attachLiveUptimeListener() {
     stopLiveUptimeTicker();
-    let el3 = document.querySelector(".rovalra-live-uptime");
-    if (!el3) return;
-    let serverId = el3.dataset.rovalraUptimeServerid;
+    let el4 = document.querySelector(".rovalra-live-uptime");
+    if (!el4) return;
+    let serverId = el4.dataset.rovalraUptimeServerid;
     serverId && (liveUptimeInterval = setInterval(() => {
-      if (!el3.isConnected) {
+      if (!el4.isConnected) {
         stopLiveUptimeTicker();
         return;
       }
-      let valEl = el3.querySelector(".uptime-value"), uptime = getServerUptime(serverId);
+      let valEl = el4.querySelector(".uptime-value"), uptime = getServerUptime(serverId);
       !valEl || uptime === null || (valEl.textContent = formatUptime(
         uptime,
         getServerUptimeIsEstimate(serverId)
@@ -23295,7 +24055,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
       { revertLogo: !1, customLogoData: null },
       (settings2) => {
         if (settings2.revertLogo === !0 && settings2.customLogoData) {
-          let callback = /* @__PURE__ */ __name((el3) => applyCustomLogo(settings2.customLogoData, el3), "callback");
+          let callback = /* @__PURE__ */ __name((el4) => applyCustomLogo(settings2.customLogoData, el4), "callback");
           targetSelectors.forEach(
             (selector) => observeElement(selector, callback)
           );
@@ -23510,10 +24270,10 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
                   null,
                   null,
                   null
-                ), details = await gameDetailsPromise;
+                ), details2 = await gameDetailsPromise;
                 updateServerInfo(
-                  details.name,
-                  details.iconUrl,
+                  details2.name,
+                  details2.iconUrl,
                   htmlDetails
                 ), attachLiveUptimeListener(), updateLoadingOverlayText(
                   await t2("revertLogo.waitingForRoblox")
@@ -23522,8 +24282,8 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
               pollClientStatus(placeId);
             } catch (e) {
               console.error("Rendering error:", e);
-              let details = await gameDetailsPromise;
-              updateServerInfo(details.name, details.iconUrl, null), updateLoadingOverlayText(await t2("revertLogo.launching")), pollClientStatus(placeId);
+              let details2 = await gameDetailsPromise;
+              updateServerInfo(details2.name, details2.iconUrl, null), updateLoadingOverlayText(await t2("revertLogo.launching")), pollClientStatus(placeId);
             }
         }, "processGameLaunchData");
         settings2.whatamIJoiningEnabled && observeGameLaunch(processGameLaunchData);
@@ -23870,7 +24630,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
   init_tooltip();
   function createNavbarButton({ id, iconSvgData, iconData, tooltipText, onClick: onClick2 }) {
     return new Promise((resolve) => {
-      let init174 = /* @__PURE__ */ __name(() => {
+      let init181 = /* @__PURE__ */ __name(() => {
         observeElement("ul.navbar-right.rbx-navbar-icon-group", (navbar) => {
           if (document.getElementById(id)) {
             resolve(document.getElementById(id).querySelector("button"));
@@ -23903,7 +24663,7 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
           searchIcon ? navbar.insertBefore(li, searchIcon.nextSibling) : navbar.insertBefore(li, navbar.firstChild), resolve(button);
         });
       }, "init");
-      document.readyState === "complete" ? init174() : window.addEventListener("load", init174, { once: !0 });
+      document.readyState === "complete" ? init181() : window.addEventListener("load", init181, { once: !0 });
     });
   }
   __name(createNavbarButton, "createNavbarButton");
@@ -24141,13 +24901,13 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
             let iconsRow = document.createElement("div");
             iconsRow.style.display = "flex", iconsRow.style.alignItems = "center", iconsRow.style.gap = "8px", iconsRow.style.marginTop = "6px", iconsRow.style.flexWrap = "wrap", iconsRow.style.color = "var(--rovalra-main-text-color)";
             let addPlatIcon = /* @__PURE__ */ __name((assetKey, tooltipText, filled = !1, material = !1) => {
-              let el3 = Icon({
+              let el4 = Icon({
                 icon: assetKey,
                 filled,
                 material,
                 size: "20px"
               });
-              addTooltip(el3, tooltipText, { position: "bottom" }), iconsRow.appendChild(el3);
+              addTooltip(el4, tooltipText, { position: "bottom" }), iconsRow.appendChild(el4);
             }, "addPlatIcon");
             item.activeStatus === "PROGRAM_ACTIVE_STATUS_ALLOWLIST" && addPlatIcon(
               "format_list_bulleted",
@@ -24263,17 +25023,17 @@ Upon joining, the "Offline Donations" UI will appear with their username pre-fil
               continue;
             }
             onProgress(`Buffering ${currentSegment + 1}/${segments.length}`);
-            let chunk = null, attempts = 0;
-            for (; !chunk && attempts < 3 && !isClosed(); )
+            let chunk2 = null, attempts = 0;
+            for (; !chunk2 && attempts < 3 && !isClosed(); )
               try {
-                chunk = await fetchBuffer(segments[currentSegment]);
+                chunk2 = await fetchBuffer(segments[currentSegment]);
               } catch {
                 attempts++, console.warn(`Retry ${attempts}/3 for segment ${currentSegment}`), await new Promise((r) => setTimeout(r, 1e3));
               }
-            if (!chunk && !isClosed())
+            if (!chunk2 && !isClosed())
               throw new Error(`Failed to load segment ${currentSegment}`);
             if (isClosed()) break;
-            fullFileChunks.push(chunk), await appendChunk(sourceBuffer, chunk), currentSegment++;
+            fullFileChunks.push(chunk2), await appendChunk(sourceBuffer, chunk2), currentSegment++;
           }
           isClosed() || (mediaSource.endOfStream(), onProgress("Complete"), resolve(new Blob(fullFileChunks, { type: "video/webm" })));
         } catch (err4) {
@@ -24764,6 +25524,1294 @@ function run() {
   }
   __name(init13, "init");
 
+  // src/content/features/developer/privateApiDocs.js
+  init_i18n();
+  init_observer();
+  init_api();
+  init_oauth();
+  init_dropdown();
+  init_input();
+  init_buttons();
+  init_pill();
+
+  // src/content/core/ui/general/pillToggle.js
+  init_pill();
+  function createPillToggle({ options, initialValue, onChange }) {
+    let container = document.createElement("div");
+    container.className = "rovalra-pill-toggle bg-shift-300 radius-circle flex items-center", container.style.display = "inline-flex", container.style.alignSelf = "flex-start", container.style.gap = "var(--padding-xsmall)", container.style.padding = "2px";
+    let selectedValue = initialValue, buttons = /* @__PURE__ */ new Map();
+    options.forEach((option) => {
+      let pillButton = createPill(option.text, option.tooltip, { isButton: !0 });
+      pillButton.dataset.value = option.value, pillButton.classList.remove("bg-shift-300"), pillButton.style.backgroundColor = "transparent";
+      let content = pillButton.querySelector("span");
+      content && (content.style.position = "relative", content.style.zIndex = "2"), container.appendChild(pillButton), buttons.set(option.value, pillButton), pillButton.addEventListener("click", () => {
+        pillButton.classList.contains("disabled") || String(selectedValue) === String(option.value) || (selectedValue = option.value, updateSelected(), onChange && onChange(selectedValue));
+      });
+    });
+    function updateSelected() {
+      for (let [value2, button] of buttons.entries()) {
+        let presentation = button.querySelector('div[role="presentation"]');
+        String(value2) === String(selectedValue) ? (button.classList.replace("content-action-utility", "content-default"), presentation.style.backgroundColor = "var(--color-surface-100)") : (button.classList.replace("content-default", "content-action-utility"), presentation.style.backgroundColor = "transparent");
+      }
+    }
+    return __name(updateSelected, "updateSelected"), selectedValue === void 0 && options.length > 0 && (selectedValue = options[0].value), selectedValue !== void 0 && updateSelected(), container;
+  }
+  __name(createPillToggle, "createPillToggle");
+
+  // src/content/features/developer/privateApiDocs.js
+  init_spinner();
+  init_tooltip();
+  init_confirmationPrompt();
+
+  // src/content/core/ui/sidebarLink.js
+  init_observer();
+  init_getSettings();
+  var COMMUNITY_PATH = "/communities", STATE_SYNC_DELAYS = [0, 50, 150, 350, 750, 1200], SIDEBAR_COMMUNITY_SELECTOR = [
+    '#left-navigation-container a[href*="/communities"]',
+    '#navigation a[href*="/communities"]',
+    '.navigation a[href*="/communities"]'
+  ].join(", "), LINK_CLASS = "content-emphasis text-title-large flex items-center gap-small padding-left-xsmall padding-right-xxsmall radius-medium relative clip group/interactable focus-visible:outline-focus disabled:outline-none", lastObservedPath = window.location.pathname, locationWatcherStarted = !1;
+  function normalizePath(href) {
+    if (!href) return "";
+    try {
+      return new URL(href, window.location.origin).pathname;
+    } catch {
+      return "";
+    }
+  }
+  __name(normalizePath, "normalizePath");
+  function stripLocalePrefix(path) {
+    return path.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/)/i, "");
+  }
+  __name(stripLocalePrefix, "stripLocalePrefix");
+  function matchesRoute(pathname, route) {
+    let normalizedPath = stripLocalePrefix(pathname).toLowerCase(), normalizedRoute = route.toLowerCase();
+    return normalizedPath === normalizedRoute || normalizedPath.startsWith(`${normalizedRoute}/`);
+  }
+  __name(matchesRoute, "matchesRoute");
+  function getSidebarContainer(anchor) {
+    return anchor.closest('ul, ol, nav, [role="navigation"]');
+  }
+  __name(getSidebarContainer, "getSidebarContainer");
+  function getSidebarItem(sidebar, link) {
+    let current = link;
+    for (; current?.parentElement && current.parentElement !== sidebar; )
+      current = current.parentElement;
+    return current?.parentElement === sidebar ? current : link.parentElement;
+  }
+  __name(getSidebarItem, "getSidebarItem");
+  function stripClonedState(item) {
+    [item, ...item.querySelectorAll("*")].forEach((element) => {
+      element.removeAttribute("id"), element.removeAttribute("aria-current"), element.removeAttribute("aria-selected"), [...element.attributes].forEach((attribute) => {
+        attribute.name.startsWith("data-") && element.removeAttribute(attribute.name);
+      }), element.classList.remove(
+        "active",
+        "selected",
+        "active-menu-item",
+        "selected-menu-item",
+        "router-link-active",
+        "router-link-exact-active"
+      );
+    });
+  }
+  __name(stripClonedState, "stripClonedState");
+  function findIconHost(link) {
+    let directChildren = [...link.children];
+    return directChildren.find(
+      (child) => child.querySelector('svg, [class*="icon"], [class*="Icon"]')
+    ) || directChildren.find(
+      (child) => child.className?.toString().toLowerCase().includes("icon")
+    ) || directChildren.find((child) => !child.textContent.trim());
+  }
+  __name(findIconHost, "findIconHost");
+  function setLinkLabel(link, label) {
+    let labelTarget = [...link.querySelectorAll("*")].filter(
+      (element) => element.children.length === 0 && element.textContent.trim()
+    ).at(-1);
+    if (labelTarget) {
+      labelTarget.textContent = label;
+      return;
+    }
+    let span = document.createElement("span");
+    span.textContent = label, link.appendChild(span);
+  }
+  __name(setLinkLabel, "setLinkLabel");
+  function clearInlineActiveStyles(item) {
+    [item, ...item.querySelectorAll("*")].forEach((element) => {
+      element.style.removeProperty("background"), element.style.removeProperty("background-color"), element.style.removeProperty("border-radius"), element.style.removeProperty("color");
+    });
+  }
+  __name(clearInlineActiveStyles, "clearInlineActiveStyles");
+  function startLocationWatcher() {
+    locationWatcherStarted || (locationWatcherStarted = !0, setInterval(() => {
+      window.location.pathname !== lastObservedPath && (lastObservedPath = window.location.pathname, window.dispatchEvent(new Event("rovalra:locationchange")));
+    }, 1e3));
+  }
+  __name(startLocationWatcher, "startLocationWatcher");
+  function initSidebarLink({
+    id,
+    path,
+    label,
+    createIcon: createIcon3,
+    settingKeys,
+    legacySelectors = []
+  }) {
+    let itemSelector = `[data-rovalra-sidebar-item="${id}"]`, linkSelector = `a[data-rovalra-sidebar-link="${id}"]`, settingValues = /* @__PURE__ */ new Map(), enabled10 = !1, getLabel = /* @__PURE__ */ __name(() => typeof label == "function" ? label() : label, "getLabel"), updateActiveState = /* @__PURE__ */ __name((sidebar) => {
+      let item = sidebar.querySelector(itemSelector), link = sidebar.querySelector(linkSelector);
+      !item || !link || (stripClonedState(item), item.dataset.rovalraSidebarItem = id, link.dataset.rovalraSidebarLink = id, link.className = LINK_CLASS, matchesRoute(window.location.pathname, path) ? (link.setAttribute("aria-current", "page"), link.classList.add("bg-surface-300")) : clearInlineActiveStyles(item));
+    }, "updateActiveState"), attachStateSync = /* @__PURE__ */ __name((sidebar) => {
+      let syncKey = `rovalraSidebarSync_${id.replace(/[^a-zA-Z0-9]/g, "")}`;
+      if (sidebar.dataset[syncKey] === "true") return;
+      sidebar.dataset[syncKey] = "true";
+      let syncSoon = /* @__PURE__ */ __name(() => {
+        STATE_SYNC_DELAYS.forEach((delay) => {
+          if (delay === 0) {
+            requestAnimationFrame(() => updateActiveState(sidebar));
+            return;
+          }
+          setTimeout(() => updateActiveState(sidebar), delay);
+        });
+      }, "syncSoon");
+      sidebar.addEventListener("click", syncSoon, !0), window.addEventListener("popstate", syncSoon), window.addEventListener("rovalra:locationchange", syncSoon);
+    }, "attachStateSync"), createItem = /* @__PURE__ */ __name((sidebar, communityLink) => {
+      let templateItem = getSidebarItem(sidebar, communityLink);
+      if (!templateItem) return null;
+      let item = templateItem.cloneNode(!0), link = item.querySelector("a[href]");
+      if (!link) return null;
+      stripClonedState(item), link.className = LINK_CLASS;
+      let iconHost = findIconHost(link);
+      return iconHost ? iconHost.replaceChildren(createIcon3()) : link.prepend(createIcon3()), setLinkLabel(link, getLabel()), link.setAttribute("href", path), link.dataset.rovalraSidebarLink = id, item.dataset.rovalraSidebarItem = id, item;
+    }, "createItem"), insertLink = /* @__PURE__ */ __name((communityLink) => {
+      if (!enabled10 || !matchesRoute(normalizePath(communityLink.href), COMMUNITY_PATH))
+        return;
+      let sidebar = getSidebarContainer(communityLink);
+      if (!sidebar) return;
+      if (sidebar.querySelector(
+        [linkSelector, ...legacySelectors].join(", ")
+      )) {
+        updateActiveState(sidebar), attachStateSync(sidebar);
+        return;
+      }
+      let communityItem = getSidebarItem(sidebar, communityLink), newItem = createItem(sidebar, communityLink);
+      !communityItem || !newItem || (communityItem.insertAdjacentElement("afterend", newItem), updateActiveState(sidebar), attachStateSync(sidebar));
+    }, "insertLink"), refresh4 = /* @__PURE__ */ __name(() => {
+      enabled10 = settingKeys.every((key) => settingValues.get(key) === !0), enabled10 ? document.querySelectorAll(SIDEBAR_COMMUNITY_SELECTOR).forEach(insertLink) : document.querySelectorAll(itemSelector).forEach((item) => item.remove());
+    }, "refresh");
+    (async () => {
+      startLocationWatcher();
+      for (let key of settingKeys)
+        settingValues.set(key, await settings[key]);
+      refresh4(), observeElement(SIDEBAR_COMMUNITY_SELECTOR, insertLink, {
+        multiple: !0
+      }), chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== "local") return;
+        let changedKeys = settingKeys.filter((key) => changes[key]);
+        changedKeys.length && (changedKeys.forEach(
+          (key) => settingValues.set(key, changes[key].newValue)
+        ), refresh4());
+      });
+    })().catch((error3) => {
+      console.error(
+        `RoValra: Failed to initialize sidebar link ${id}.`,
+        error3
+      );
+    });
+  }
+  __name(initSidebarLink, "initSidebarLink");
+
+  // src/content/features/developer/privateApiDocs.js
+  init_getSettings();
+  var PAGE_PATH = "/rovalra-api-docs", SPEC_ENDPOINT = "/private/openapi.json", API_BASE_URL = "https://apis.rovalra.com", STYLE_ID = "rovalra-private-api-docs-style", METHODS = ["get", "post", "put", "patch", "delete", "head", "options"], METHOD_COLORS = {
+    get: "97, 175, 254",
+    post: "73, 204, 144",
+    put: "252, 161, 48",
+    patch: "80, 227, 194",
+    delete: "249, 62, 62",
+    head: "144, 18, 254",
+    options: "13, 90, 167"
+  }, DEPRECATED_COLOR = "125, 132, 146", observerActive2 = !1, STYLES = `
+.rovalra-papi-shell { padding: 24px 20px 60px; max-width: 1460px; margin: 0 auto; color: var(--rovalra-main-text-color); }
+.rovalra-papi-shell code, .rovalra-papi-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.rovalra-papi-info { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
+.rovalra-papi-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; font-size: 36px; font-weight: 800; color: var(--rovalra-main-text-color); }
+.rovalra-papi-title .rovalra-pill { align-self: center; }
+.rovalra-papi-base-url { font-size: 13px; color: var(--rovalra-secondary-text-color); }
+.rovalra-papi-info-desc { margin: 0; font-size: 15px; line-height: 1.5; color: var(--rovalra-main-text-color); }
+.rovalra-papi-inline-code { padding: 1px 5px; border-radius: 4px; background: var(--rovalra-button-background-color); font-size: 0.92em; }
+
+.rovalra-papi-scheme { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 0 0 24px; padding: 16px 20px; border-radius: 8px; background: var(--rovalra-button-background-color); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.rovalra-papi-scheme-group { display: flex; flex-direction: column; gap: 4px; }
+.rovalra-papi-scheme-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--rovalra-secondary-text-color); }
+.rovalra-papi-scheme-value { font-size: 14px; font-weight: 600; }
+.rovalra-papi-scheme-auth { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.rovalra-papi-radio-row { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 14px; color: var(--rovalra-main-text-color); }
+
+.rovalra-papi-body { display: grid; grid-template-columns: minmax(220px, 270px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.rovalra-papi-sidebar { position: sticky; top: 76px; max-height: calc(100vh - 96px); display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--rovalra-border-color); border-radius: 8px; background: var(--rovalra-container-background-color); overflow: hidden; }
+.rovalra-papi-nav { overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.rovalra-papi-nav-item { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+.rovalra-papi-nav-item:hover { background: var(--rovalra-button-background-color); }
+.rovalra-papi-nav-item .content-emphasis { position: relative; z-index: 1; font-size: 14px; font-weight: 600; }
+.rovalra-papi-nav-item .content-emphasis { color: var(--rovalra-main-text-color); }
+.rovalra-papi-nav-item .rovalra-papi-nav-count { margin-left: auto; position: relative; z-index: 1; }
+.rovalra-papi-nav-empty { padding: 12px 4px; text-align: center; color: var(--rovalra-secondary-text-color); }
+
+.rovalra-papi-main { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.rovalra-papi-tag-header { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 6px; border: 0; border-bottom: 1px solid var(--rovalra-border-color); background: transparent; color: var(--rovalra-main-text-color); font: inherit; text-align: left; cursor: pointer; transition: background-color 0.15s; border-radius: 6px 6px 0 0; }
+.rovalra-papi-tag-header:hover { background: var(--rovalra-button-background-color); }
+.rovalra-papi-tag-name { font-size: 22px; font-weight: 700; }
+.rovalra-papi-tag-desc { flex: 1; min-width: 0; font-size: 14px; color: var(--rovalra-secondary-text-color); }
+.rovalra-papi-chevron { margin-left: auto; color: var(--rovalra-secondary-text-color); transition: transform 0.2s; }
+.rovalra-papi-collapsed > * > .rovalra-papi-chevron, .rovalra-papi-collapsed > .rovalra-papi-chevron { transform: rotate(-90deg); }
+.rovalra-papi-tag-ops { display: flex; flex-direction: column; gap: 12px; padding: 14px 0 20px; }
+.rovalra-papi-tag.rovalra-papi-collapsed .rovalra-papi-tag-ops { display: none; }
+
+.rovalra-papi-op { --rovalra-papi-rgb: 125, 132, 146; border: 1px solid rgb(var(--rovalra-papi-rgb)); border-radius: 6px; background: rgba(var(--rovalra-papi-rgb), 0.1); overflow: hidden; }
+.rovalra-papi-op.is-deprecated { --rovalra-papi-rgb: ${DEPRECATED_COLOR} !important; opacity: 0.75; }
+.rovalra-papi-summary { display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px 10px 6px 6px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rovalra-papi-op:not(.rovalra-papi-collapsed) .rovalra-papi-summary { border-bottom: 1px solid rgb(var(--rovalra-papi-rgb)); }
+.rovalra-papi-method { flex: 0 0 auto; min-width: 76px; padding: 7px 0; border-radius: 4px; background: rgb(var(--rovalra-papi-rgb)); color: #fff; font-size: 14px; font-weight: 700; text-align: center; text-transform: uppercase; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.1); }
+.rovalra-papi-path { flex: 0 1 auto; font-size: 15px; font-weight: 700; word-break: break-all; color: var(--rovalra-main-text-color); }
+.rovalra-papi-path-param { color: rgb(var(--rovalra-papi-rgb)); }
+.rovalra-papi-op.is-deprecated .rovalra-papi-path { text-decoration: line-through; }
+.rovalra-papi-op-summary { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--rovalra-secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rovalra-papi-op-pills { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+.rovalra-papi-op-pills .rovalra-pill { align-self: center; padding: 2px 8px; font-size: 11px; }
+.rovalra-papi-lock { color: var(--rovalra-secondary-text-color); display: inline-flex; }
+.rovalra-papi-op .rovalra-papi-chevron { margin-left: 0; }
+
+.rovalra-pill.rovalra-papi-pill-extension { background: #ffb800; color: #000; }
+.rovalra-pill.rovalra-papi-pill-neutral { background: var(--rovalra-button-background-color); color: var(--rovalra-main-text-color); }
+.rovalra-pill.rovalra-papi-pill-version { background: #7d8492; color: #fff; }
+.rovalra-pill.rovalra-papi-pill-oas { background: #89bf04; color: #fff; }
+
+.rovalra-papi-op-body { display: flex; flex-direction: column; }
+.rovalra-papi-op.rovalra-papi-collapsed .rovalra-papi-op-body { display: none; }
+.rovalra-papi-op-desc { margin: 0; padding: 14px 20px 4px; font-size: 14px; line-height: 1.55; color: var(--rovalra-main-text-color); }
+.rovalra-papi-op-meta { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 20px 14px; }
+
+.rovalra-papi-section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; padding: 8px 20px; background: rgba(var(--rovalra-papi-rgb), 0.08); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
+.rovalra-papi-section-header h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--rovalra-main-text-color); }
+.rovalra-papi-section-header .rovalra-papi-required-label { margin-left: 8px; }
+.rovalra-papi-section { padding: 16px 20px; }
+.rovalra-papi-empty { font-size: 13px; font-style: italic; color: var(--rovalra-secondary-text-color); }
+
+.rovalra-papi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rovalra-papi-table th { padding: 10px 0; border-bottom: 1px solid var(--rovalra-border-color); text-align: left; font-size: 12px; font-weight: 700; color: var(--rovalra-main-text-color); }
+.rovalra-papi-table td { padding: 12px 10px 12px 0; border-bottom: 1px solid var(--rovalra-border-color); vertical-align: top; color: var(--rovalra-main-text-color); }
+.rovalra-papi-table tr:last-child td { border-bottom: 0; }
+.rovalra-papi-col-name { width: 28%; min-width: 150px; }
+.rovalra-papi-col-code { width: 90px; }
+.rovalra-papi-param-name { font-size: 15px; font-weight: 600; word-break: break-all; }
+.rovalra-papi-required-label { font-size: 10px; font-weight: 700; color: #f93e3e; vertical-align: super; margin-left: 3px; }
+.rovalra-papi-param-type { margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--rovalra-main-text-color); }
+.rovalra-papi-param-in { margin-top: 2px; font-size: 12px; font-style: italic; color: var(--rovalra-secondary-text-color); }
+.rovalra-papi-param-desc { display: flex; flex-direction: column; gap: 6px; }
+.rovalra-papi-param-extra { font-size: 12px; color: var(--rovalra-secondary-text-color); }
+.rovalra-papi-param-input { max-width: 340px; margin-top: 4px; }
+
+.rovalra-papi-content-type { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--rovalra-secondary-text-color); }
+.rovalra-papi-body-view { display: flex; flex-direction: column; gap: 10px; }
+.rovalra-papi-textarea { width: 100%; min-height: 160px; padding: 12px; border: 1px solid var(--rovalra-border-color); border-radius: 6px; background: #1e2025; color: #f0f0f0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; resize: vertical; box-sizing: border-box; outline: none; }
+.rovalra-papi-textarea:focus { border-color: rgb(var(--rovalra-papi-rgb)); }
+
+.rovalra-papi-code-wrap { position: relative; }
+.rovalra-papi-code { margin: 0; padding: 12px 44px 12px 12px; max-height: 420px; overflow: auto; border-radius: 6px; background: #1e2025; color: #f0f0f0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.rovalra-papi-copy { position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: #f0f0f0; cursor: pointer; }
+.rovalra-papi-copy:hover { background: rgba(255, 255, 255, 0.18); }
+
+.rovalra-papi-model { padding: 12px; border-radius: 6px; background: rgba(0, 0, 0, 0.08); font-size: 12.5px; line-height: 1.6; }
+.rovalra-papi-model-brace { color: var(--rovalra-secondary-text-color); font-weight: 700; }
+.rovalra-papi-model-props { padding-left: 18px; display: grid; grid-template-columns: max-content 1fr; column-gap: 18px; row-gap: 2px; }
+.rovalra-papi-model-name { font-weight: 600; }
+.rovalra-papi-model-type { color: rgb(var(--rovalra-papi-rgb)); font-weight: 600; }
+.rovalra-papi-model-note { margin-left: 8px; color: var(--rovalra-secondary-text-color); font-weight: 400; }
+
+.rovalra-papi-actions { display: flex; gap: 10px; padding: 0 20px 16px; }
+.rovalra-papi-actions > button { flex: 1; }
+.rovalra-papi-error { padding: 0 20px 12px; font-size: 13px; color: #f93e3e; }
+.rovalra-papi-result { display: flex; flex-direction: column; gap: 14px; }
+.rovalra-papi-result-label { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--rovalra-main-text-color); }
+.rovalra-papi-status-code { font-size: 15px; font-weight: 700; }
+.rovalra-papi-status-code.is-ok { color: #49cc90; }
+.rovalra-papi-status-code.is-redirect { color: #fca130; }
+.rovalra-papi-status-code.is-error { color: #f93e3e; }
+.rovalra-papi-result-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.rovalra-papi-result img { max-width: 256px; border-radius: 6px; background: rgba(0, 0, 0, 0.15); }
+
+.rovalra-papi-message { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 20px; text-align: center; color: var(--rovalra-secondary-text-color); }
+.rovalra-papi-message.is-error { color: #f93e3e; }
+
+@media (max-width: 900px) {
+    .rovalra-papi-body { grid-template-columns: 1fr; }
+    .rovalra-papi-sidebar { position: static; max-height: 320px; }
+    .rovalra-papi-op-summary { display: none; }
+}
+`;
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    let style = document.createElement("style");
+    style.id = STYLE_ID, style.textContent = STYLES, document.head.appendChild(style);
+  }
+  __name(injectStyles, "injectStyles");
+  function removeHomeElement2() {
+    let homeElementToRemove = document.querySelector(
+      "li.cursor-pointer.btr-nav-node-header_home.btr-nav-header_home"
+    );
+    homeElementToRemove && homeElementToRemove.remove();
+  }
+  __name(removeHomeElement2, "removeHomeElement");
+  function tr(key, options) {
+    return ts2(`privateApiDocs.${key}`, options);
+  }
+  __name(tr, "tr");
+  function el(tag, className, text3) {
+    let node = document.createElement(tag);
+    return className && (node.className = className), text3 != null && (node.textContent = String(text3)), node;
+  }
+  __name(el, "el");
+  function createChevron() {
+    return Icon({
+      material: !0,
+      icon: "expand_more",
+      size: "24px",
+      classes: "rovalra-papi-chevron"
+    });
+  }
+  __name(createChevron, "createChevron");
+  function createTypedPill(text3, type, tooltip) {
+    return createPill(text3, tooltip || text3, { type });
+  }
+  __name(createTypedPill, "createTypedPill");
+  function renderInlineText(container, text3) {
+    return String(text3 || "").split("`").forEach((part, index) => {
+      part && container.appendChild(
+        index % 2 === 1 ? el("code", "rovalra-papi-inline-code", part) : document.createTextNode(part)
+      );
+    }), container;
+  }
+  __name(renderInlineText, "renderInlineText");
+  function renderMessage(container, message, { isError = !1, loading: loading2 = !1 } = {}) {
+    container.replaceChildren();
+    let wrapper = el(
+      "div",
+      `rovalra-papi-message${isError ? " is-error" : ""}`
+    );
+    loading2 && wrapper.appendChild(createSpinnerContainer({ size: "32px" })), wrapper.appendChild(el("div", null, message)), container.appendChild(wrapper);
+  }
+  __name(renderMessage, "renderMessage");
+  function createCopyIcon(icon) {
+    return Icon({ material: !0, icon, size: "16px" });
+  }
+  __name(createCopyIcon, "createCopyIcon");
+  function createCodeBlock(text3) {
+    let wrapper = el("div", "rovalra-papi-code-wrap"), pre = el("pre", "rovalra-papi-code", text3), copyBtn = el("button", "rovalra-papi-copy");
+    return copyBtn.type = "button", copyBtn.setAttribute("aria-label", tr("copy")), copyBtn.appendChild(createCopyIcon("content_copy")), addTooltip(copyBtn, tr("copy"), { position: "top" }), copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(pre.textContent), copyBtn.replaceChildren(createCopyIcon("check")), setTimeout(() => {
+          copyBtn.replaceChildren(createCopyIcon("content_copy"));
+        }, 1500);
+      } catch {
+      }
+    }), wrapper.append(pre, copyBtn), wrapper;
+  }
+  __name(createCodeBlock, "createCodeBlock");
+  function createRadioRow(label, checked, onChange) {
+    let row = el("label", "rovalra-papi-radio-row"), radio = createRadioButton({ checked, onChange });
+    return row.append(radio, el("span", null, label)), row.addEventListener("click", (event) => {
+      event.target.closest("button") !== radio && (event.preventDefault(), radio.click());
+    }), row;
+  }
+  __name(createRadioRow, "createRadioRow");
+  function getSchemaTypeLabel(schema) {
+    if (!schema) return "any";
+    if (schema.type === "array")
+      return `array[${getSchemaTypeLabel(schema.items)}]`;
+    let type = schema.type || "any";
+    return schema.format ? `${type}($${schema.format})` : type;
+  }
+  __name(getSchemaTypeLabel, "getSchemaTypeLabel");
+  function getSchemaNotes(schema) {
+    if (!schema) return [];
+    let notes = [];
+    return [
+      "minimum",
+      "maximum",
+      "minLength",
+      "maxLength",
+      "minItems",
+      "maxItems",
+      "default",
+      "example"
+    ].forEach((keyword) => {
+      schema[keyword] !== void 0 && notes.push(`${keyword}: ${JSON.stringify(schema[keyword])}`);
+    }), notes;
+  }
+  __name(getSchemaNotes, "getSchemaNotes");
+  function buildExample(schema, depth = 0) {
+    if (!schema || depth > 6) return null;
+    if (schema.example !== void 0) return schema.example;
+    if (schema.default !== void 0) return schema.default;
+    if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
+    switch (schema.type) {
+      case "object": {
+        let result = {};
+        return Object.entries(schema.properties || {}).forEach(([key, value2]) => {
+          result[key] = buildExample(value2, depth + 1);
+        }), result;
+      }
+      case "array":
+        return [buildExample(schema.items, depth + 1)];
+      case "integer":
+      case "number":
+        return schema.minimum ?? 0;
+      case "boolean":
+        return !0;
+      case "string":
+        return schema.format === "uuid" ? "00000000-0000-0000-0000-000000000000" : schema.format === "ipv4" ? "0.0.0.0" : "string";
+      default:
+        return null;
+    }
+  }
+  __name(buildExample, "buildExample");
+  function renderModel(schema, depth = 0) {
+    let wrapper = el(
+      "div",
+      depth === 0 ? "rovalra-papi-model rovalra-papi-mono" : null
+    ), objectSchema = schema?.type === "array" ? schema.items : schema;
+    if (objectSchema?.type !== "object" || !objectSchema.properties || depth > 5) {
+      wrapper.appendChild(
+        el("span", "rovalra-papi-model-type", getSchemaTypeLabel(schema))
+      );
+      let notes = getSchemaNotes(schema);
+      return Array.isArray(schema?.enum) && notes.unshift(`enum: [${schema.enum.join(", ")}]`), notes.length && wrapper.appendChild(
+        el("span", "rovalra-papi-model-note", notes.join(" \xB7 "))
+      ), wrapper;
+    }
+    let isArray = schema.type === "array";
+    wrapper.appendChild(
+      el("div", "rovalra-papi-model-brace", isArray ? "[{" : "{")
+    );
+    let props = el("div", "rovalra-papi-model-props"), required = new Set(objectSchema.required || []);
+    return Object.entries(objectSchema.properties).forEach(([name, propSchema]) => {
+      let nameEl = el("span", "rovalra-papi-model-name", name);
+      required.has(name) && nameEl.appendChild(el("span", "rovalra-papi-required-label", "*"));
+      let valueEl = el("div");
+      if (propSchema?.type === "object" || propSchema?.items?.type === "object")
+        valueEl.appendChild(renderModel(propSchema, depth + 1));
+      else {
+        valueEl.appendChild(
+          el(
+            "span",
+            "rovalra-papi-model-type",
+            getSchemaTypeLabel(propSchema)
+          )
+        );
+        let notes = [];
+        propSchema?.description && notes.push(propSchema.description), Array.isArray(propSchema?.enum) && notes.push(`enum: [${propSchema.enum.join(", ")}]`), notes.push(...getSchemaNotes(propSchema)), notes.length && valueEl.appendChild(
+          el("span", "rovalra-papi-model-note", notes.join(" \xB7 "))
+        );
+      }
+      props.append(nameEl, valueEl);
+    }), wrapper.appendChild(props), wrapper.appendChild(
+      el("div", "rovalra-papi-model-brace", isArray ? "}]" : "}")
+    ), isArray && schema.maxItems !== void 0 && wrapper.appendChild(
+      el(
+        "span",
+        "rovalra-papi-model-note",
+        `maxItems: ${schema.maxItems}`
+      )
+    ), wrapper;
+  }
+  __name(renderModel, "renderModel");
+  function isTokenScheme(scheme) {
+    return scheme ? scheme.type === "oauth2" || scheme.type === "openIdConnect" ? !0 : scheme.type === "http" && scheme.scheme?.toLowerCase() === "bearer" : !1;
+  }
+  __name(isTokenScheme, "isTokenScheme");
+  function getSecurityInfo(operation, spec) {
+    let requirements = operation.security ?? spec.security ?? [], definitions = spec.components?.securitySchemes || {}, names = /* @__PURE__ */ new Set(), optional = requirements.length === 0;
+    requirements.forEach((requirement) => {
+      let keys = Object.keys(requirement || {});
+      keys.length || (optional = !0), keys.forEach((key) => names.add(key));
+    });
+    let schemes = Array.from(names).map((name) => ({
+      name,
+      definition: definitions[name]
+    }));
+    return {
+      names: Array.from(names),
+      optional,
+      usesToken: schemes.some(({ definition }) => isTokenScheme(definition)),
+      unsentSchemes: schemes.filter(
+        ({ definition }) => !isTokenScheme(definition)
+      )
+    };
+  }
+  __name(getSecurityInfo, "getSecurityInfo");
+  function getExtensions(operation) {
+    return Object.entries(operation).filter(
+      ([key, value2]) => key.startsWith("x-") && value2 !== null && value2 !== void 0
+    ).map(([key, value2]) => {
+      let words = key.slice(2).replace(/[-_]+/g, " ").trim();
+      return {
+        label: words.charAt(0).toUpperCase() + words.slice(1),
+        value: typeof value2 == "object" ? JSON.stringify(value2) : value2
+      };
+    });
+  }
+  __name(getExtensions, "getExtensions");
+  function collectOperations(spec) {
+    let operations = [];
+    return Object.entries(spec.paths || {}).forEach(([path, pathItem]) => {
+      METHODS.forEach((method) => {
+        let operation = pathItem?.[method];
+        operation && operations.push({
+          path,
+          method,
+          operation,
+          parameters: [
+            ...pathItem.parameters || [],
+            ...operation.parameters || []
+          ],
+          tags: operation.tags?.length ? operation.tags : ["default"],
+          id: operation.operationId || `${method}-${path}`
+        });
+      });
+    }), operations;
+  }
+  __name(collectOperations, "collectOperations");
+  function getOperationSearchText(entry) {
+    return [
+      entry.method,
+      entry.path,
+      entry.id,
+      entry.operation.summary,
+      entry.operation.description,
+      ...entry.tags
+    ].filter(Boolean).join(" ").toLowerCase();
+  }
+  __name(getOperationSearchText, "getOperationSearchText");
+  function renderPath(path) {
+    let container = el("span", "rovalra-papi-path rovalra-papi-mono");
+    return path.split(/(\{[^}]+\})/).forEach((part) => {
+      part && container.appendChild(
+        part.startsWith("{") ? el("span", "rovalra-papi-path-param", part) : document.createTextNode(part)
+      );
+    }), container;
+  }
+  __name(renderPath, "renderPath");
+  function confirmRequest(method, path) {
+    return new Promise((resolve) => {
+      showConfirmationPrompt({
+        title: tr("confirmTitle"),
+        message: tr("confirmMessage", {
+          method: method.toUpperCase(),
+          path
+        }),
+        confirmText: tr("send"),
+        confirmType: "primary-destructive",
+        onConfirm: /* @__PURE__ */ __name(() => resolve(!0), "onConfirm"),
+        onCancel: /* @__PURE__ */ __name(() => resolve(!1), "onCancel")
+      });
+    });
+  }
+  __name(confirmRequest, "confirmRequest");
+  async function readResponseBody(response) {
+    let contentType = response.headers.get("content-type") || "";
+    if (contentType.startsWith("image/")) {
+      let blob2 = await response.blob();
+      return { kind: "image", url: URL.createObjectURL(blob2), contentType };
+    }
+    let text3 = await response.text();
+    try {
+      return {
+        kind: "text",
+        text: JSON.stringify(JSON.parse(text3), null, 2),
+        contentType
+      };
+    } catch {
+      return { kind: "text", text: text3, contentType };
+    }
+  }
+  __name(readResponseBody, "readResponseBody");
+  function buildCurl(method, url, headers, body) {
+    let lines = [
+      `curl -X '${method.toUpperCase()}'`,
+      `  '${url}'`,
+      "  -H 'accept: application/json'"
+    ];
+    return Object.entries(headers).forEach(([key, value2]) => {
+      lines.push(`  -H '${key}: ${value2}'`);
+    }), body && lines.push(`  -d '${body.replace(/'/g, "'\\''")}'`), lines.join(` \\
+`);
+  }
+  __name(buildCurl, "buildCurl");
+  function getStatusClass(status) {
+    return status >= 400 || status === 0 ? "is-error" : status >= 300 ? "is-redirect" : "is-ok";
+  }
+  __name(getStatusClass, "getStatusClass");
+  function createSectionHeader(title, ...extra) {
+    let header = el("div", "rovalra-papi-section-header"), heading = el("h4", null, title);
+    return header.appendChild(heading), extra.filter(Boolean).forEach((node) => header.appendChild(node)), { header, heading };
+  }
+  __name(createSectionHeader, "createSectionHeader");
+  function createTableHead(firstClass, ...labels2) {
+    let head = el("tr");
+    return labels2.forEach((label, index) => {
+      head.appendChild(el("th", index === 0 ? firstClass : null, label));
+    }), head;
+  }
+  __name(createTableHead, "createTableHead");
+  function createResultLabel(text3) {
+    return el("h5", "rovalra-papi-result-label", text3);
+  }
+  __name(createResultLabel, "createResultLabel");
+  function renderServerResponse(container, { response, durationMs, body, url, curl }) {
+    container.replaceChildren();
+    let result = el("div", "rovalra-papi-result"), curlBlock = el("div");
+    curlBlock.append(createResultLabel(tr("curl")), createCodeBlock(curl));
+    let urlBlock = el("div");
+    urlBlock.append(createResultLabel(tr("requestUrl")), createCodeBlock(url));
+    let serverBlock = el("div");
+    serverBlock.appendChild(createResultLabel(tr("serverResponse")));
+    let table = el("table", "rovalra-papi-table"), row = el("tr"), codeCell = el("td");
+    codeCell.appendChild(
+      el(
+        "span",
+        `rovalra-papi-status-code ${getStatusClass(response.status)}`,
+        response.status
+      )
+    );
+    let detailsCell = el("td"), meta = el("div", "rovalra-papi-result-meta");
+    if (response.statusText && meta.appendChild(
+      createTypedPill(response.statusText, "rovalra-papi-pill-neutral")
+    ), meta.appendChild(
+      createTypedPill(
+        tr("duration", { ms: Math.round(durationMs) }),
+        "rovalra-papi-pill-neutral",
+        tr("durationTooltip")
+      )
+    ), body.contentType && meta.appendChild(
+      createTypedPill(
+        body.contentType,
+        "rovalra-papi-pill-neutral",
+        tr("contentType")
+      )
+    ), response.redirected && response.url && meta.appendChild(
+      createTypedPill(
+        tr("redirected"),
+        "rovalra-papi-pill-neutral",
+        response.url
+      )
+    ), detailsCell.appendChild(meta), detailsCell.appendChild(createResultLabel(tr("responseBody"))), body.kind === "image") {
+      let img = document.createElement("img");
+      img.src = body.url, img.alt = tr("responseImage"), detailsCell.appendChild(img);
+    } else
+      detailsCell.appendChild(
+        createCodeBlock(body.text || tr("emptyResponse"))
+      );
+    let headers = Array.from(response.headers.entries()).map(([key, value2]) => `${key}: ${value2}`).join(`
+`);
+    if (headers) {
+      let headersLabel = createResultLabel(tr("responseHeaders"));
+      headersLabel.style.marginTop = "12px", detailsCell.append(headersLabel, createCodeBlock(headers));
+    }
+    row.append(codeCell, detailsCell), table.append(
+      createTableHead("rovalra-papi-col-code", tr("code"), tr("details")),
+      row
+    ), serverBlock.appendChild(table), result.append(curlBlock, urlBlock, serverBlock), container.appendChild(result);
+  }
+  __name(renderServerResponse, "renderServerResponse");
+  function createParamInput(param, idPrefix) {
+    let schema = param.schema || {};
+    if (Array.isArray(schema.enum)) {
+      let items = schema.enum.map((value3) => ({
+        label: String(value3),
+        value: String(value3)
+      }));
+      param.required || items.unshift({ label: "--", value: "" });
+      let value2 = schema.default !== void 0 ? String(schema.default) : param.required ? String(schema.enum[0]) : "";
+      return { element: createDropdown({
+        items,
+        initialValue: value2,
+        onValueChange: /* @__PURE__ */ __name((next) => {
+          value2 = next;
+        }, "onValueChange")
+      }).element, getValue: /* @__PURE__ */ __name(() => value2, "getValue") };
+    }
+    let { container, input } = createStyledInput({
+      id: `${idPrefix}-${param.in}-${param.name}`.replace(
+        /[^a-zA-Z0-9_-]/g,
+        "_"
+      ),
+      label: param.name,
+      placeholder: schema.example !== void 0 ? String(schema.example) : param.description || param.name
+    });
+    return schema.default !== void 0 && (input.value = String(schema.default)), (schema.type === "integer" || schema.type === "number") && (input.inputMode = "numeric"), { element: container, getValue: /* @__PURE__ */ __name(() => input.value.trim(), "getValue") };
+  }
+  __name(createParamInput, "createParamInput");
+  function createParametersSection(entry, state5) {
+    let { parameters } = entry, section = el("div", "rovalra-papi-section"), inputs = /* @__PURE__ */ new Map(), render2 = /* @__PURE__ */ __name(() => {
+      if (section.replaceChildren(), inputs.clear(), !parameters.length) {
+        section.appendChild(
+          el("div", "rovalra-papi-empty", tr("noParameters"))
+        );
+        return;
+      }
+      let table = el("table", "rovalra-papi-table");
+      table.appendChild(
+        createTableHead(
+          "rovalra-papi-col-name",
+          tr("name"),
+          tr("description")
+        )
+      ), parameters.forEach((param) => {
+        let row = el("tr"), nameCell = el("td", "rovalra-papi-col-name"), nameEl = el("div", "rovalra-papi-param-name", param.name);
+        param.required && nameEl.appendChild(
+          el(
+            "span",
+            "rovalra-papi-required-label",
+            `* ${tr("required")}`
+          )
+        ), nameCell.append(
+          nameEl,
+          el(
+            "div",
+            "rovalra-papi-param-type rovalra-papi-mono",
+            getSchemaTypeLabel(param.schema)
+          ),
+          el("div", "rovalra-papi-param-in", `(${param.in})`)
+        );
+        let descCell = el("td", "rovalra-papi-param-desc");
+        param.description && descCell.appendChild(
+          renderInlineText(el("div"), param.description)
+        ), Array.isArray(param.schema?.enum) && descCell.appendChild(
+          el(
+            "div",
+            "rovalra-papi-param-extra",
+            tr("availableValues", {
+              values: param.schema.enum.join(", ")
+            })
+          )
+        );
+        let notes = getSchemaNotes(param.schema);
+        if (notes.length && descCell.appendChild(
+          el("div", "rovalra-papi-param-extra", notes.join(" \xB7 "))
+        ), state5.tryItOut) {
+          let input = createParamInput(
+            param,
+            `rovalra-papi-${entry.id}`
+          ), inputWrap = el("div", "rovalra-papi-param-input");
+          inputWrap.appendChild(input.element), descCell.appendChild(inputWrap), inputs.set(param, input);
+        }
+        row.append(nameCell, descCell), table.appendChild(row);
+      }), section.appendChild(table);
+    }, "render");
+    return render2(), {
+      element: section,
+      render: render2,
+      getValue: /* @__PURE__ */ __name((param) => inputs.get(param)?.getValue() ?? "", "getValue")
+    };
+  }
+  __name(createParametersSection, "createParametersSection");
+  function createRequestBodySection(entry, state5) {
+    let requestBody = entry.operation.requestBody, media = requestBody?.content?.["application/json"];
+    if (!media) return null;
+    let section = el("div", "rovalra-papi-section rovalra-papi-body-view"), exampleText = JSON.stringify(buildExample(media.schema), null, 2), textarea = null, view = "example", render2 = /* @__PURE__ */ __name(() => {
+      if (section.replaceChildren(), textarea = null, state5.tryItOut) {
+        textarea = el("textarea", "rovalra-papi-textarea"), textarea.spellcheck = !1, textarea.value = state5.bodyDraft ?? exampleText, textarea.addEventListener("input", () => {
+          state5.bodyDraft = textarea.value;
+        }), section.appendChild(textarea);
+        return;
+      }
+      section.appendChild(
+        createPillToggle({
+          options: [
+            { text: tr("exampleValue"), value: "example" },
+            { text: tr("schema"), value: "schema" }
+          ],
+          initialValue: view,
+          onChange: /* @__PURE__ */ __name((next) => {
+            view = next, render2();
+          }, "onChange")
+        })
+      ), section.appendChild(
+        view === "example" ? createCodeBlock(exampleText) : renderModel(media.schema)
+      );
+    }, "render");
+    render2();
+    let contentType = el("span", "rovalra-papi-content-type");
+    contentType.appendChild(
+      createTypedPill(
+        "application/json",
+        "rovalra-papi-pill-neutral",
+        tr("requestContentType")
+      )
+    );
+    let { header, heading } = createSectionHeader(
+      tr("requestBody"),
+      contentType
+    );
+    return requestBody.required && heading.appendChild(
+      el("span", "rovalra-papi-required-label", tr("required"))
+    ), {
+      header,
+      element: section,
+      render: render2,
+      getValue: /* @__PURE__ */ __name(() => textarea ? textarea.value.trim() : "", "getValue")
+    };
+  }
+  __name(createRequestBodySection, "createRequestBodySection");
+  function createResponsesTable(operation) {
+    let section = el("div", "rovalra-papi-section"), responses = Object.entries(operation.responses || {});
+    if (!responses.length)
+      return section.appendChild(el("div", "rovalra-papi-empty", tr("noResponses"))), section;
+    let table = el("table", "rovalra-papi-table");
+    return table.appendChild(
+      createTableHead("rovalra-papi-col-code", tr("code"), tr("description"))
+    ), responses.forEach(([code, response]) => {
+      let row = el("tr"), codeCell = el("td");
+      codeCell.appendChild(
+        el(
+          "span",
+          `rovalra-papi-status-code ${getStatusClass(Number(code))}`,
+          code
+        )
+      );
+      let descCell = el("td", "rovalra-papi-param-desc");
+      descCell.appendChild(
+        renderInlineText(el("div"), response.description || "")
+      );
+      let schema = response.content?.["application/json"]?.schema;
+      schema && descCell.appendChild(renderModel(schema)), row.append(codeCell, descCell), table.appendChild(row);
+    }), section.appendChild(table), section;
+  }
+  __name(createResponsesTable, "createResponsesTable");
+  function createOperationMeta(entry, security) {
+    let meta = el("div", "rovalra-papi-op-meta");
+    if (meta.appendChild(
+      createTypedPill(
+        entry.id,
+        "rovalra-papi-pill-neutral",
+        tr("operationId")
+      )
+    ), security.names.length) {
+      let schemes = security.names.join(" / ");
+      meta.appendChild(
+        createTypedPill(
+          security.optional ? tr("securityOptional", { schemes }) : tr("security", { schemes }),
+          "rovalra-papi-pill-neutral",
+          tr("securityTooltip")
+        )
+      );
+    }
+    return getExtensions(entry.operation).forEach(({ label, value: value2 }) => {
+      meta.appendChild(
+        createTypedPill(
+          `${label}: ${value2}`,
+          "rovalra-papi-pill-extension",
+          label
+        )
+      );
+    }), meta;
+  }
+  __name(createOperationMeta, "createOperationMeta");
+  function createOperationBody(entry, spec, authState) {
+    let { method, path, operation, parameters } = entry, body = el("div", "rovalra-papi-op-body"), state5 = { tryItOut: !1, bodyDraft: null }, security = getSecurityInfo(operation, spec);
+    operation.description && body.appendChild(
+      renderInlineText(
+        el("p", "rovalra-papi-op-desc"),
+        operation.description
+      )
+    ), body.appendChild(createOperationMeta(entry, security));
+    let paramsSection = createParametersSection(entry, state5), bodySection = createRequestBodySection(entry, state5), errorEl = el("div", "rovalra-papi-error"), actions = el("div", "rovalra-papi-actions"), resultSection = el("div", "rovalra-papi-section");
+    resultSection.style.display = "none";
+    let clearResult = /* @__PURE__ */ __name(() => {
+      errorEl.textContent = "", resultSection.replaceChildren(), resultSection.style.display = "none";
+    }, "clearResult"), tryBtn = createButton(tr("tryItOut"), "secondary", {
+      onClick: /* @__PURE__ */ __name(() => {
+        state5.tryItOut = !state5.tryItOut, tryBtn.textContent = state5.tryItOut ? ts2("common.cancel") : tr("tryItOut"), paramsSection.render(), bodySection?.render(), actions.style.display = state5.tryItOut ? "" : "none", state5.tryItOut || clearResult(), errorEl.textContent = "";
+      }, "onClick")
+    }), { header: paramsHeader } = createSectionHeader(
+      tr("parameters"),
+      tryBtn
+    );
+    body.append(paramsHeader, paramsSection.element), bodySection && body.append(bodySection.header, bodySection.element);
+    let buildRequest = /* @__PURE__ */ __name(() => {
+      let resolvedPath = path, query = new URLSearchParams(), headers = {}, missing = [];
+      if (parameters.forEach((param) => {
+        let value2 = paramsSection.getValue(param);
+        if (!value2) {
+          param.required && missing.push(param.name);
+          return;
+        }
+        param.in === "path" ? resolvedPath = resolvedPath.replace(
+          `{${param.name}}`,
+          encodeURIComponent(value2)
+        ) : param.in === "query" ? query.set(param.name, value2) : param.in === "header" && (headers[param.name] = value2);
+      }), missing.length)
+        throw new Error(
+          tr("missingParams", { params: missing.join(", ") })
+        );
+      let requestBody = null;
+      if (bodySection) {
+        let raw = bodySection.getValue();
+        if (raw) {
+          try {
+            requestBody = JSON.stringify(JSON.parse(raw));
+          } catch (parseError) {
+            throw new Error(
+              tr("invalidJson", { error: parseError.message })
+            );
+          }
+          headers["Content-Type"] = "application/json";
+        } else if (operation.requestBody?.required)
+          throw new Error(tr("bodyRequired"));
+      }
+      let queryString = query.toString(), endpoint = `${resolvedPath}${queryString ? `?${queryString}` : ""}`;
+      return {
+        endpoint,
+        url: `${API_BASE_URL}${endpoint}`,
+        headers,
+        body: requestBody,
+        useToken: security.usesToken && authState.useToken
+      };
+    }, "buildRequest"), executeBtn = createButton(tr("execute"), "primary", {
+      onClick: /* @__PURE__ */ __name(async () => {
+        errorEl.textContent = "";
+        let request;
+        try {
+          request = buildRequest();
+        } catch (buildError) {
+          errorEl.textContent = buildError.message;
+          return;
+        }
+        if (method !== "get" && method !== "head" && !await confirmRequest(
+          method,
+          request.endpoint
+        ))
+          return;
+        executeBtn.disabled = !0, resultSection.style.display = "", renderMessage(resultSection, tr("sending"), { loading: !0 });
+        let startedAt = performance.now();
+        try {
+          let headers = { ...request.headers };
+          if (request.useToken) {
+            let token = await getValidAccessToken(!1, !1);
+            token && (headers.Authorization = `Bearer ${token}`);
+          }
+          let response = await callRobloxApi({
+            endpoint: request.endpoint,
+            method: method.toUpperCase(),
+            isRovalraApi: !0,
+            skipAutoAuth: !0,
+            noCache: !0,
+            headers,
+            body: request.body
+          }), durationMs = performance.now() - startedAt, responseBody = await readResponseBody(response), curlHeaders = { ...request.headers };
+          headers.Authorization && (curlHeaders.Authorization = "Bearer <token>"), renderServerResponse(resultSection, {
+            response,
+            durationMs,
+            body: responseBody,
+            url: request.url,
+            curl: buildCurl(
+              method,
+              request.url,
+              curlHeaders,
+              request.body
+            )
+          });
+        } catch (requestError) {
+          renderMessage(
+            resultSection,
+            tr("requestFailed", { error: requestError.message }),
+            { isError: !0 }
+          );
+        } finally {
+          executeBtn.disabled = !1;
+        }
+      }, "onClick")
+    }), clearBtn = createButton(tr("clear"), "secondary", {
+      onClick: clearResult
+    });
+    actions.append(executeBtn, clearBtn), actions.style.display = "none", body.append(actions, errorEl);
+    let { header: responsesHeader } = createSectionHeader(tr("responses"));
+    return body.append(
+      responsesHeader,
+      resultSection,
+      createResponsesTable(operation)
+    ), body;
+  }
+  __name(createOperationBody, "createOperationBody");
+  function createOperationPills(operation, security) {
+    let pills = el("span", "rovalra-papi-op-pills");
+    if (operation.deprecated && pills.appendChild(
+      createTypedPill(
+        tr("deprecated"),
+        "deprecated",
+        tr("deprecatedTooltip")
+      )
+    ), security.unsentSchemes.forEach(({ name, definition }) => {
+      pills.appendChild(
+        createTypedPill(
+          name,
+          "rovalra-papi-pill-neutral",
+          tr("schemeNotSent", {
+            name: definition?.name || name
+          })
+        )
+      );
+    }), security.names.length) {
+      let lock = el("span", "rovalra-papi-lock");
+      lock.appendChild(
+        Icon({
+          material: !0,
+          icon: security.optional ? "lock_open" : "lock",
+          size: "20px"
+        })
+      ), addTooltip(
+        lock,
+        security.optional ? tr("authOptional") : tr("authRequired"),
+        { position: "top" }
+      ), pills.appendChild(lock);
+    }
+    return pills;
+  }
+  __name(createOperationPills, "createOperationPills");
+  function createOperation(entry, spec, authState) {
+    let { method, path, operation } = entry, wrapper = el("div", "rovalra-papi-op rovalra-papi-collapsed");
+    wrapper.id = `rovalra-papi-op-${entry.id}`, wrapper.style.setProperty(
+      "--rovalra-papi-rgb",
+      METHOD_COLORS[method] || DEPRECATED_COLOR
+    ), operation.deprecated && wrapper.classList.add("is-deprecated");
+    let summary = el("button", "rovalra-papi-summary");
+    summary.type = "button", summary.setAttribute("aria-expanded", "false"), summary.append(
+      el("span", "rovalra-papi-method", method),
+      renderPath(path),
+      el("span", "rovalra-papi-op-summary", operation.summary || ""),
+      createOperationPills(operation, getSecurityInfo(operation, spec)),
+      createChevron()
+    ), wrapper.appendChild(summary);
+    let body = null, setExpanded = /* @__PURE__ */ __name((expanded) => {
+      expanded && !body && (body = createOperationBody(entry, spec, authState), wrapper.appendChild(body)), wrapper.classList.toggle("rovalra-papi-collapsed", !expanded), summary.setAttribute("aria-expanded", String(expanded));
+    }, "setExpanded");
+    return summary.addEventListener("click", () => {
+      let expanded = wrapper.classList.contains("rovalra-papi-collapsed");
+      setExpanded(expanded), expanded && history.replaceState(
+        history.state,
+        "",
+        `#${encodeURIComponent(entry.id)}`
+      );
+    }), { element: wrapper, setExpanded };
+  }
+  __name(createOperation, "createOperation");
+  function createInfoSection(spec, authState) {
+    let fragment2 = document.createDocumentFragment(), info = el("div", "rovalra-papi-info"), title = el(
+      "h1",
+      "rovalra-papi-title",
+      spec.info?.title || tr("title")
+    );
+    spec.info?.version && title.appendChild(
+      createTypedPill(
+        spec.info.version,
+        "rovalra-papi-pill-version",
+        tr("apiVersion")
+      )
+    ), spec.openapi && title.appendChild(
+      createTypedPill(
+        `OAS ${spec.openapi}`,
+        "rovalra-papi-pill-oas",
+        tr("openApiVersion")
+      )
+    ), info.appendChild(title), info.appendChild(
+      el(
+        "div",
+        "rovalra-papi-base-url rovalra-papi-mono",
+        `[ ${tr("baseUrl", { url: API_BASE_URL })} ]`
+      )
+    ), spec.info?.description && info.appendChild(
+      renderInlineText(
+        el("p", "rovalra-papi-info-desc"),
+        spec.info.description
+      )
+    ), fragment2.appendChild(info);
+    let scheme = el("div", "rovalra-papi-scheme"), serverGroup = el("div", "rovalra-papi-scheme-group");
+    serverGroup.append(
+      el("span", "rovalra-papi-scheme-label", tr("server")),
+      el("span", "rovalra-papi-scheme-value rovalra-papi-mono", API_BASE_URL)
+    );
+    let authGroup = el("div", "rovalra-papi-scheme-auth");
+    return Object.values(
+      spec.components?.securitySchemes || {}
+    ).some(isTokenScheme) && authGroup.appendChild(
+      createRadioRow(tr("sendToken"), authState.useToken, (checked) => {
+        authState.useToken = checked;
+      })
+    ), scheme.append(serverGroup, authGroup), fragment2.appendChild(scheme), fragment2;
+  }
+  __name(createInfoSection, "createInfoSection");
+  function createNavItem(tag, count, onClick2) {
+    let item = el(
+      "button",
+      "rovalra-papi-nav-item relative clip group/interactable focus-visible:outline-focus foundation-web-menu-item flex items-center content-default cursor-pointer text-align-x-left width-full text-body-medium padding-x-medium padding-y-small gap-x-medium radius-medium"
+    );
+    item.type = "button";
+    let presentation = el(
+      "div",
+      "absolute inset-[0] transition-colors group-hover/interactable:bg-[var(--color-state-hover)] group-active/interactable:bg-[var(--color-state-press)]"
+    );
+    presentation.setAttribute("role", "presentation");
+    let label = el(
+      "span",
+      "foundation-web-menu-item-title text-no-wrap text-truncate-split content-emphasis",
+      tag
+    ), countPill = createPill(String(count), null, { size: "small" });
+    return countPill.classList.add("rovalra-papi-nav-count"), item.append(presentation, label, countPill), item.addEventListener("click", onClick2), item;
+  }
+  __name(createNavItem, "createNavItem");
+  function createTagSection(tag, description, entries2, spec, authState) {
+    let section = el("section", "rovalra-papi-tag"), header = el("button", "rovalra-papi-tag-header");
+    header.type = "button", header.append(
+      el("span", "rovalra-papi-tag-name", tag),
+      renderInlineText(el("span", "rovalra-papi-tag-desc"), description),
+      createChevron()
+    ), header.addEventListener(
+      "click",
+      () => section.classList.toggle("rovalra-papi-collapsed")
+    ), section.appendChild(header);
+    let list = el("div", "rovalra-papi-tag-ops"), items = entries2.map((entry) => {
+      let controller = createOperation(entry, spec, authState);
+      return list.appendChild(controller.element), { entry, controller, searchText: getOperationSearchText(entry) };
+    });
+    return section.appendChild(list), { tag, section, items };
+  }
+  __name(createTagSection, "createTagSection");
+  function renderSpec(container, spec, authState) {
+    container.replaceChildren(createInfoSection(spec, authState));
+    let operations = collectOperations(spec), tagOrder = (spec.tags || []).map((tag) => tag.name);
+    operations.forEach((entry) => {
+      entry.tags.forEach((tag) => {
+        tagOrder.includes(tag) || tagOrder.push(tag);
+      });
+    });
+    let tagDescriptions = new Map(
+      (spec.tags || []).map((tag) => [tag.name, tag.description])
+    ), body = el("div", "rovalra-papi-body"), sidebar = el("aside", "rovalra-papi-sidebar"), main = el("div", "rovalra-papi-main"), { container: searchContainer, input: searchInput } = createStyledInput({
+      id: "rovalra-papi-search",
+      label: tr("filterLabel"),
+      placeholder: tr("filterPlaceholder")
+    });
+    searchInput.type = "search";
+    let hideDeprecated = !1, nav = el("div", "rovalra-papi-nav"), operationControllers = /* @__PURE__ */ new Map(), tagSections = tagOrder.map((tag) => {
+      let tagSection = createTagSection(
+        tag,
+        tagDescriptions.get(tag),
+        operations.filter((entry) => entry.tags.includes(tag)),
+        spec,
+        authState
+      );
+      return tagSection.items.forEach(({ entry, controller }) => {
+        operationControllers.has(entry.id) || operationControllers.set(entry.id, {
+          ...controller,
+          section: tagSection.section
+        });
+      }), main.appendChild(tagSection.section), tagSection;
+    }), applyFilter = /* @__PURE__ */ __name(() => {
+      let term = searchInput.value.trim().toLowerCase();
+      nav.replaceChildren();
+      let totalVisible = 0;
+      tagSections.forEach(({ tag, section, items }) => {
+        let visibleCount = 0;
+        items.forEach(({ entry, controller, searchText }) => {
+          let visible = (!term || searchText.includes(term)) && !(hideDeprecated && entry.operation.deprecated);
+          controller.element.style.display = visible ? "" : "none", visible && visibleCount++;
+        }), section.style.display = visibleCount ? "" : "none", term && visibleCount && section.classList.remove("rovalra-papi-collapsed"), totalVisible += visibleCount, visibleCount && nav.appendChild(
+          createNavItem(tag, visibleCount, () => {
+            section.classList.remove("rovalra-papi-collapsed"), section.scrollIntoView({
+              behavior: "smooth",
+              block: "start"
+            });
+          })
+        );
+      }), totalVisible || nav.appendChild(
+        el("div", "rovalra-papi-nav-empty", tr("noEndpoints"))
+      );
+    }, "applyFilter");
+    sidebar.append(
+      searchContainer,
+      createRadioRow(tr("hideDeprecated"), !1, (checked) => {
+        hideDeprecated = checked, applyFilter();
+      }),
+      nav
+    ), searchInput.addEventListener("input", applyFilter), applyFilter(), body.append(sidebar, main), container.appendChild(body);
+    let hashId = decodeURIComponent(window.location.hash.slice(1)), linked = hashId && operationControllers.get(hashId);
+    linked && (linked.section.classList.remove("rovalra-papi-collapsed"), linked.setExpanded(!0), requestAnimationFrame(
+      () => linked.element.scrollIntoView({ block: "start" })
+    ));
+  }
+  __name(renderSpec, "renderSpec");
+  async function fetchSpec() {
+    let token = await getValidAccessToken(!1, !1), response = await callRobloxApi({
+      endpoint: SPEC_ENDPOINT,
+      isRovalraApi: !0,
+      skipAutoAuth: !0,
+      noCache: !0,
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (response.status === 401 || response.status === 403)
+      throw new Error(tr("noAccess"));
+    if (!response.ok)
+      throw new Error(tr("serverError", { status: response.status }));
+    let spec = await response.json();
+    if (!spec?.paths) throw new Error(tr("invalidSpec"));
+    return spec;
+  }
+  __name(fetchSpec, "fetchSpec");
+  async function renderPage(contentDiv) {
+    if (window.location.pathname.toLowerCase() !== PAGE_PATH || contentDiv.dataset.rovalraPrivateApiDocs === "true") return;
+    contentDiv.dataset.rovalraPrivateApiDocs = "true", injectStyles(), contentDiv.replaceChildren(), contentDiv.style.position = "relative", contentDiv.style.backgroundColor = "var(--rovalra-container-background-color)", contentDiv.style.minHeight = "calc(100vh - 60px)";
+    let shell = el("div", "rovalra-papi-shell");
+    contentDiv.appendChild(shell), renderMessage(shell, tr("loading"), { loading: !0 }), removeHomeElement2();
+    try {
+      let spec = await fetchSpec();
+      renderSpec(shell, spec, { useToken: !0 });
+    } catch (error3) {
+      renderMessage(shell, tr("loadFailed", { error: error3.message }), {
+        isError: !0
+      });
+    } finally {
+      removeHomeElement2();
+    }
+  }
+  __name(renderPage, "renderPage");
+  function createSidebarIcon() {
+    return Icon({ material: !0, size: "medium", icon: "text_snippet" });
+  }
+  __name(createSidebarIcon, "createSidebarIcon");
+  function init14() {
+    initSidebarLink({
+      id: "private-api-docs",
+      path: PAGE_PATH,
+      label: /* @__PURE__ */ __name(() => ts2("navigation.rovalraApi"), "label"),
+      createIcon: createSidebarIcon,
+      settingKeys: [
+        "privateApiDocsEnabled",
+        "privateApiDocsSidebarLinkEnabled"
+      ]
+    }), window.location.pathname.toLowerCase() === PAGE_PATH && (async () => {
+      if (!await settings.privateApiDocsEnabled) return;
+      let contentDiv = document.querySelector(".content#content");
+      contentDiv && renderPage(contentDiv), observerActive2 || (observerActive2 = !0, observeElement(".content#content", (cDiv) => {
+        renderPage(cDiv);
+      }));
+    })().catch((error3) => {
+      console.error("RoValra: Failed to initialize private API docs.", error3);
+    });
+  }
+  __name(init14, "init");
+
   // src/content/features/developer/tests.js
   init_gameCard();
   init_observer();
@@ -25070,19 +27118,19 @@ function run() {
   __name(processBatch, "processBatch");
   function createItemCard(itemOrId, thumbnailCacheOrConfig, config = {}) {
     if (typeof itemOrId == "number" || typeof itemOrId == "string") {
-      let itemId = parseInt(itemOrId), actualConfig = thumbnailCacheOrConfig && !thumbnailCacheOrConfig.get ? thumbnailCacheOrConfig : config, card2 = document.createElement("div");
-      return card2.className = "rovalra-item-card", card2.style.minHeight = "100px", actualConfig.cardStyles ? Object.assign(card2.style, actualConfig.cardStyles) : (card2.style.width = "100%", card2.style.minWidth = "1%", card2.style.maxWidth = "150px"), card2.innerHTML = `
+      let itemId = parseInt(itemOrId), actualConfig = thumbnailCacheOrConfig && !thumbnailCacheOrConfig.get ? thumbnailCacheOrConfig : config, card3 = document.createElement("div");
+      return card3.className = "rovalra-item-card", card3.style.minHeight = "100px", actualConfig.cardStyles ? Object.assign(card3.style, actualConfig.cardStyles) : (card3.style.width = "100%", card3.style.minWidth = "1%", card3.style.maxWidth = "150px"), card3.innerHTML = `
             <div class="rovalra-item-thumb-container shimmer" style="width: 100%; height: 150px; border-radius: 8px; margin-bottom: 4px; background-color: var(--color-common-shimmer);"></div>
             <div class="rovalra-item-name shimmer" style="height: 14px; width: 90%; margin-bottom: 4px; border-radius: 4px; background-color: var(--color-common-shimmer);"></div>
             <div class="rovalra-item-rap shimmer" style="height: 14px; width: 60%; border-radius: 4px; background-color: var(--color-common-shimmer);"></div>
         `, batchQueue2.push({
         id: itemId,
-        placeholder: card2,
+        placeholder: card3,
         config: actualConfig
-      }), batchTimeout2 && clearTimeout(batchTimeout2), batchTimeout2 = setTimeout(processBatch, BATCH_DELAY), card2;
+      }), batchTimeout2 && clearTimeout(batchTimeout2), batchTimeout2 = setTimeout(processBatch, BATCH_DELAY), card3;
     }
-    let item = itemOrId, thumbnailCache2 = thumbnailCacheOrConfig, { showOnHold = !0, showSerial = !0, hideSerial = !1 } = config, card = document.createElement("div");
-    card.className = "rovalra-item-card", config.cardStyles ? Object.assign(card.style, config.cardStyles) : (card.style.width = "100%", card.style.minWidth = "1%", card.style.maxWidth = "150px"), item.itemType && (card.dataset.rovalraItemType = item.itemType), item.bundleId && (card.dataset.rovalraBundleId = item.bundleId), item.price !== void 0 && item.price !== null && (card.dataset.rovalraPrice = item.price);
+    let item = itemOrId, thumbnailCache2 = thumbnailCacheOrConfig, { showOnHold = !0, showSerial = !0, hideSerial = !1 } = config, card2 = document.createElement("div");
+    card2.className = "rovalra-item-card", config.cardStyles ? Object.assign(card2.style, config.cardStyles) : (card2.style.width = "100%", card2.style.minWidth = "1%", card2.style.maxWidth = "150px"), item.itemType && (card2.dataset.rovalraItemType = item.itemType), item.bundleId && (card2.dataset.rovalraBundleId = item.bundleId), item.price !== void 0 && item.price !== null && (card2.dataset.rovalraPrice = item.price);
     let thumbData = thumbnailCache2?.get ? thumbnailCache2.get(item.assetId) : null, itemUrl = (item.itemType || "Asset") === "Bundle" ? `https://www.roblox.com/bundles/${item.assetId}/unnamed` : `https://www.roblox.com/catalog/${item.assetId}/unnamed`, priceHtml;
     item.priceText ? priceHtml = `<span>${item.priceText}</span>` : priceHtml = `<span class="icon-robux-16x16"></span><span>${typeof item.recentAveragePrice == "number" ? item.recentAveragePrice.toLocaleString() : "N/A"}</span>`;
     let thumbContainer = document.createElement("div");
@@ -25165,7 +27213,7 @@ function run() {
       let limitedIconElement = document.createElement("span");
       limitedIconElement.className = isUnique ? "icon-label icon-limited-unique-label" : "icon-label icon-limited-label", thumbContainer.appendChild(limitedIconElement);
     }
-    card.innerHTML = `
+    card2.innerHTML = `
         <a href="${itemUrl}" class="rovalra-item-card-link">
             <div class="rovalra-item-name"></div>
             <div class="rovalra-item-rap">
@@ -25173,8 +27221,8 @@ function run() {
             </div>
         </a>
     `;
-    let nameDiv = card.querySelector(".rovalra-item-name");
-    return nameDiv.title = item.name, nameDiv.textContent = item.name, card.querySelector("a").prepend(thumbContainer), card;
+    let nameDiv = card2.querySelector(".rovalra-item-name");
+    return nameDiv.title = item.name, nameDiv.textContent = item.name, card2.querySelector("a").prepend(thumbContainer), card2;
   }
   __name(createItemCard, "createItemCard");
 
@@ -25196,42 +27244,18 @@ function run() {
   }
   __name(createToggle, "createToggle");
 
-  // src/content/core/ui/general/pillToggle.js
-  init_pill();
-  function createPillToggle({ options, initialValue, onChange }) {
-    let container = document.createElement("div");
-    container.className = "rovalra-pill-toggle bg-shift-300 radius-circle flex items-center", container.style.display = "inline-flex", container.style.alignSelf = "flex-start", container.style.gap = "var(--padding-xsmall)", container.style.padding = "2px";
-    let selectedValue = initialValue, buttons = /* @__PURE__ */ new Map();
-    options.forEach((option) => {
-      let pillButton = createPill(option.text, option.tooltip, { isButton: !0 });
-      pillButton.dataset.value = option.value, pillButton.classList.remove("bg-shift-300"), pillButton.style.backgroundColor = "transparent";
-      let content = pillButton.querySelector("span");
-      content && (content.style.position = "relative", content.style.zIndex = "2"), container.appendChild(pillButton), buttons.set(option.value, pillButton), pillButton.addEventListener("click", () => {
-        pillButton.classList.contains("disabled") || String(selectedValue) === String(option.value) || (selectedValue = option.value, updateSelected(), onChange && onChange(selectedValue));
-      });
-    });
-    function updateSelected() {
-      for (let [value2, button] of buttons.entries()) {
-        let presentation = button.querySelector('div[role="presentation"]');
-        String(value2) === String(selectedValue) ? (button.classList.replace("content-action-utility", "content-default"), presentation.style.backgroundColor = "var(--color-surface-100)") : (button.classList.replace("content-default", "content-action-utility"), presentation.style.backgroundColor = "transparent");
-      }
-    }
-    return __name(updateSelected, "updateSelected"), selectedValue === void 0 && options.length > 0 && (selectedValue = options[0].value), selectedValue !== void 0 && updateSelected(), container;
-  }
-  __name(createPillToggle, "createPillToggle");
-
   // src/content/features/developer/tests.js
   init_pill();
   init_userCard();
   init_api();
   init_thumbnails();
-  function removeHomeElement2() {
+  function removeHomeElement3() {
     let homeElementToRemove = document.querySelector(
       "li.cursor-pointer.btr-nav-node-header_home.btr-nav-header_home"
     );
     homeElementToRemove && homeElementToRemove.remove();
   }
-  __name(removeHomeElement2, "removeHomeElement");
+  __name(removeHomeElement3, "removeHomeElement");
   async function renderTestPage(contentDiv) {
     if (window.location.pathname.toLowerCase() !== "/test") return;
     contentDiv.innerHTML = "", contentDiv.style.position = "relative";
@@ -25289,8 +27313,8 @@ function run() {
     }
     let container = document.createElement("div");
     container.style.display = "flex", container.style.gap = "20px", container.style.flexWrap = "wrap", contentDiv.appendChild(container);
-    let card = createGameCard(1818);
-    container.appendChild(card);
+    let card2 = createGameCard(1818);
+    container.appendChild(card2);
     let frecard = createGameCard(4924922222);
     container.appendChild(frecard);
     let Longcard = createGameCard(14056754882);
@@ -25363,17 +27387,17 @@ function run() {
       materialIconFilled,
       rovalraIcon,
       rovalraContributorIcon
-    ), removeHomeElement2();
+    ), removeHomeElement3();
   }
   __name(renderTestPage, "renderTestPage");
-  function init14() {
+  function init15() {
     chrome.storage.local.get("eastereggslinksEnabled", (result) => {
       result.eastereggslinksEnabled && observeElement(".content#content", (cDiv) => {
         renderTestPage(cDiv);
       });
     });
   }
-  __name(init14, "init");
+  __name(init15, "init");
 
   // src/content/features/moderation/moderation.js
   init_observer();
@@ -25510,13 +27534,13 @@ function run() {
   init_input();
   init_dompurify();
   init_confirmationPrompt();
-  function removeHomeElement3() {
+  function removeHomeElement4() {
     let homeElementToRemove = document.querySelector(
       "li.cursor-pointer.btr-nav-node-header_home.btr-nav-header_home"
     );
     homeElementToRemove && homeElementToRemove.remove();
   }
-  __name(removeHomeElement3, "removeHomeElement");
+  __name(removeHomeElement4, "removeHomeElement");
   async function checkModeratorStatus() {
     try {
       let response = await callRobloxApi({
@@ -25895,8 +27919,8 @@ function run() {
           return;
         }
         filteredReports.forEach((report) => {
-          let card = document.createElement("div");
-          card.className = "report-card", card.style.padding = "15px", card.style.borderRadius = "8px", card.style.backgroundColor = "var(--rovalra-container-background-color)", card.style.borderLeft = `4px solid ${report.status === 1 ? "#49cc90" : "#ff9f43"}`, card.innerHTML = safeHtml`
+          let card2 = document.createElement("div");
+          card2.className = "report-card", card2.style.padding = "15px", card2.style.borderRadius = "8px", card2.style.backgroundColor = "var(--rovalra-container-background-color)", card2.style.borderLeft = `4px solid ${report.status === 1 ? "#49cc90" : "#ff9f43"}`, card2.innerHTML = safeHtml`
                 <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                     <strong style="text-transform:uppercase; font-size:11px; opacity:0.7;">Profile Content: ${report.config_key}</strong>
                     <div style="display: flex; flex-direction: column; align-items: flex-end; font-size: 10px; opacity: 0.7; line-height: 1.2;">
@@ -25909,9 +27933,9 @@ function run() {
                     <div style="margin-top:5px; opacity:0.8;">Target User: <a href="https://www.roblox.com/users/${report.target_user_id}/profile" target="_blank" style="color: inherit; text-decoration: underline;">@${report.target_username}</a> (${report.target_user_id})</div>
                     <div style="margin-top:5px; opacity:0.6; font-size: 11px;">Reports: ${report.report_count}</div>
                 </div>
-            `, card.querySelector(".first-report-time").appendChild(
+            `, card2.querySelector(".first-report-time").appendChild(
             createInteractiveTimestamp(report.first_reported_at)
-          ), card.querySelector(".last-report-time").appendChild(
+          ), card2.querySelector(".last-report-time").appendChild(
             createInteractiveTimestamp(
               report.last_reported_at || report.first_reported_at
             )
@@ -25929,7 +27953,7 @@ function run() {
                   btn.disabled = !0, await resolveReport(
                     report.report_id,
                     action
-                  ) ? card.remove() : btn.disabled = !1;
+                  ) ? card2.remove() : btn.disabled = !1;
                 }, "onConfirm")
               });
             }, "resolveAction"), acceptBtn = document.createElement("button");
@@ -25945,7 +27969,7 @@ function run() {
               color: "#49cc90"
             }), resolvedLabel.textContent = "Resolved", actionsContainer.appendChild(resolvedLabel);
           }
-          card.appendChild(actionsContainer), listContainer.appendChild(card);
+          card2.appendChild(actionsContainer), listContainer.appendChild(card2);
         });
       } catch {
         listContainer.innerHTML = '<p style="color: #f93e3e;">Failed to load report queue.</p>';
@@ -26048,7 +28072,7 @@ function run() {
     ), window.__rovalraModerationHashHandler = () => {
       let hashTab = getHashTab();
       hashTab && hashTab !== activeTab && selectTab(hashTab, { updateHash: !1 });
-    }, window.addEventListener("hashchange", window.__rovalraModerationHashHandler), container.appendChild(tabsContainer), container.appendChild(contentArea), contentDiv.appendChild(container), removeHomeElement3();
+    }, window.addEventListener("hashchange", window.__rovalraModerationHashHandler), container.appendChild(tabsContainer), container.appendChild(contentArea), contentDiv.appendChild(container), removeHomeElement4();
   }
   __name(renderModerationPage, "renderModerationPage");
   var RESTRICTION_LEVELS2 = [
@@ -26201,13 +28225,13 @@ function run() {
       let searchTerm = searchInput.value.toLowerCase(), statusValue = dropdownResult?.trigger?.dataset?.value || "all", sortValue = sortDropdown?.trigger?.dataset?.value || "desc", cards = Array.from(
         appealsContainer.querySelectorAll(".appeal-card")
       );
-      cards.forEach((card) => {
-        let matchesStatus = statusValue === "all" || card.dataset.status === statusValue, matchesSearch = !searchTerm || card.dataset.search.includes(searchTerm);
-        card.style.display = matchesStatus && matchesSearch ? "block" : "none";
+      cards.forEach((card2) => {
+        let matchesStatus = statusValue === "all" || card2.dataset.status === statusValue, matchesSearch = !searchTerm || card2.dataset.search.includes(searchTerm);
+        card2.style.display = matchesStatus && matchesSearch ? "block" : "none";
       }), cards.sort((a, b3) => {
         let tA = parseInt(a.dataset.timestamp), tB = parseInt(b3.dataset.timestamp);
         return sortValue === "desc" ? tB - tA : tA - tB;
-      }).forEach((card) => appealsContainer.appendChild(card));
+      }).forEach((card2) => appealsContainer.appendChild(card2));
     }, "updateFilters");
     searchInput.addEventListener("input", updateFilters);
     let filterOptions = [
@@ -26775,12 +28799,12 @@ function run() {
     updateUI();
   }
   __name(renderFilterScanTab, "renderFilterScanTab");
-  function init15() {
+  function init16() {
     window.location.pathname.toLowerCase() === "/moderation" && observeElement(".content#content", (cDiv) => {
       renderModerationPage(cDiv);
     });
   }
-  __name(init15, "init");
+  __name(init16, "init");
 
   // src/content/core/utils/trackers/birthday.js
   init_api();
@@ -26918,10 +28942,10 @@ function run() {
     return trackedData?.isAgeChecked !== !0 || trackedData?.age === null || trackedData?.age === void 0 || trackedData.age < 16;
   }
   __name(isAuthenticatedUserUnder16OrNotAgeChecked, "isAuthenticatedUserUnder16OrNotAgeChecked");
-  async function init16() {
+  async function init17() {
     await updateBirthdayTracker();
   }
-  __name(init16, "init");
+  __name(init17, "init");
 
   // src/content/core/utils/trackers/servers.js
   init_api();
@@ -26936,7 +28960,7 @@ function run() {
       JSON.stringify(presence) !== JSON.stringify(latestPresence) && (latestPresence = presence, broadcast(presence));
     }
   });
-  function init17() {
+  function init18() {
     chrome.storage.local.get({ recentServersEnabled: !0 }, (settings2) => {
       if (!settings2.recentServersEnabled) return;
       let currentUserElement = document.querySelector('meta[name="user-data"]'), currentUserId = currentUserElement ? currentUserElement.dataset.userid : null;
@@ -26945,7 +28969,7 @@ function run() {
       });
     });
   }
-  __name(init17, "init");
+  __name(init18, "init");
 
   // src/content/index.js
   init_friendslist();
@@ -27218,10 +29242,10 @@ function run() {
     enabled = await settings.playtimeEnabled !== !1;
   }
   __name(refreshEnabled, "refreshEnabled");
-  async function init18() {
+  async function init19() {
     initialized || (initialized = !0, await refreshEnabled(), registerPresenceListeners());
   }
-  __name(init18, "init");
+  __name(init19, "init");
 
   // src/content/features/games/privateGames.js
   init_api();
@@ -27242,7 +29266,7 @@ function run() {
     tab.id = `tab-${id}`, tab.className = `rbx-tab tab-${id}`, tab.innerHTML = safeHtml`<a class="rbx-tab-heading"><span class="text-lead">${label}</span></a>`;
     let contentPane = document.createElement("div");
     contentPane.className = ["tab-pane", ...classes].join(" "), contentPane.id = `${id}-content-pane`;
-    let init174 = /* @__PURE__ */ __name(() => {
+    let init181 = /* @__PURE__ */ __name(() => {
       container.appendChild(tab), contentContainer.appendChild(contentPane);
       let otherPanes = contentContainer.querySelectorAll(".tab-pane");
       Array.from(otherPanes).some((pane) => {
@@ -27256,10 +29280,10 @@ function run() {
         },
         { multiple: !0 }
       ), tab.addEventListener("click", (e) => {
-        e.preventDefault(), document.querySelectorAll(".rbx-tab.active, .tab-pane.active").forEach((el3) => el3.classList.remove("active")), tab.classList.add("active"), contentPane.classList.add("active"), hash && window.location.hash !== hash && (window.location.hash = hash);
+        e.preventDefault(), document.querySelectorAll(".rbx-tab.active, .tab-pane.active").forEach((el4) => el4.classList.remove("active")), tab.classList.add("active"), contentPane.classList.add("active"), hash && window.location.hash !== hash && (window.location.hash = hash);
       }), hash && window.location.hash === hash && setTimeout(() => tab.click(), 200);
     }, "init");
-    return document.readyState === "complete" ? init174() : window.addEventListener("load", init174, { once: !0 }), { tab, contentPane };
+    return document.readyState === "complete" ? init181() : window.addEventListener("load", init181, { once: !0 }), { tab, contentPane };
   }
   __name(createTab, "createTab");
 
@@ -27344,10 +29368,10 @@ function run() {
     ));
   }
   __name(observeBannerTarget, "observeBannerTarget");
-  function init19(targetParentSelector = DEFAULT_TARGET_PARENT_SELECTOR) {
+  function init20(targetParentSelector = DEFAULT_TARGET_PARENT_SELECTOR) {
     startObserving(), ensureBannerManager(), observeBannerTarget(targetParentSelector);
   }
-  __name(init19, "init");
+  __name(init20, "init");
 
   // src/content/core/ui/robuxIcon.js
   init_observer();
@@ -27446,8 +29470,8 @@ function run() {
   }
   __name(scheduleUsdRefresh, "scheduleUsdRefresh");
   function removeAllEstimates() {
-    document.querySelectorAll(".rovalra-usd-estimate").forEach((el3) => el3.remove()), document.querySelectorAll("[data-rovalra-usd-amount]").forEach((el3) => {
-      delete el3.dataset.rovalraUsdAmount;
+    document.querySelectorAll(".rovalra-usd-estimate").forEach((el4) => el4.remove()), document.querySelectorAll("[data-rovalra-usd-amount]").forEach((el4) => {
+      delete el4.dataset.rovalraUsdAmount;
     });
   }
   __name(removeAllEstimates, "removeAllEstimates");
@@ -27674,20 +29698,20 @@ function run() {
     } : null;
   }
   __name(getFormattedRobuxEstimate, "getFormattedRobuxEstimate");
-  function applyEstimateStyle(el3, style) {
-    if (!(el3 instanceof HTMLElement)) return;
+  function applyEstimateStyle(el4, style) {
+    if (!(el4 instanceof HTMLElement)) return;
     if (style?.styleMode === ROBUX_FIAT_ESTIMATE_STYLE_MODE_GRADIENT && style.gradient?.enabled !== !1 && style.gradient?.color1 && style.gradient?.color2) {
       let g2 = style.gradient, s1 = (100 - (Number.isFinite(g2.fade) ? g2.fade : 100)) / 2, s2 = 100 - s1, bg = `linear-gradient(${Number.isFinite(g2.angle) ? g2.angle : 90}deg, ${g2.color1} ${s1}%, ${g2.color2} ${s2}%)`;
-      el3.style.backgroundImage !== bg && (el3.style.backgroundImage = bg), el3.style.backgroundClip = "text", el3.style.webkitBackgroundClip = "text", el3.style.color = "transparent", el3.style.webkitTextFillColor = "transparent";
+      el4.style.backgroundImage !== bg && (el4.style.backgroundImage = bg), el4.style.backgroundClip = "text", el4.style.webkitBackgroundClip = "text", el4.style.color = "transparent", el4.style.webkitTextFillColor = "transparent";
     } else {
-      el3.style.backgroundImage && (el3.style.backgroundImage = ""), el3.style.backgroundClip && (el3.style.backgroundClip = ""), el3.style.webkitBackgroundClip && (el3.style.webkitBackgroundClip = ""), el3.style.webkitTextFillColor && (el3.style.webkitTextFillColor = "");
+      el4.style.backgroundImage && (el4.style.backgroundImage = ""), el4.style.backgroundClip && (el4.style.backgroundClip = ""), el4.style.webkitBackgroundClip && (el4.style.webkitBackgroundClip = ""), el4.style.webkitTextFillColor && (el4.style.webkitTextFillColor = "");
       let color2 = style?.color || ROBUX_FIAT_ESTIMATE_DEFAULT_COLOR;
-      el3.style.color !== color2 && (el3.style.color = color2);
+      el4.style.color !== color2 && (el4.style.color = color2);
     }
     let fontWeight = style?.bold ? "700" : "";
-    el3.style.fontWeight !== fontWeight && (el3.style.fontWeight = fontWeight);
+    el4.style.fontWeight !== fontWeight && (el4.style.fontWeight = fontWeight);
     let fontStyle = style?.italic ? "italic" : "";
-    el3.style.fontStyle !== fontStyle && (el3.style.fontStyle = fontStyle);
+    el4.style.fontStyle !== fontStyle && (el4.style.fontStyle = fontStyle);
   }
   __name(applyEstimateStyle, "applyEstimateStyle");
   function upsertEstimate(anchorElement, estimate, options = {}) {
@@ -27713,7 +29737,7 @@ function run() {
     } else {
       anchor.querySelectorAll(".rovalra-usd-estimate").forEach((estimateEl) => estimateEl.remove());
       let existingEstimate = anchor.nextElementSibling;
-      return existingEstimate instanceof HTMLElement && existingEstimate.classList.contains("rovalra-usd-estimate") && existingEstimate.remove(), anchor.dataset.rovalraTooltipText = text3, anchor.dataset.rovalraTooltipAttached || (addTooltip(anchor, (el3) => el3.dataset.rovalraTooltipText || text3, {
+      return existingEstimate instanceof HTMLElement && existingEstimate.classList.contains("rovalra-usd-estimate") && existingEstimate.remove(), anchor.dataset.rovalraTooltipText = text3, anchor.dataset.rovalraTooltipAttached || (addTooltip(anchor, (el4) => el4.dataset.rovalraTooltipText || text3, {
         position: "top"
       }), anchor.dataset.rovalraTooltipAttached = "true"), null;
     }
@@ -27892,7 +29916,7 @@ function run() {
     }), processed;
   }
   __name(processRobuxIcons, "processRobuxIcons");
-  function init20() {
+  function init21() {
     return robuxIconInitialized ? (scheduleUsdRefresh(0), {
       apply: applyRobuxIcon,
       create: createRobuxIcon,
@@ -27918,7 +29942,7 @@ function run() {
         getRobuxFiatSettings().then((fiatSettings) => {
           if (!fiatSettings.robuxFiatEstimatesEnabled) return;
           let style = buildEstimateStyle(fiatSettings);
-          document.querySelectorAll(".rovalra-usd-estimate").forEach((el3) => applyEstimateStyle(el3, style));
+          document.querySelectorAll(".rovalra-usd-estimate").forEach((el4) => applyEstimateStyle(el4, style));
         });
         return;
       }
@@ -27981,7 +30005,7 @@ function run() {
       process: /* @__PURE__ */ __name(() => processRobuxIcons(), "process")
     });
   }
-  __name(init20, "init");
+  __name(init21, "init");
 
   // src/content/features/games/privateGames.js
   init_playabilityStatus();
@@ -28253,7 +30277,7 @@ function run() {
               thumbSize
             ).then((data) => (data && eventThumbnailCache.set(cacheKey, data), data))
           });
-          let rsvpCount = eventRsvpCache.get(event.id), hasEnded = event.eventTime?.endUtc && new Date(event.eventTime.endUtc) <= now, card = createEventCard(
+          let rsvpCount = eventRsvpCache.get(event.id), hasEnded = event.eventTime?.endUtc && new Date(event.eventTime.endUtc) <= now, card2 = createEventCard(
             event,
             isPast || hasEnded,
             thumbData,
@@ -28264,7 +30288,7 @@ function run() {
           rsvpCount === void 0 && event.id && fetchEventRsvps(event.id).then((count) => {
             if (thisIteration === renderIteration && count !== null) {
               eventRsvpCache.set(event.id, count);
-              let container = card.querySelector(
+              let container = card2.querySelector(
                 ".rovalra-rsvp-container"
               );
               container && (container.innerHTML = dompurify_default.sanitize(`
@@ -28272,7 +30296,7 @@ function run() {
                                     <span class="info-label playing-counts-label">${count.toLocaleString()}</span>
                                 `));
             }
-          }), gridContainer.appendChild(card);
+          }), gridContainer.appendChild(card2);
         }
       }), updateLoadMoreButton(events, isPast);
     }, "renderEvents"), [fetchedActiveEvents, fetchedPastEvents] = await Promise.all([
@@ -28342,7 +30366,7 @@ function run() {
   }
   __name(checkAndInjectEvents, "checkAndInjectEvents");
   var hasLoaded = !1;
-  function init21() {
+  function init22() {
     hasLoaded || (hasLoaded = !0, chrome.storage.local.get({ EnableImprovedEvents: !0 }, (settings2) => {
       if (!settings2.EnableImprovedEvents || document.getElementById("tab-events")) return;
       let activeRequests2 = [], deactivateAll = /* @__PURE__ */ __name(() => {
@@ -28350,7 +30374,7 @@ function run() {
           req.active = !1;
         }), activeRequests2.length = 0;
       }, "deactivateAll"), req1 = observeElement("#tab-events", () => {
-        deactivateAll(), document.querySelectorAll(".virtual-event-game-details-container").forEach((el3) => el3.remove());
+        deactivateAll(), document.querySelectorAll(".virtual-event-game-details-container").forEach((el4) => el4.remove());
       });
       activeRequests2.push(req1);
       let req2 = observeElement(
@@ -28402,7 +30426,7 @@ function run() {
       activeRequests2.push(req4);
     }));
   }
-  __name(init21, "init");
+  __name(init22, "init");
 
   // src/content/core/ui/general/scrollButtons.js
   function createScrollButtons({ onLeftClick, onRightClick }) {
@@ -28437,10 +30461,10 @@ function run() {
     )), lastClickedUrl;
   }
   __name(getLastClickedUrl, "getLastClickedUrl");
-  function init22() {
+  function init23() {
     document.addEventListener("click", handleClick, !0), getLastClickedUrl();
   }
-  __name(init22, "init");
+  __name(init23, "init");
 
   // src/content/features/games/privateGames.js
   init_shimmer();
@@ -28492,16 +30516,16 @@ function run() {
   }
   __name(createServerAvatar, "createServerAvatar");
   function createServerCard(server, type, placeId) {
-    let card = document.createElement("li");
-    card.className = `rovalra-server-card rovalra-server-card-${type}`;
+    let card2 = document.createElement("li");
+    card2.className = `rovalra-server-card rovalra-server-card-${type}`;
     let avatar = createServerAvatar();
-    card.appendChild(avatar);
+    card2.appendChild(avatar);
     let header = document.createElement("div");
     header.className = "rovalra-server-card-header";
     let title = type === "private" ? server.name || ts2("privateGames.servers.privateServer") : type === "friends" ? "Friends server" : "Public server";
     header.appendChild(createServerText(title, "rovalra-server-card-title"));
-    let details = document.createElement("div");
-    details.className = "rovalra-server-card-details";
+    let details2 = document.createElement("div");
+    details2.className = "rovalra-server-card-details";
     let playerCount = createServerText(
       ts2("privateGames.servers.players", {
         playing: Number(server.playing) || 0,
@@ -28509,9 +30533,9 @@ function run() {
       }),
       "rovalra-server-card-players"
     );
-    if (type === "private" ? (playerCount.classList.add("rovalra-server-card-private-players"), header.appendChild(playerCount)) : details.appendChild(playerCount), (type === "public" || type === "friends") && type === "friends" && Array.isArray(server.players)) {
+    if (type === "private" ? (playerCount.classList.add("rovalra-server-card-private-players"), header.appendChild(playerCount)) : details2.appendChild(playerCount), (type === "public" || type === "friends") && type === "friends" && Array.isArray(server.players)) {
       let friendNames = server.players.map((player) => player.displayName || player.name).filter(Boolean).slice(0, 3);
-      friendNames.length && details.appendChild(
+      friendNames.length && details2.appendChild(
         createServerText(`Friends: ${friendNames.join(", ")}`)
       );
     }
@@ -28548,11 +30572,11 @@ function run() {
       );
       footer.appendChild(joinButton);
     }
-    return card.append(header), type !== "private" && card.appendChild(details), playerGauge && card.appendChild(playerGauge), card.appendChild(footer), card;
+    return card2.append(header), type !== "private" && card2.appendChild(details2), playerGauge && card2.appendChild(playerGauge), card2.appendChild(footer), card2;
   }
   __name(createServerCard, "createServerCard");
-  async function loadServerCardAvatars(card, server, type) {
-    let avatar = card.querySelector(".rovalra-server-avatar");
+  async function loadServerCardAvatars(card2, server, type) {
+    let avatar = card2.querySelector(".rovalra-server-avatar");
     if (!avatar) return;
     let items = type === "private" ? server.owner?.id ? [{ id: server.owner.id }] : [] : (server.playerTokens || []).slice(0, 5).map((id) => ({ id }));
     if (items.length)
@@ -28618,16 +30642,16 @@ function run() {
         subdomain: "games",
         endpoint
       }), servers = Array.isArray(response?.data) ? response.data : [], loadedServerIds = new Set(
-        Array.from(list.children).map((card) => card.dataset.serverId).filter(Boolean)
+        Array.from(list.children).map((card2) => card2.dataset.serverId).filter(Boolean)
       );
       servers.filter((server) => {
         let serverId = String(server.id || server.vipServerId || "");
         return !serverId || loadedServerIds.has(serverId) ? !1 : (loadedServerIds.add(serverId), !0);
       }).forEach((server) => {
-        let card = createServerCard(server, type, placeId);
-        card.dataset.serverId = String(
+        let card2 = createServerCard(server, type, placeId);
+        card2.dataset.serverId = String(
           server.id || server.vipServerId || ""
-        ), list.appendChild(card), loadServerCardAvatars(card, server, type);
+        ), list.appendChild(card2), loadServerCardAvatars(card2, server, type);
       });
       let nextCursor = response?.nextPageCursor || "";
       section.dataset.cursor = nextCursor;
@@ -28776,7 +30800,7 @@ ${ts2("privateGames.disabledLinkText")}`)}
     })));
   }
   __name(watchForUnavailableGame, "watchForUnavailableGame");
-  function init23() {
+  function init24() {
     let privateUrlMatch = window.location.pathname.match(
       /^(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/private-games\/(\d+)/
     ), checkUrlMatch = window.location.pathname.match(
@@ -28872,7 +30896,7 @@ ${ts2("privateGames.disabledLinkText")}`)}
       );
     }
   }
-  __name(init23, "init");
+  __name(init24, "init");
   async function checkRedirectToStandardPage(gameData, placeId, settings2) {
     if (!settings2.disablePrivateGameRedirection && !(!gameData._playabilityStatus || !gameData._playabilityStatus.isPlayable) && gameData._existsInGamesApi === !0 && gameData._cloudData && gameData._cloudData.visibility !== "PRIVATE") {
       let gameNameSlug = slugifyGameName(
@@ -29024,16 +31048,16 @@ ${ts2("privateGames.disabledLinkText")}`)}
       return;
     }
     let updateText = /* @__PURE__ */ __name((id, text3, forceClear = !1) => {
-      let el3 = document.getElementById(id);
-      el3 && (text3 != null ? (el3.textContent = text3, el3.classList.remove("shimmer"), el3.style.minWidth = "", el3.style.minHeight = "") : forceClear && (el3.textContent = ts2("privateGames.unknown"), el3.classList.remove("shimmer"), el3.style.minWidth = "", el3.style.minHeight = ""));
+      let el4 = document.getElementById(id);
+      el4 && (text3 != null ? (el4.textContent = text3, el4.classList.remove("shimmer"), el4.style.minWidth = "", el4.style.minHeight = "") : forceClear && (el4.textContent = ts2("privateGames.unknown"), el4.classList.remove("shimmer"), el4.style.minWidth = "", el4.style.minHeight = ""));
     }, "updateText");
     if (updateText(
       "rovalra-active-playing",
       gameData.playing !== null ? formatVoteCount(gameData.playing) : null,
       isComplete
     ), gameData.playing !== null) {
-      let el3 = document.getElementById("rovalra-active-playing");
-      el3 && !el3.getAttribute("data-tooltip-attached") && (el3.setAttribute("data-tooltip-attached", "true"), addTooltip(el3, gameData.playing.toLocaleString(), {
+      let el4 = document.getElementById("rovalra-active-playing");
+      el4 && !el4.getAttribute("data-tooltip-attached") && (el4.setAttribute("data-tooltip-attached", "true"), addTooltip(el4, gameData.playing.toLocaleString(), {
         position: "bottom"
       }));
     }
@@ -29042,8 +31066,8 @@ ${ts2("privateGames.disabledLinkText")}`)}
       gameData.favoritedCount !== null ? formatVoteCount(gameData.favoritedCount) : null,
       isComplete
     ), gameData.favoritedCount !== null) {
-      let el3 = document.getElementById("rovalra-favorited-count");
-      el3 && !el3.getAttribute("data-tooltip-attached") && (el3.setAttribute("data-tooltip-attached", "true"), addTooltip(el3, gameData.favoritedCount.toLocaleString(), {
+      let el4 = document.getElementById("rovalra-favorited-count");
+      el4 && !el4.getAttribute("data-tooltip-attached") && (el4.setAttribute("data-tooltip-attached", "true"), addTooltip(el4, gameData.favoritedCount.toLocaleString(), {
         position: "bottom"
       }));
     }
@@ -29052,8 +31076,8 @@ ${ts2("privateGames.disabledLinkText")}`)}
       gameData.visits !== null ? formatVoteCount(gameData.visits) : null,
       isComplete
     ), gameData.visits !== null) {
-      let el3 = document.getElementById("rovalra-visits-count");
-      el3 && !el3.getAttribute("data-tooltip-attached") && (el3.setAttribute("data-tooltip-attached", "true"), addTooltip(el3, gameData.visits.toLocaleString(), {
+      let el4 = document.getElementById("rovalra-visits-count");
+      el4 && !el4.getAttribute("data-tooltip-attached") && (el4.setAttribute("data-tooltip-attached", "true"), addTooltip(el4, gameData.visits.toLocaleString(), {
         position: "bottom"
       }));
     }
@@ -29062,8 +31086,8 @@ ${ts2("privateGames.disabledLinkText")}`)}
       gameData.maxPlayers !== null ? gameData.maxPlayers.toLocaleString() : null,
       isComplete
     ), gameData.maxPlayers !== null) {
-      let el3 = document.getElementById("rovalra-max-players");
-      el3 && !el3.getAttribute("data-tooltip-attached") && (el3.setAttribute("data-tooltip-attached", "true"), addTooltip(el3, gameData.maxPlayers.toLocaleString(), {
+      let el4 = document.getElementById("rovalra-max-players");
+      el4 && !el4.getAttribute("data-tooltip-attached") && (el4.setAttribute("data-tooltip-attached", "true"), addTooltip(el4, gameData.maxPlayers.toLocaleString(), {
         position: "bottom"
       }));
     }
@@ -29205,7 +31229,7 @@ ${ts2("privateGames.disabledLinkText")}`)}
     if (!content) return;
     injectStylesheet("css/privategames.css", "rovalra-privategames-css");
     let isSkeleton = game.isSkeleton, gameName = game.name || ts2("privateGames.privateExperience");
-    document.title = `${gameName} - Roblox`, init19();
+    document.title = `${gameName} - Roblox`, init20();
     let playabilityStatus = game._playabilityStatus;
     playabilityStatus && typeof playabilityStatus.raw < "u" && showStatusBannerForPlayabilityStatus(playabilityStatus, placeId);
     let isFavoritedByUser = game.isFavoritedByUser || !1, voiceChatEnabled = game.voiceChatEnabled, assets7 = getAssets();
@@ -29514,7 +31538,7 @@ ${ts2("privateGames.disabledLinkText")}`)}
       let noPassesMsg = document.createElement("div");
       noPassesMsg.className = "section-content-off", noPassesMsg.style.display = "none", noPassesMsg.textContent = ts2("privateGames.passes.noPasses"), passesContainer.appendChild(passesHeader), passesContainer.appendChild(passesList), passesContainer.appendChild(noPassesMsg), storeTab.contentPane.appendChild(passesContainer), lastList = passesList, lastNoPassesMsg = noPassesMsg;
       let badgesLoaded = !1, passesLoaded = !1, clearActiveStates = /* @__PURE__ */ __name(() => {
-        tabsContainer.querySelectorAll(".rbx-tab.active").forEach((el3) => el3.classList.remove("active")), tabContentContainer.querySelectorAll(".tab-pane.active").forEach((el3) => el3.classList.remove("active"));
+        tabsContainer.querySelectorAll(".rbx-tab.active").forEach((el4) => el4.classList.remove("active")), tabContentContainer.querySelectorAll(".tab-pane.active").forEach((el4) => el4.classList.remove("active"));
       }, "clearActiveStates"), switchToStoreTab = /* @__PURE__ */ __name(() => {
         if (clearActiveStates(), storeTab.tab.classList.add("active"), storeTab.contentPane.classList.add("active"), !passesLoaded) {
           passesLoaded = !0;
@@ -29877,7 +31901,7 @@ ${ts2("privateGames.disabledLinkText")}`)}
         endpoint: `/game-passes/v1/universes/${universeId}/game-passes?pageSize=50&passView=Full`
       }), passes = res?.data || res?.gamePasses || [];
       if (list.querySelectorAll(".shimmer, .rovalra-item-card-shimmer").forEach(
-        (el3) => el3.parentElement?.remove()
+        (el4) => el4.parentElement?.remove()
       ), passes.length === 0) {
         noPassesMsg && (noPassesMsg.style.display = "");
         return;
@@ -30096,7 +32120,7 @@ ${ts2("privateGames.disabledLinkText")}`)}
                 </div>
             </div>
         </div>
-    `), init19("#item-container"), window.GameBannerManager && (window.GameBannerManager.clearNotices?.(), window.GameBannerManager.addNotice(
+    `), init20("#item-container"), window.GameBannerManager && (window.GameBannerManager.clearNotices?.(), window.GameBannerManager.addNotice(
       ts2("privateGames.rovalraNotice"),
       ROVALRA_ONLY_ICON,
       ts2("gamePassViewer.rovalraNoticeDescription"),
@@ -30145,10 +32169,10 @@ ${ts2("privateGames.disabledLinkText")}`)}
     }));
   }
   __name(initGamePassViewer, "initGamePassViewer");
-  function init24() {
+  function init25() {
     initGamePassViewer();
   }
-  __name(init24, "init");
+  __name(init25, "init");
 
   // node_modules/roavatar-renderer/dist/index.js
   var _a, _b;
@@ -51468,10 +53492,10 @@ Program Info Log: ` + programLog + `
   __name(reversePainterSortStable, "reversePainterSortStable");
   function WebGLRenderList() {
     let renderItems2 = [], renderItemsIndex = 0, opaque = [], transmissive = [], transparent = [];
-    function init174() {
+    function init181() {
       renderItemsIndex = 0, opaque.length = 0, transmissive.length = 0, transparent.length = 0;
     }
-    __name(init174, "init");
+    __name(init181, "init");
     function materialVariant(object) {
       let variant = 0;
       return object.isInstancedMesh && (variant += 2), object.isSkinnedMesh && (variant += 1), variant;
@@ -51517,7 +53541,7 @@ Program Info Log: ` + programLog + `
       opaque,
       transmissive,
       transparent,
-      init: init174,
+      init: init181,
       push,
       unshift,
       finish,
@@ -51762,10 +53786,10 @@ Program Info Log: ` + programLog + `
   __name(WebGLLights, "WebGLLights");
   function WebGLRenderState(extensions) {
     let lights = new WebGLLights(extensions), lightsArray = [], shadowsArray = [], lightProbeGridArray = [];
-    function init174(camera) {
+    function init181(camera) {
       state5.camera = camera, lightsArray.length = 0, shadowsArray.length = 0, lightProbeGridArray.length = 0;
     }
-    __name(init174, "init");
+    __name(init181, "init");
     function pushLight(light) {
       lightsArray.push(light);
     }
@@ -51796,7 +53820,7 @@ Program Info Log: ` + programLog + `
       textureUnits: 0
     };
     return {
-      init: init174,
+      init: init181,
       state: state5,
       setupLights,
       setupLightsView,
@@ -58414,13 +60438,13 @@ void main() {
     return __name(componentToHex, "componentToHex"), ("" + componentToHex(r) + componentToHex(g2) + componentToHex(b3)).toUpperCase();
   }
   __name(rgbToHex, "rgbToHex");
-  function arrayBufferToBase64(buffer2) {
+  function arrayBufferToBase642(buffer2) {
     let binary = "", bytes = new Uint8Array(buffer2), len = bytes.byteLength;
     for (let i2 = 0; i2 < len; i2++)
       binary += String.fromCharCode(bytes[i2]);
     return btoa(binary).replaceAll("+", "-").replaceAll("/", "_");
   }
-  __name(arrayBufferToBase64, "arrayBufferToBase64");
+  __name(arrayBufferToBase642, "arrayBufferToBase64");
   function base64ToArrayBuffer(base64) {
     let binaryString = atob(base64.replaceAll("-", "+").replaceAll("_", "/")), length = binaryString.length, bytes = new Uint8Array(length);
     for (let i2 = 0; i2 < length; i2++)
@@ -59483,7 +61507,7 @@ void main() {
     buffer;
     bg = 0;
     constructor(outfit) {
-      this.name = outfit.name, this.id = outfit.id, this.creator = outfit.creatorId, this.date = Date.now(), this.buffer = arrayBufferToBase64(outfit.toBuffer());
+      this.name = outfit.name, this.id = outfit.id, this.creator = outfit.creatorId, this.date = Date.now(), this.buffer = arrayBufferToBase642(outfit.toBuffer());
     }
     toJson() {
       return {
@@ -59501,7 +61525,7 @@ void main() {
     }
     update(outfitModel) {
       let outfit = outfitModel instanceof OutfitModel ? outfitModel.outfit : outfitModel;
-      this.buffer = arrayBufferToBase64(outfit.toBuffer()), outfitModel instanceof OutfitModel && (this.bg = outfitModel.background?.id || 0), this.image = void 0;
+      this.buffer = arrayBufferToBase642(outfit.toBuffer()), outfitModel instanceof OutfitModel && (this.bg = outfitModel.background?.id || 0), this.image = void 0;
     }
     /**
      * @deprecated Use toOutfitModel() instead
@@ -63352,7 +65376,7 @@ void main() {
      */
     processImage(image, format, flipY, mimeType = "image/png") {
       if (image !== null) {
-        let writer = this, cache2 = writer.cache, json = writer.json, options = writer.options, pending2 = writer.pending;
+        let writer = this, cache2 = writer.cache, json = writer.json, options = writer.options, pending3 = writer.pending;
         cache2.images.has(image) || cache2.images.set(image, {});
         let cachedImages = cache2.images.get(image), key = mimeType + ":flipY/" + flipY.toString();
         if (cachedImages[key] !== void 0) return cachedImages[key];
@@ -63372,7 +65396,7 @@ void main() {
           ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
         else
           throw new Error("THREE.GLTFExporter: Invalid image type. Use HTMLImageElement, HTMLCanvasElement, ImageBitmap or OffscreenCanvas.");
-        options.binary === !0 ? pending2.push(
+        options.binary === !0 ? pending3.push(
           getToBlobPromise(canvas, mimeType).then((blob2) => writer.processBufferViewImage(blob2)).then((bufferViewIndex) => {
             imageDef.bufferView = bufferViewIndex;
           })
@@ -79100,10 +81124,325 @@ void main() {
     });
   }
   __name(onMouseDown2, "onMouseDown");
-  function init25() {
+  function init26() {
     chrome.runtime.onMessage.addListener(onMessage), document.addEventListener("mousedown", onMouseDown2, { capture: !0 });
   }
-  __name(init25, "init");
+  __name(init26, "init");
+
+  // src/content/features/sitewide/richRobloxLinks.js
+  init_observer();
+  init_api();
+  init_games();
+  init_thumbnails();
+  init_assets();
+  init_pill();
+  init_i18n();
+  init_getSettings();
+  var LINK_PATTERN = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?(groups|communities|users|games|catalog|bundles)\/(\d+)/i, TYPE_BY_PATH = {
+    groups: "group",
+    communities: "group",
+    users: "user",
+    games: "place",
+    catalog: "asset",
+    bundles: "bundle"
+  }, THUMB_TYPE = {
+    group: "GroupIcon",
+    user: "AvatarHeadshot",
+    place: "PlaceIcon",
+    asset: "Asset",
+    bundle: "BundleThumbnail"
+  }, BATCH_DELAY2 = 30, BATCH_SIZE2 = 50, HOVER_DELAY = 250, resolved = /* @__PURE__ */ new Map(), pending = /* @__PURE__ */ new Map(), flushTimer = null, details = /* @__PURE__ */ new Map(), card = null, hoverTimer = null;
+  function parseLink(anchor) {
+    let text3 = anchor.textContent.trim();
+    if (!text3 || text3 !== anchor.href && text3 !== anchor.getAttribute("href"))
+      return null;
+    let url;
+    try {
+      url = new URL(anchor.href);
+    } catch {
+      return null;
+    }
+    if (url.hostname !== "roblox.com" && !url.hostname.endsWith(".roblox.com"))
+      return null;
+    let match = url.pathname.match(LINK_PATTERN);
+    return match ? { type: TYPE_BY_PATH[match[1].toLowerCase()], id: match[2] } : null;
+  }
+  __name(parseLink, "parseLink");
+  function chunk(list) {
+    let chunks = [];
+    for (let i2 = 0; i2 < list.length; i2 += BATCH_SIZE2)
+      chunks.push(list.slice(i2, i2 + BATCH_SIZE2));
+    return chunks;
+  }
+  __name(chunk, "chunk");
+  async function fetchGroups(ids) {
+    return ((await callRobloxApiJson({
+      subdomain: "groups",
+      endpoint: `/v2/groups?groupIds=${ids.join(",")}`
+    }))?.data || []).map((g2) => ({
+      id: g2.id,
+      name: g2.name,
+      verified: g2.hasVerifiedBadge
+    }));
+  }
+  __name(fetchGroups, "fetchGroups");
+  async function fetchUsers(ids) {
+    return ((await callRobloxApiJson({
+      subdomain: "users",
+      endpoint: "/v1/users",
+      method: "POST",
+      body: { userIds: ids.map(Number), excludeBannedUsers: !1 }
+    }))?.data || []).map((u) => ({
+      id: u.id,
+      name: u.displayName,
+      username: u.name,
+      verified: u.hasVerifiedBadge
+    }));
+  }
+  __name(fetchUsers, "fetchUsers");
+  async function fetchPlaces(ids) {
+    let universeIds = await Promise.all(
+      ids.map(
+        (id) => callRobloxApiJson({
+          subdomain: "apis",
+          endpoint: `/universes/v1/places/${id}/universe`
+        }).then((r) => r?.universeId).catch(() => null)
+      )
+    ), games3 = await getUniversesDetails(universeIds.filter(Boolean)), byUniverse = new Map(games3.map((g2) => [g2.id, g2]));
+    return ids.flatMap((id, index) => {
+      let game = byUniverse.get(universeIds[index]);
+      return game ? [
+        {
+          id,
+          name: game.name,
+          creatorVerified: game.creator?.hasVerifiedBadge,
+          creator: game.creator?.name,
+          playing: game.playing,
+          visits: game.visits,
+          description: game.description
+        }
+      ] : [];
+    });
+  }
+  __name(fetchPlaces, "fetchPlaces");
+  function fetchCatalog(itemType) {
+    return async (ids) => ((await callRobloxApiJson({
+      subdomain: "catalog",
+      endpoint: "/v1/catalog/items/details",
+      method: "POST",
+      body: { items: ids.map((id) => ({ itemType, id: Number(id) })) }
+    }))?.data || []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      creatorVerified: item.creatorHasVerifiedBadge,
+      creator: item.creatorName,
+      price: item.lowestPrice ?? item.price
+    }));
+  }
+  __name(fetchCatalog, "fetchCatalog");
+  var FETCHERS = {
+    group: fetchGroups,
+    user: fetchUsers,
+    place: fetchPlaces,
+    asset: fetchCatalog("Asset"),
+    bundle: fetchCatalog("Bundle")
+  };
+  async function resolveType(type, ids) {
+    let settle = /* @__PURE__ */ __name((id, value2) => {
+      let key = `${type}:${id}`;
+      resolved.get(key)?.resolve(value2);
+    }, "settle");
+    await Promise.all(
+      chunk(ids).map(async (batch) => {
+        try {
+          let [items, thumbs] = await Promise.all([
+            FETCHERS[type](batch),
+            getBatchThumbnails(batch, THUMB_TYPE[type]).catch(() => [])
+          ]), icons = new Map(
+            thumbs.map((t3) => [String(t3.targetId), t3.imageUrl])
+          ), byId = new Map(items.map((i2) => [String(i2.id), i2]));
+          batch.forEach((id) => {
+            let item = byId.get(id);
+            settle(id, item ? { ...item, icon: icons.get(id) } : null);
+          });
+        } catch {
+          batch.forEach((id) => settle(id, null));
+        }
+      })
+    );
+  }
+  __name(resolveType, "resolveType");
+  function flush2() {
+    flushTimer = null;
+    let batches = [...pending];
+    pending.clear(), batches.forEach(([type, ids]) => resolveType(type, [...ids]));
+  }
+  __name(flush2, "flush");
+  function lookup(type, id) {
+    let key = `${type}:${id}`;
+    if (!resolved.has(key)) {
+      let resolve, promise = new Promise((r) => resolve = r);
+      resolved.set(key, { promise, resolve }), pending.has(type) || pending.set(type, /* @__PURE__ */ new Set()), pending.get(type).add(id), flushTimer ??= setTimeout(flush2, BATCH_DELAY2);
+    }
+    return resolved.get(key).promise;
+  }
+  __name(lookup, "lookup");
+  function createVerifiedIcon() {
+    let icon = document.createElement("img");
+    return icon.className = "rovalra-rich-link-verified", icon.src = getAssets().verifiedBadge, icon.alt = "", icon;
+  }
+  __name(createVerifiedIcon, "createVerifiedIcon");
+  function createIcon(type, src, className) {
+    let icon = document.createElement("img");
+    return icon.className = `${className} ${type === "user" ? "rovalra-rich-round" : ""}`.trim(), icon.alt = "", src && (icon.src = src), icon;
+  }
+  __name(createIcon, "createIcon");
+  async function enhanceLink(anchor) {
+    if (anchor.dataset.rovalraRichLink) return;
+    let link = parseLink(anchor);
+    if (!link) return;
+    anchor.dataset.rovalraRichLink = "pending";
+    let data = await lookup(link.type, link.id);
+    if (!data || !anchor.isConnected) {
+      anchor.dataset.rovalraRichLink = "failed";
+      return;
+    }
+    let pill = document.createElement("span");
+    pill.className = "rovalra-rich-link", pill.append(createIcon(link.type, data.icon, "rovalra-rich-link-icon"));
+    let name = document.createElement("span");
+    name.className = "rovalra-rich-link-name", name.textContent = data.name, pill.append(name), data.verified && pill.append(createVerifiedIcon()), anchor.dataset.rovalraRichLink = "done", anchor.classList.add("rovalra-rich-link-anchor"), anchor.replaceChildren(pill), anchor.addEventListener(
+      "mouseenter",
+      () => scheduleCard(anchor, link, data)
+    ), anchor.addEventListener("mouseleave", hideCard);
+  }
+  __name(enhanceLink, "enhanceLink");
+  async function loadDetails(link, data) {
+    let key = `${link.type}:${link.id}`;
+    if (details.has(key)) return details.get(key);
+    let promise = (/* @__PURE__ */ __name(async () => {
+      if (link.type === "group") {
+        let g2 = await callRobloxApiJson({
+          subdomain: "groups",
+          endpoint: `/v1/groups/${link.id}`
+        });
+        return {
+          subtitle: g2.owner ? ts2("richLinks.by", { name: g2.owner.displayName }) : null,
+          subtitleVerified: g2.owner?.hasVerifiedBadge,
+          stats: [
+            ts2("richLinks.members", {
+              count: formatCount(g2.memberCount)
+            })
+          ],
+          description: g2.description
+        };
+      }
+      if (link.type === "user") {
+        let u = await callRobloxApiJson({
+          subdomain: "users",
+          endpoint: `/v1/users/${link.id}`
+        });
+        return {
+          subtitle: `@${u.name}`,
+          stats: [],
+          description: u.description
+        };
+      }
+      return link.type === "place" ? {
+        subtitle: data.creator ? ts2("richLinks.by", { name: data.creator }) : null,
+        subtitleVerified: data.creatorVerified,
+        stats: [
+          ts2("richLinks.playing", {
+            count: formatCount(data.playing)
+          }),
+          ts2("richLinks.visits", { count: formatCount(data.visits) })
+        ],
+        description: data.description
+      } : {
+        subtitle: data.creator ? ts2("richLinks.by", { name: data.creator }) : null,
+        subtitleVerified: data.creatorVerified,
+        stats: [],
+        price: data.price,
+        description: null
+      };
+    }, "load"))().catch(() => null);
+    return details.set(key, promise), promise;
+  }
+  __name(loadDetails, "loadDetails");
+  function formatCount(value2) {
+    return new Intl.NumberFormat(void 0, { notation: "compact" }).format(
+      value2 || 0
+    );
+  }
+  __name(formatCount, "formatCount");
+  function positionCard2(anchor) {
+    let rect = anchor.getBoundingClientRect(), cardRect = card.getBoundingClientRect(), margin = 8, top = rect.bottom + margin;
+    top + cardRect.height > window.innerHeight - margin && (top = rect.top - cardRect.height - margin);
+    let left = Math.min(
+      Math.max(margin, rect.left),
+      window.innerWidth - cardRect.width - margin
+    );
+    card.style.top = `${Math.max(margin, top)}px`, card.style.left = `${left}px`;
+  }
+  __name(positionCard2, "positionCard");
+  function renderCard(link, data, extra) {
+    let header = document.createElement("div");
+    header.className = "rovalra-rich-card-header", header.append(createIcon(link.type, data.icon, "rovalra-rich-card-icon"));
+    let text3 = document.createElement("div");
+    text3.className = "rovalra-rich-card-text";
+    let title = document.createElement("div");
+    title.className = "rovalra-rich-card-title text-label-large";
+    let titleName = document.createElement("span");
+    if (titleName.textContent = data.name, title.append(titleName), data.verified && title.append(createVerifiedIcon()), text3.append(title), extra?.subtitle) {
+      let subtitle = document.createElement("div");
+      subtitle.className = "rovalra-rich-card-subtitle text-caption-medium";
+      let subtitleText = document.createElement("span");
+      subtitleText.textContent = extra.subtitle, subtitle.append(subtitleText), extra.subtitleVerified && subtitle.append(createVerifiedIcon()), text3.append(subtitle);
+    }
+    header.append(text3);
+    let parts = [header], pills = [...(extra?.stats || []).map((stat) => createPill(stat))];
+    if (extra && "price" in extra && pills.push(createPill(createPrice(extra.price))), pills.length) {
+      let stats = document.createElement("div");
+      stats.className = "rovalra-rich-card-pills", stats.append(...pills), parts.push(stats);
+    }
+    if (extra?.description) {
+      let description = document.createElement("div");
+      description.className = "rovalra-rich-card-description text-body-small", description.textContent = extra.description, parts.push(description);
+    }
+    if (!extra) {
+      let loading2 = document.createElement("div");
+      loading2.className = "rovalra-rich-card-stats text-caption-medium", loading2.textContent = ts2("richLinks.loading"), parts.push(loading2);
+    }
+    card.replaceChildren(...parts);
+  }
+  __name(renderCard, "renderCard");
+  function createPrice(price) {
+    if (typeof price != "number") return ts2("richLinks.offSale");
+    if (price === 0) return ts2("richLinks.free");
+    let content = document.createElement("span");
+    content.className = "rovalra-rich-card-price";
+    let amount = document.createElement("span");
+    return amount.textContent = price.toLocaleString(), content.append(createRobuxIcon({ size: "16px" }), amount), content;
+  }
+  __name(createPrice, "createPrice");
+  function scheduleCard(anchor, link, data) {
+    clearTimeout(hoverTimer), hoverTimer = setTimeout(async () => {
+      card || (card = document.createElement("div"), card.className = "rovalra-rich-card", card.dataset.rovalraObserverIgnore = "true", document.body.append(card)), card.dataset.owner = `${link.type}:${link.id}`, renderCard(link, data, null), card.classList.add("is-visible"), positionCard2(anchor);
+      let extra = await loadDetails(link, data);
+      card.dataset.owner === `${link.type}:${link.id}` && card.classList.contains("is-visible") && (renderCard(link, data, extra || { stats: [] }), positionCard2(anchor));
+    }, HOVER_DELAY);
+  }
+  __name(scheduleCard, "scheduleCard");
+  function hideCard() {
+    clearTimeout(hoverTimer), card && (card.classList.remove("is-visible"), card.dataset.owner = "");
+  }
+  __name(hideCard, "hideCard");
+  async function init27() {
+    await settings.richRobloxLinksEnabled && (window.addEventListener("scroll", hideCard, {
+      capture: !0,
+      passive: !0
+    }), observeElement("a.text-link", enhanceLink, { multiple: !0 }));
+  }
+  __name(init27, "init");
 
   // src/content/features/sitewide/viewid.ts
   init_api();
@@ -79320,7 +81659,7 @@ Bundled Items:
     });
   }
   __name(OnMouseDown, "OnMouseDown");
-  function init26() {
+  function init28() {
     chrome.runtime.onMessage.addListener(async (request) => {
       request.action === "view-ids" && await HandleMessage(request);
     }), document.addEventListener(
@@ -79329,7 +81668,7 @@ Bundled Items:
       { capture: !0 }
     );
   }
-  __name(init26, "init");
+  __name(init28, "init");
 
   // src/content/features/navigation/search/quicksearch.js
   init_api();
@@ -79361,7 +81700,7 @@ Bundled Items:
   init_gradientName();
   init_users();
   init_userCardElements();
-  var STYLE_ID = "rovalra-display-name-gradient-style", PROFILE_HEADER_NAME_SELECTOR = "#profile-header-title-container-name", DISPLAY_NAME_SELECTORS = [
+  var STYLE_ID2 = "rovalra-display-name-gradient-style", PROFILE_HEADER_NAME_SELECTOR = "#profile-header-title-container-name", DISPLAY_NAME_SELECTORS = [
     PROFILE_HEADER_NAME_SELECTOR,
     ".age-bracket-label-username",
     'a[href="/users/profile"] span.text-truncate-end.text-no-wrap'
@@ -79404,9 +81743,9 @@ Bundled Items:
   }
   __name(isRollEffect, "isRollEffect");
   function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) return;
+    if (document.getElementById(STYLE_ID2)) return;
     let style = document.createElement("style");
-    style.id = STYLE_ID, style.textContent = `
+    style.id = STYLE_ID2, style.textContent = `
         .rovalra-display-name-gradient {
             display: inline-block;
             color: transparent !important;
@@ -79669,9 +82008,9 @@ Bundled Items:
       return;
     }
     let profileHeaderEls = nameEls.filter(
-      (el3) => el3.matches(PROFILE_HEADER_NAME_SELECTOR) && !el3.closest("[data-rovalra-banned-profile]")
+      (el4) => el4.matches(PROFILE_HEADER_NAME_SELECTOR) && !el4.closest("[data-rovalra-banned-profile]")
     ), selfEls = nameEls.filter(
-      (el3) => !el3.matches(PROFILE_HEADER_NAME_SELECTOR)
+      (el4) => !el4.matches(PROFILE_HEADER_NAME_SELECTOR)
     ), profileUserId = getUserIdFromUrl();
     if (profileUserId ? await applyGradientToNameElementsForUser(
       profileHeaderEls,
@@ -79682,8 +82021,8 @@ Bundled Items:
     }
   }
   __name(applyDisplayNameGradient, "applyDisplayNameGradient");
-  async function applyDisplayNameGradientToCard(tile, card) {
-    let userId = card?.userId, nameEl = card?.displayName;
+  async function applyDisplayNameGradientToCard(tile, card2) {
+    let userId = card2?.userId, nameEl = card2?.displayName;
     if (!(!userId || !nameEl))
       try {
         let { element: targetNameEl, animate } = await getDisplayNameTarget(
@@ -79712,13 +82051,13 @@ Bundled Items:
     cardNameUnsubscribe || (observeUserCardElements(), cardNameUnsubscribe = onUserCardElement(applyDisplayNameGradientToCard));
   }
   __name(setupCardDisplayNameGradients, "setupCardDisplayNameGradients");
-  async function init27() {
+  async function init29() {
     if (!await settings.displayNameGradientEnabled) return;
     setupCardDisplayNameGradients();
-    let observeNameElement = /* @__PURE__ */ __name((el3) => {
-      let runUpdate = /* @__PURE__ */ __name(() => el3.innerText.trim() === "" ? !1 : (applyDisplayNameGradient(), !0), "runUpdate");
+    let observeNameElement = /* @__PURE__ */ __name((el4) => {
+      let runUpdate = /* @__PURE__ */ __name(() => el4.innerText.trim() === "" ? !1 : (applyDisplayNameGradient(), !0), "runUpdate");
       if (!runUpdate()) {
-        let { disconnect } = observeChildren(el3, () => {
+        let { disconnect } = observeChildren(el4, () => {
           runUpdate() && disconnect();
         });
       }
@@ -79728,7 +82067,7 @@ Bundled Items:
       (name === "displayNameGradient" || name === "displayNameGradientEnabled" || name === "displayNameGradientEffect") && applyDisplayNameGradient();
     });
   }
-  __name(init27, "init");
+  __name(init29, "init");
 
   // src/content/features/navigation/search/quicksearch.js
   var lastSearchedQuery = "", userSearchAbortController = null, gameSearchAbortController = null, assets = getAssets(), STORAGE_KEY5 = "rovalra_search_history", MAX_HISTORY = 50, quickSearchCosmeticsPromises = /* @__PURE__ */ new Map(), initialSearchValue = "", searchHistoryRenderVersion = 0, selectedIndex = 0, activeQuickSearchRequest = null, latestCommittedQuickSearchRequest = null, debounce = /* @__PURE__ */ __name((func, delay) => {
@@ -80041,7 +82380,7 @@ Bundled Items:
                     !0,
                     friendUser.isTrusted
                   );
-                }).filter((el3) => el3 !== null)
+                }).filter((el4) => el4 !== null)
               ), fetchWithRetry2(
                 {
                   subdomain: "presence",
@@ -80081,7 +82420,7 @@ Bundled Items:
                       !0,
                       friendUser.isTrusted
                     );
-                  }).filter((el3) => el3 !== null)
+                  }).filter((el4) => el4 !== null)
                 ), request.committed && injectIntoMenu();
               }).catch(() => {
               });
@@ -80520,7 +82859,7 @@ Bundled Items:
   function injectIntoMenu(resetSelection = !1) {
     let menu = document.querySelector("ul.new-dropdown-menu");
     menu && (menu.querySelectorAll(".rovalra-quick-search-result").forEach(
-      (el3) => el3.remove()
+      (el4) => el4.remove()
     ), window._lastRoValraGameResult && menu.prepend(window._lastRoValraGameResult), window._lastRoValraFriendResults && window._lastRoValraFriendResults.length > 0 && window._lastRoValraFriendResults.slice().reverse().forEach((friendResult) => {
       menu.prepend(friendResult);
     }), window._lastRoValraUserResult && menu.prepend(window._lastRoValraUserResult), resetSelection && (selectedIndex = 0), syncSelection());
@@ -80752,7 +83091,7 @@ Bundled Items:
     });
   }
   __name(renderSearchHistory, "renderSearchHistory");
-  function init28() {
+  function init30() {
     updateSearchSettings(), chrome.storage.onChanged.addListener((changes, area) => {
       area === "local" && (changes.quickSearchEnabled || changes.userSearchEnabled || changes.gameSearchEnabled || changes.friendSearchEnabled || changes.searchHistoryEnabled || changes.profileBackgroundGradientEnabled || changes.applyGradientToAvatarTile || changes.avatarBorderEnabled) && updateSearchSettings();
     });
@@ -80832,7 +83171,7 @@ Bundled Items:
               renderSearchHistory(container).then(() => {
                 searchHistoryRenderVersion !== myVersion && container.querySelectorAll(
                   ".rovalra-search-history-section"
-                ).forEach((el3) => el3.remove());
+                ).forEach((el4) => el4.remove());
               });
             }
           },
@@ -80845,7 +83184,7 @@ Bundled Items:
       }
     }, 300);
   }
-  __name(init28, "init");
+  __name(init30, "init");
 
   // src/content/features/developer/rendertest.js
   init_observer();
@@ -80901,14 +83240,14 @@ Bundled Items:
     lastFrameTime = Date.now() / 1e3, animate();
   }
   __name(startAnimationLoop, "startAnimationLoop");
-  function init29() {
+  function init31() {
     chrome.storage.local.get("eastereggslinksEnabled", async (result) => {
       result.eastereggslinksEnabled && observeElement(".content#content", (cDiv) => {
         renderAvatarPage(cDiv);
       });
     });
   }
-  __name(init29, "init");
+  __name(init31, "init");
 
   // src/content/features/navigation/groupfunds.js
   init_observer();
@@ -81227,7 +83566,7 @@ Bundled Items:
     `, (document.head || document.documentElement).appendChild(style);
   }
   __name(injectPendingRowStyle, "injectPendingRowStyle");
-  function init30() {
+  function init32() {
     if (state.initialized) return;
     state.initialized = !0, injectPendingRowStyle();
     let renderSection = /* @__PURE__ */ __name((popover) => {
@@ -81236,7 +83575,7 @@ Bundled Items:
       state.renderVersion++;
       let myVersion = state.renderVersion;
       if (menu.querySelectorAll(".rovalra-group-funds-section").forEach(
-        (el3) => el3.remove()
+        (el4) => el4.remove()
       ), !state.groupFundsEnabled || state.groupIds.length === 0) return;
       let allCachedDataPromise = getCache2(), section = document.createElement("div");
       section.className = "rovalra-group-funds-section";
@@ -81378,10 +83717,10 @@ Bundled Items:
       });
     });
   }
-  __name(init30, "init");
+  __name(init32, "init");
 
   // src/content/features/sitewide/customFont.js
-  function init31() {
+  function init33() {
     chrome.storage.local.get(["Customfont", "Customfontlink"], (result) => {
       if (!result.Customfont) return;
       let fontLink = result.Customfontlink;
@@ -81392,7 +83731,7 @@ Bundled Items:
       });
     });
   }
-  __name(init31, "init");
+  __name(init33, "init");
   function resolveGoogleFont(input) {
     input = input.trim();
     let importMatch = input.match(/@import\s+url\(['"]?(https?:\/\/fonts\.googleapis\.com\/[^'")\s]+)['"]?\)/);
@@ -81414,12 +83753,12 @@ Bundled Items:
   __name(resolveGoogleFont, "resolveGoogleFont");
   function applyCustomFont(input) {
     removeCustomFont();
-    let resolved = resolveGoogleFont(input);
-    if (!resolved) {
+    let resolved2 = resolveGoogleFont(input);
+    if (!resolved2) {
       console.warn("[RoValra] customFont: Could not parse font input:", input);
       return;
     }
-    let { importUrl, fontFamily } = resolved, style = document.createElement("style");
+    let { importUrl, fontFamily } = resolved2, style = document.createElement("style");
     style.id = "rovalra-custom-font", style.textContent = `
         @import url('${importUrl}');
 
@@ -81434,6 +83773,40 @@ Bundled Items:
     existing && existing.remove();
   }
   __name(removeCustomFont, "removeCustomFont");
+
+  // src/content/features/sitewide/cyrillicFont.js
+  init_i18n();
+  var fontWeights = {
+    "Builder Sans": [100, 300, 400, 500, 600, 700, 800],
+    "Builder Extended": [300, 400, 600, 700, 800]
+  };
+  function fontFace(family, weight, style, url) {
+    return `
+        @font-face {
+            font-family: '${family}';
+            src: url('${url}') format('woff2');
+            font-weight: ${weight};
+            font-style: ${style};
+            font-display: swap;
+            unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+        }
+    `;
+  }
+  __name(fontFace, "fontFace");
+  async function init34() {
+    if (document.getElementById("rovalra-cyrillic-font") || await getLanguage() !== "ru") return;
+    let regular = chrome.runtime.getURL(
+      "public/Assets/fonts/Inter-Cyrillic.woff2"
+    ), italic = chrome.runtime.getURL(
+      "public/Assets/fonts/Inter-Cyrillic-Italic.woff2"
+    ), css = "";
+    for (let family in fontWeights)
+      for (let weight of fontWeights[family])
+        css += fontFace(family, weight, "normal", regular), css += fontFace(family, weight, "italic", italic);
+    let style = document.createElement("style");
+    style.id = "rovalra-cyrillic-font", style.textContent = css, document.documentElement.appendChild(style);
+  }
+  __name(init34, "init");
 
   // src/content/features/sitewide/customFavicon.js
   init_getSettings();
@@ -81544,23 +83917,23 @@ Bundled Items:
     areaName === "local" && (changes.customFaviconEnabled || changes.customFaviconUrl) && refresh();
   }
   __name(handleStorageChange, "handleStorageChange");
-  function init32() {
+  function init35() {
     refresh(), chrome.storage.onChanged.addListener(handleStorageChange), document.addEventListener("rovalra:urlChanged", () => {
       enabled2 && faviconHref && applyFavicon();
     });
   }
-  __name(init32, "init");
+  __name(init35, "init");
 
   // src/content/features/navigation/transactionslink.js
   init_observer();
   init_i18n();
-  var COMMUNITY_PATH = "/communities", TRANSACTIONS_PATH = "/transactions";
-  var STATE_SYNC_DELAYS = [0, 50, 150, 350, 750, 1200], SIDEBAR_COMMUNITY_SELECTOR = [
+  var COMMUNITY_PATH2 = "/communities", TRANSACTIONS_PATH = "/transactions";
+  var STATE_SYNC_DELAYS2 = [0, 50, 150, 350, 750, 1200], SIDEBAR_COMMUNITY_SELECTOR2 = [
     '#left-navigation-container a[href*="/communities"]',
     '#navigation a[href*="/communities"]',
     '.navigation a[href*="/communities"]'
-  ].join(", "), lastObservedPath = window.location.pathname, sidebarLinkEnabled = !1;
-  function normalizePath(href) {
+  ].join(", "), lastObservedPath2 = window.location.pathname, sidebarLinkEnabled = !1;
+  function normalizePath2(href) {
     if (!href) return "";
     try {
       return new URL(href, window.location.origin).pathname;
@@ -81568,16 +83941,16 @@ Bundled Items:
       return "";
     }
   }
-  __name(normalizePath, "normalizePath");
-  function stripLocalePrefix(path) {
+  __name(normalizePath2, "normalizePath");
+  function stripLocalePrefix2(path) {
     return path.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/)/i, "");
   }
-  __name(stripLocalePrefix, "stripLocalePrefix");
-  function matchesRoute(pathname, route) {
-    let normalizedPath = stripLocalePrefix(pathname);
+  __name(stripLocalePrefix2, "stripLocalePrefix");
+  function matchesRoute2(pathname, route) {
+    let normalizedPath = stripLocalePrefix2(pathname);
     return normalizedPath === route || normalizedPath.startsWith(`${route}/`);
   }
-  __name(matchesRoute, "matchesRoute");
+  __name(matchesRoute2, "matchesRoute");
   function createTransactionsIcon() {
     let svg2 = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg2.setAttribute("aria-hidden", "true"), svg2.setAttribute("viewBox", "0 0 24 24"), svg2.setAttribute("fill", "none"), svg2.setAttribute("stroke", "currentColor"), svg2.setAttribute("stroke-width", "1.7"), svg2.setAttribute("stroke-linecap", "round"), svg2.setAttribute("stroke-linejoin", "round"), svg2.style.width = "20px", svg2.style.height = "20px", svg2.style.display = "block";
@@ -81606,18 +83979,18 @@ Bundled Items:
     return lineThree.setAttribute("d", "M9 16h4"), svg2.append(receipt, lineOne, lineTwo, lineThree), svg2;
   }
   __name(createTransactionsIcon, "createTransactionsIcon");
-  function getSidebarContainer(anchor) {
+  function getSidebarContainer2(anchor) {
     return anchor.closest('ul, ol, nav, [role="navigation"]');
   }
-  __name(getSidebarContainer, "getSidebarContainer");
-  function getSidebarItem(sidebar, link) {
+  __name(getSidebarContainer2, "getSidebarContainer");
+  function getSidebarItem2(sidebar, link) {
     let current = link;
     for (; current?.parentElement && current.parentElement !== sidebar; )
       current = current.parentElement;
     return current?.parentElement === sidebar ? current : link.parentElement;
   }
-  __name(getSidebarItem, "getSidebarItem");
-  function stripClonedState(item) {
+  __name(getSidebarItem2, "getSidebarItem");
+  function stripClonedState2(item) {
     [item, ...item.querySelectorAll("*")].forEach((element) => {
       element.removeAttribute("id"), element.removeAttribute("aria-current"), element.removeAttribute("aria-selected"), [...element.attributes].forEach((attribute) => {
         attribute.name.startsWith("data-") && element.removeAttribute(attribute.name);
@@ -81631,8 +84004,8 @@ Bundled Items:
       );
     });
   }
-  __name(stripClonedState, "stripClonedState");
-  function findIconHost(link) {
+  __name(stripClonedState2, "stripClonedState");
+  function findIconHost2(link) {
     let directChildren = [...link.children];
     return directChildren.find(
       (child) => child.querySelector('svg, [class*="icon"], [class*="Icon"]')
@@ -81640,8 +84013,8 @@ Bundled Items:
       (child) => child.className?.toString().toLowerCase().includes("icon")
     ) || directChildren.find((child) => !child.textContent.trim());
   }
-  __name(findIconHost, "findIconHost");
-  function setLinkLabel(link, label) {
+  __name(findIconHost2, "findIconHost");
+  function setLinkLabel2(link, label) {
     let labelTarget = [...link.querySelectorAll("*")].filter(
       (element) => element.children.length === 0 && element.textContent.trim()
     ).at(-1);
@@ -81652,37 +84025,37 @@ Bundled Items:
     let span = document.createElement("span");
     span.textContent = label, link.appendChild(span);
   }
-  __name(setLinkLabel, "setLinkLabel");
+  __name(setLinkLabel2, "setLinkLabel");
   function createTransactionsItem(sidebar, communityLink, label) {
-    let templateItem = getSidebarItem(sidebar, communityLink);
+    let templateItem = getSidebarItem2(sidebar, communityLink);
     if (!templateItem) return null;
     let item = templateItem.cloneNode(!0), link = item.querySelector("a[href]");
     if (!link) return null;
-    stripClonedState(item), link.className = "content-emphasis text-title-large flex items-center gap-small padding-left-xsmall padding-right-xxsmall radius-medium relative clip group/interactable focus-visible:outline-focus disabled:outline-none";
-    let iconHost = findIconHost(link);
-    return iconHost ? iconHost.replaceChildren(createTransactionsIcon()) : link.prepend(createTransactionsIcon()), setLinkLabel(link, label), link.setAttribute("href", TRANSACTIONS_PATH), link.dataset.rovalraTransactionsLink = "true", item.dataset.rovalraTransactionsItem = "true", item;
+    stripClonedState2(item), link.className = "content-emphasis text-title-large flex items-center gap-small padding-left-xsmall padding-right-xxsmall radius-medium relative clip group/interactable focus-visible:outline-focus disabled:outline-none";
+    let iconHost = findIconHost2(link);
+    return iconHost ? iconHost.replaceChildren(createTransactionsIcon()) : link.prepend(createTransactionsIcon()), setLinkLabel2(link, label), link.setAttribute("href", TRANSACTIONS_PATH), link.dataset.rovalraTransactionsLink = "true", item.dataset.rovalraTransactionsItem = "true", item;
   }
   __name(createTransactionsItem, "createTransactionsItem");
-  function clearInlineActiveStyles(item) {
+  function clearInlineActiveStyles2(item) {
     [item, ...item.querySelectorAll("*")].forEach((element) => {
       element.style.removeProperty("background"), element.style.removeProperty("background-color"), element.style.removeProperty("border-radius"), element.style.removeProperty("color");
     });
   }
-  __name(clearInlineActiveStyles, "clearInlineActiveStyles");
+  __name(clearInlineActiveStyles2, "clearInlineActiveStyles");
   function updateTransactionsActiveState(sidebar) {
     let item = sidebar.querySelector(
       '[data-rovalra-transactions-item="true"]'
     ), link = sidebar.querySelector(
       'a[data-rovalra-transactions-link="true"]'
     );
-    !item || !link || (stripClonedState(item), item.dataset.rovalraTransactionsItem = "true", link.dataset.rovalraTransactionsLink = "true", link.className = "content-emphasis text-title-large flex items-center gap-small padding-left-xsmall padding-right-xxsmall radius-medium relative clip group/interactable focus-visible:outline-focus disabled:outline-none", matchesRoute(window.location.pathname, TRANSACTIONS_PATH) ? (link.setAttribute("aria-current", "page"), link.classList.add("bg-surface-300")) : clearInlineActiveStyles(item));
+    !item || !link || (stripClonedState2(item), item.dataset.rovalraTransactionsItem = "true", link.dataset.rovalraTransactionsLink = "true", link.className = "content-emphasis text-title-large flex items-center gap-small padding-left-xsmall padding-right-xxsmall radius-medium relative clip group/interactable focus-visible:outline-focus disabled:outline-none", matchesRoute2(window.location.pathname, TRANSACTIONS_PATH) ? (link.setAttribute("aria-current", "page"), link.classList.add("bg-surface-300")) : clearInlineActiveStyles2(item));
   }
   __name(updateTransactionsActiveState, "updateTransactionsActiveState");
   function attachSidebarStateSync(sidebar) {
     if (sidebar.dataset.rovalraTransactionsStateSync === "true") return;
     sidebar.dataset.rovalraTransactionsStateSync = "true";
     let syncSoon = /* @__PURE__ */ __name(() => {
-      STATE_SYNC_DELAYS.forEach((delay) => {
+      STATE_SYNC_DELAYS2.forEach((delay) => {
         if (delay === 0) {
           requestAnimationFrame(
             () => updateTransactionsActiveState(sidebar)
@@ -81697,14 +84070,14 @@ Bundled Items:
   __name(attachSidebarStateSync, "attachSidebarStateSync");
   function initLocationChangeWatcher() {
     initLocationChangeWatcher._run || (initLocationChangeWatcher._run = !0, setInterval(() => {
-      window.location.pathname !== lastObservedPath && (lastObservedPath = window.location.pathname, window.dispatchEvent(new Event("rovalra:locationchange")));
+      window.location.pathname !== lastObservedPath2 && (lastObservedPath2 = window.location.pathname, window.dispatchEvent(new Event("rovalra:locationchange")));
     }, 1e3));
   }
   __name(initLocationChangeWatcher, "initLocationChangeWatcher");
   function insertTransactionsLink(communityLink, label) {
-    if (!sidebarLinkEnabled || !matchesRoute(normalizePath(communityLink.href), COMMUNITY_PATH))
+    if (!sidebarLinkEnabled || !matchesRoute2(normalizePath2(communityLink.href), COMMUNITY_PATH2))
       return;
-    let sidebar = getSidebarContainer(communityLink);
+    let sidebar = getSidebarContainer2(communityLink);
     if (!sidebar) return;
     if (sidebar.querySelector(
       'a[data-rovalra-transactions-link="true"], a[href="/transactions"]'
@@ -81712,7 +84085,7 @@ Bundled Items:
       updateTransactionsActiveState(sidebar), attachSidebarStateSync(sidebar);
       return;
     }
-    let communityItem = getSidebarItem(sidebar, communityLink), transactionsItem = createTransactionsItem(
+    let communityItem = getSidebarItem2(sidebar, communityLink), transactionsItem = createTransactionsItem(
       sidebar,
       communityLink,
       label
@@ -81725,18 +84098,18 @@ Bundled Items:
   }
   __name(removeTransactionsLinks, "removeTransactionsLinks");
   function addTransactionsLinks(label) {
-    document.querySelectorAll(SIDEBAR_COMMUNITY_SELECTOR).forEach(
+    document.querySelectorAll(SIDEBAR_COMMUNITY_SELECTOR2).forEach(
       (communityLink) => insertTransactionsLink(communityLink, label)
     );
   }
   __name(addTransactionsLinks, "addTransactionsLinks");
-  function init33() {
-    init33._run || (init33._run = !0, chrome.storage.local.get(
+  function init36() {
+    init36._run || (init36._run = !0, chrome.storage.local.get(
       { transactionsSidebarLinkEnabled: !1 },
       (settings2) => {
         let label = ts2("navigation.transactions");
         initLocationChangeWatcher(), sidebarLinkEnabled = settings2.transactionsSidebarLinkEnabled, observeElement(
-          SIDEBAR_COMMUNITY_SELECTOR,
+          SIDEBAR_COMMUNITY_SELECTOR2,
           (communityLink) => {
             insertTransactionsLink(communityLink, label);
           },
@@ -81747,51 +84120,54 @@ Bundled Items:
       }
     ));
   }
-  __name(init33, "init");
+  __name(init36, "init");
 
   // src/content/features/sitewide/modernIcons.js
   init_observer();
   init_assets();
   var assets2 = getAssets(), ICON_TEMPLATES = /* @__PURE__ */ new Map(), modernIconsInitialized = !1;
   function prepareTemplates() {
-    ICON_TEMPLATES.set("votes", Icon({
-      classes: ["rovalra-modern-icon"],
-      filled: !0,
-      size: "18px",
-      icon: "thumb-up"
-    })), ICON_TEMPLATES.set("playing", Icon({
-      classes: ["rovalra-modern-icon"],
-      filled: !0,
-      size: "18px",
-      icon: "person-play"
-    })), injectStylesheet("css/modernIcons.css", "rovalra-modern-icons-styles");
+    ICON_TEMPLATES.set(
+      "votes",
+      Icon({
+        classes: ["rovalra-modern-icon"],
+        filled: !0,
+        size: "18px",
+        icon: "thumb-up"
+      })
+    ), ICON_TEMPLATES.set(
+      "playing",
+      Icon({
+        classes: ["rovalra-modern-icon"],
+        filled: !0,
+        size: "18px",
+        icon: "person-play"
+      })
+    ), injectStylesheet("css/modernIcons.css", "rovalra-modern-icons-styles");
   }
   __name(prepareTemplates, "prepareTemplates");
+  var ICON_SELECTOR = ".icon-votes-gray, .icon-playing-counts-gray, .sdui-icon.icon-rating-16x16, .sdui-icon.icon-current-players-16x16";
   function replaceIcon(element) {
-    let type = null;
-    element.classList.contains("icon-votes-gray") ? type = "votes" : element.classList.contains("icon-playing-counts-gray") && (type = "playing");
+    let type = null, isSdui = element.classList.contains("sdui-icon");
+    element.classList.contains("icon-votes-gray") || element.classList.contains("icon-rating-16x16") ? type = "votes" : (element.classList.contains("icon-playing-counts-gray") || element.classList.contains("icon-current-players-16x16")) && (type = "playing");
     let template = ICON_TEMPLATES.get(type);
     if (!template || !element.isConnected) return;
     let replacement = template.cloneNode(!0);
-    replacement.setAttribute("aria-hidden", "true"), element.replaceWith(replacement);
+    replacement.setAttribute("aria-hidden", "true"), isSdui && (replacement.classList.add("rovalra-modern-icon-sdui"), replacement.setAttribute("size", "10px")), element.replaceWith(replacement);
   }
   __name(replaceIcon, "replaceIcon");
   function initializeModernIcons() {
     modernIconsInitialized || (modernIconsInitialized = !0, chrome.storage.local.get("modernIconsEnabled", (result) => {
-      result.modernIconsEnabled !== !1 && (prepareTemplates(), observeElement(
-        ".icon-votes-gray, .icon-playing-counts-gray",
-        replaceIcon,
-        {
-          multiple: !0
-        }
-      ));
+      result.modernIconsEnabled !== !1 && (prepareTemplates(), observeElement(ICON_SELECTOR, replaceIcon, {
+        multiple: !0
+      }));
     }));
   }
   __name(initializeModernIcons, "initializeModernIcons");
 
   // src/content/features/scamprevention/loginBanner.js
   init_observer();
-  function init34() {
+  function init37() {
     chrome.storage.local.get({ loginBannerEnabled: !0 }, (settings2) => {
       if (!settings2.loginBannerEnabled) return;
       let hostname = window.location.hostname;
@@ -81824,7 +84200,7 @@ Bundled Items:
       interval = setInterval(addBanner, 100), observer2 = observeElement(".login-content-wrapper", addBanner);
     });
   }
-  __name(init34, "init");
+  __name(init37, "init");
 
   // src/content/features/sitewide/lessPlus.js
   init_purify_es();
@@ -81916,10 +84292,10 @@ Bundled Items:
     }));
   }
   __name(asyncInit, "asyncInit");
-  function init35() {
+  function init38() {
     initialized2 || (initialized2 = !0, asyncInit());
   }
-  __name(init35, "init");
+  __name(init38, "init");
 
   // src/content/features/sitewide/kidsTheme.js
   init_dropdown();
@@ -82047,13 +84423,13 @@ Bundled Items:
     );
   }
   __name(makeBadgeChanges, "makeBadgeChanges");
-  function init36() {
+  function init39() {
     !document.body && !document.getElementById(ageBadgeContainerId) || (initializeLayoutListeners(), currentBadgeContainerObserver && currentBadgeContainerObserver.disconnect(), makeBadgeChanges(), currentBadgeContainerObserver = observeChildren(
       document.getElementById(ageBadgeContainerId),
       makeBadgeChanges
     ), startObserving());
   }
-  __name(init36, "init");
+  __name(init39, "init");
 
   // src/content/features/sitewide/kidsTheme.js
   var AGE_THEME_OPTIONS = [
@@ -82133,7 +84509,7 @@ Bundled Items:
     button.addEventListener("click", updatePosition), updatePosition(), applyAgeTheme(currentTheme);
   }
   __name(addAgeThemeNavbarButton, "addAgeThemeNavbarButton");
-  function init37() {
+  function init40() {
     chrome.storage.local.get(
       {
         ageKidsThemeEnabled: !1,
@@ -82145,13 +84521,13 @@ Bundled Items:
       }
     );
   }
-  __name(init37, "init");
+  __name(init40, "init");
 
   // src/content/features/sitewide/customRobloxBanner.js
   init_observer();
   init_getSettings();
   init_handlesettings();
-  var LOGO_IMAGE_ID = "rovalra-custom-roblox-banner-image", LOGO_WRAPPER_ID = "rovalra-custom-roblox-banner-wrapper", LOGO_READY_ATTR = "data-rovalra-custom-roblox-banner-ready", LOGO_HIDDEN_CLASS = "rovalra-custom-roblox-banner-hidden", STYLE_ID2 = "rovalra-custom-roblox-banner-style", ORIGINAL_WIDTH_ATTR = "data-rovalra-custom-roblox-banner-width", ORIGINAL_HEIGHT_ATTR = "data-rovalra-custom-roblox-banner-height", ORIGINAL_OVERFLOW_ATTR = "data-rovalra-custom-roblox-banner-overflow", ORIGINAL_POSITION_ATTR = "data-rovalra-custom-roblox-banner-position", ORIGINAL_DISPLAY_ATTR = "data-rovalra-custom-roblox-banner-display", TOPBAR_ROOT_SELECTOR = "#header > .container-fluid", IMAGE_URL_SETTING = "customRobloxBannerImageUrl", LEGACY_IMAGE_SETTING = "customRobloxBannerImage", TOPBAR_MAX_Y = 96, TOPBAR_MAX_X = 220, DEFAULT_LOGO_SIZE = 28, initialized3 = !1, currentEnabled = !1, currentImageUrl = null, currentFitMode = "contain", currentPositionX = 50, currentPositionY = 50, currentZoom = 100, failedImageUrls = /* @__PURE__ */ new Set(), logoSelectors = [
+  var LOGO_IMAGE_ID = "rovalra-custom-roblox-banner-image", LOGO_WRAPPER_ID = "rovalra-custom-roblox-banner-wrapper", LOGO_READY_ATTR = "data-rovalra-custom-roblox-banner-ready", LOGO_HIDDEN_CLASS = "rovalra-custom-roblox-banner-hidden", STYLE_ID3 = "rovalra-custom-roblox-banner-style", ORIGINAL_WIDTH_ATTR = "data-rovalra-custom-roblox-banner-width", ORIGINAL_HEIGHT_ATTR = "data-rovalra-custom-roblox-banner-height", ORIGINAL_OVERFLOW_ATTR = "data-rovalra-custom-roblox-banner-overflow", ORIGINAL_POSITION_ATTR = "data-rovalra-custom-roblox-banner-position", ORIGINAL_DISPLAY_ATTR = "data-rovalra-custom-roblox-banner-display", TOPBAR_ROOT_SELECTOR = "#header > .container-fluid", IMAGE_URL_SETTING = "customRobloxBannerImageUrl", LEGACY_IMAGE_SETTING = "customRobloxBannerImage", TOPBAR_MAX_Y = 96, TOPBAR_MAX_X = 220, DEFAULT_LOGO_SIZE = 28, initialized3 = !1, currentEnabled = !1, currentImageUrl = null, currentFitMode = "contain", currentPositionX = 50, currentPositionY = 50, currentZoom = 100, failedImageUrls = /* @__PURE__ */ new Set(), logoSelectors = [
     `${TOPBAR_ROOT_SELECTOR} > .rbx-navbar-header`,
     `${TOPBAR_ROOT_SELECTOR} > .rbx-navbar-header #nav-logo-link[href]`,
     `${TOPBAR_ROOT_SELECTOR} > .rbx-navbar-header a[href="/home"]`,
@@ -82165,10 +84541,10 @@ Bundled Items:
     ".navbar-brand .icon-logo-r",
     ".navbar-brand .icon-logo"
   ];
-  function injectStyles() {
-    if (document.getElementById(STYLE_ID2)) return;
+  function injectStyles2() {
+    if (document.getElementById(STYLE_ID3)) return;
     let style = document.createElement("style");
-    style.id = STYLE_ID2, style.textContent = `
+    style.id = STYLE_ID3, style.textContent = `
         .${LOGO_HIDDEN_CLASS} {
             display: none !important;
         }
@@ -82186,7 +84562,7 @@ Bundled Items:
         }
     `, document.documentElement.appendChild(style);
   }
-  __name(injectStyles, "injectStyles");
+  __name(injectStyles2, "injectStyles");
   function isTopLeftElement(element) {
     if (!(element instanceof Element)) return !1;
     let rect = element.getBoundingClientRect();
@@ -82370,7 +84746,7 @@ Bundled Items:
       clearLogo(host);
       return;
     }
-    injectStyles();
+    injectStyles2();
     let image = host.querySelector(`#${LOGO_IMAGE_ID}`);
     if (image?.dataset.rovalraCustomRobloxBannerUrl !== currentImageUrl || image && !image.closest(`#${LOGO_WRAPPER_ID}`)) {
       clearLogo(host);
@@ -82455,7 +84831,7 @@ Bundled Items:
     }), syncAllLogoElements(), initializePositionControls(), chrome.storage.onChanged.addListener(handleStorageChange2);
   }
   __name(initialize2, "initialize");
-  function init38() {
+  function init41() {
     initialized3 || (initialized3 = !0, initialize2().catch(
       (error3) => console.error(
         "RoValra: Custom Roblox banner initialization failed.",
@@ -82463,7 +84839,7 @@ Bundled Items:
       )
     ));
   }
-  __name(init38, "init");
+  __name(init41, "init");
 
   // src/content/features/sitewide/sidebarCollapse.js
   init_purify_es();
@@ -82761,12 +85137,12 @@ Bundled Items:
     ));
   }
   __name(initSidebarCollapse, "initSidebarCollapse");
-  function init39() {
+  function init42() {
     initialized4 || (initialized4 = !0, initSidebarCollapse().catch(
       (error3) => console.error("RoValra: Sidebar collapse initialization failed", error3)
     ));
   }
-  __name(init39, "init");
+  __name(init42, "init");
 
   // src/content/features/sitewide/sidebarLayout.js
   init_i18n();
@@ -83157,10 +85533,10 @@ Bundled Items:
     }));
   }
   __name(scheduleSidebarLayoutUpdate, "scheduleSidebarLayoutUpdate");
-  function createSidebarIcon(assetName) {
+  function createSidebarIcon2(assetName) {
     return createLayoutIcon(assetName, "rovalra-sidebar-layout");
   }
-  __name(createSidebarIcon, "createSidebarIcon");
+  __name(createSidebarIcon2, "createSidebarIcon");
   function createSidebarLayoutBody(sidebarItems, nextHiddenKeys) {
     return createLayoutEditorBody({
       items: getOrderedSidebarItems(sidebarItems),
@@ -83215,7 +85591,7 @@ Bundled Items:
     let existingButton = sidebar.querySelector(`#${BUTTON_ID2}`);
     if (existingButton) return existingButton;
     let button = createSquareButton({
-      content: createSidebarIcon("edit"),
+      content: createSidebarIcon2("edit"),
       id: BUTTON_ID2,
       width: "40px",
       height: "height-1000",
@@ -83251,7 +85627,7 @@ Bundled Items:
     savedOrder = Array.isArray(data[ORDER_STORAGE_KEY]) ? data[ORDER_STORAGE_KEY].map(String) : [], hiddenSidebarKeys = Array.isArray(data[HIDDEN_STORAGE_KEY]) ? data[HIDDEN_STORAGE_KEY].map(String) : [];
   }
   __name(loadSavedLayout, "loadSavedLayout");
-  async function init40() {
+  async function init43() {
     if (!initialized5) {
       if (initialized5 = !0, sidebarLayoutEnabled = await settings.sidebarLayoutEnabled !== !1, !sidebarLayoutEnabled) return;
       await loadLocale(), await loadSavedLayout(), document.addEventListener(
@@ -83261,7 +85637,7 @@ Bundled Items:
     }
     !sidebarLayoutEnabled || observersInitialized || (observersInitialized = !0, observeElement(".left-nav", attachSidebarLayout));
   }
-  __name(init40, "init");
+  __name(init43, "init");
 
   // src/content/features/sitewide/topbarLayout.js
   init_i18n();
@@ -83947,12 +86323,12 @@ Bundled Items:
     });
   }
   __name(initializeStorageListener, "initializeStorageListener");
-  async function init41() {
+  async function init44() {
     initialized6 || (initialized6 = !0, topbarLayoutEnabled = await settings.topbarLayoutEnabled !== !1, await loadLocale2(), await loadSavedLayout2(), initializeStorageListener(), window.addEventListener("resize", () => scheduleTopbarLayoutUpdate(), {
       passive: !0
     })), !observersInitialized2 && (observersInitialized2 = !0, observeElement(TOPBAR_ROOT_SELECTOR2, attachTopbarLayout));
   }
-  __name(init41, "init");
+  __name(init44, "init");
 
   // src/content/features/sitewide/friendUsernames.js
   init_idExtractor();
@@ -84083,16 +86459,48 @@ Bundled Items:
     ));
   }
   __name(setupServerFriendTooltips, "setupServerFriendTooltips");
-  async function init42() {
+  async function init45() {
     await settings.friendUsernamesEnabled && (setupCardUsernames(), setupServerFriendTooltips(), setupServerFriendNames());
   }
-  __name(init42, "init");
+  __name(init45, "init");
+
+  // src/content/features/sitewide/sidebarVerifiedBadge.js
+  init_getSettings();
+  init_user();
+  init_assets();
+  init_observer();
+  init_i18n();
+  var SIDEBAR_PROFILE_LINK_SELECTOR = 'a[href="/users/profile"].text-title-large', TOPNAV_PROFILE_LINK_SELECTOR = ".age-bracket-label a", BADGE_CLASS = "rovalra-sidebar-verified-badge";
+  function addBadge2(link, nameSelector, size) {
+    if (link.querySelector(`.${BADGE_CLASS}`)) return;
+    let nameSpan = link.querySelector(nameSelector);
+    if (!nameSpan) return;
+    let badge = document.createElement("img");
+    badge.className = BADGE_CLASS, badge.src = getAssets().verifiedBadgeMono, badge.alt = ts2("quickSearch.verifiedBadge"), badge.title = ts2("quickSearch.verified"), Object.assign(badge.style, {
+      width: size,
+      height: size,
+      flexShrink: "0"
+    }), nameSpan.after(badge);
+  }
+  __name(addBadge2, "addBadge");
+  async function init46() {
+    await settings.sidebarVerifiedBadgeEnabled && await getAuthenticatedUserVerified() && (observeElement(
+      SIDEBAR_PROFILE_LINK_SELECTOR,
+      (link) => addBadge2(link, ".text-truncate-end", "20px"),
+      { multiple: !0 }
+    ), observeElement(
+      TOPNAV_PROFILE_LINK_SELECTOR,
+      (link) => addBadge2(link, ".age-bracket-label-username", "18px"),
+      { multiple: !0 }
+    ));
+  }
+  __name(init46, "init");
 
   // src/content/features/sitewide/wideTilePlayerCounts.js
   init_games();
   init_observer();
   init_getSettings();
-  var BATCH_SIZE2 = 50, PLACE_BATCH_SIZE = 25, BATCH_STAGGER_MS = 1200, RATE_LIMIT_COOLDOWN_MS = 8e3, PLAYING_TTL_MS = 600 * 1e3, VOTES_TTL_MS = 360 * 60 * 1e3, CACHE_CLEANUP_INTERVAL = 600 * 1e3, REFRESH_ROOT_MARGIN_PX = 700, TILE_SELECTOR = '[data-testid="wide-game-tile"]', GAME_LINK_SELECTOR = `${TILE_SELECTOR} a.game-card-link[href*="/games/"]`, BASE_METADATA_SELECTOR = ".wide-game-tile-metadata .base-metadata", RATING_BLOCK_SELECTOR = '[data-testid="game-tile-stats-rating"]', PLAYERS_BLOCK_SELECTOR = '[data-testid="game-tile-stats-player-count"]', ONLINE_FRIENDS_BLOCK_SELECTOR = '[data-testid="game-tile-stats-online-friends-facepile"]', SPONSORED_FOOTER_SELECTOR = '[data-testid="wide-game-tile-sponsored-footer"]', EXCLUDED_TILE_SELECTOR = [
+  var BATCH_SIZE3 = 50, PLACE_BATCH_SIZE = 25, BATCH_STAGGER_MS = 1200, RATE_LIMIT_COOLDOWN_MS = 8e3, PLAYING_TTL_MS = 600 * 1e3, VOTES_TTL_MS = 360 * 60 * 1e3, CACHE_CLEANUP_INTERVAL = 600 * 1e3, REFRESH_ROOT_MARGIN_PX = 700, TILE_SELECTOR = '[data-testid="wide-game-tile"]', GAME_LINK_SELECTOR = `${TILE_SELECTOR} a.game-card-link[href*="/games/"]`, BASE_METADATA_SELECTOR = ".wide-game-tile-metadata .base-metadata", RATING_BLOCK_SELECTOR = '[data-testid="game-tile-stats-rating"]', PLAYERS_BLOCK_SELECTOR = '[data-testid="game-tile-stats-player-count"]', ONLINE_FRIENDS_BLOCK_SELECTOR = '[data-testid="game-tile-stats-online-friends-facepile"]', SPONSORED_FOOTER_SELECTOR = '[data-testid="wide-game-tile-sponsored-footer"]', EXCLUDED_TILE_SELECTOR = [
     ".experience-events-tile",
     '[data-testid="event-experience-link"]'
   ].join(", "), EXCLUDED_FOOTER_SELECTOR = [
@@ -84109,11 +86517,11 @@ Bundled Items:
   }
   __name(abbr, "abbr");
   var scheduleIdle = (() => {
-    let pending2 = !1, requestIdle = window.requestIdleCallback || ((callback) => setTimeout(callback, 300));
+    let pending3 = !1, requestIdle = window.requestIdleCallback || ((callback) => setTimeout(callback, 300));
     return (callback) => {
-      pending2 || (pending2 = !0, requestIdle(
+      pending3 || (pending3 = !0, requestIdle(
         () => {
-          pending2 = !1, callback();
+          pending3 = !1, callback();
         },
         { timeout: 1500 }
       ));
@@ -84324,8 +86732,8 @@ Bundled Items:
     for (; pendingPlaceIds.size; ) {
       let batch = takeFromSet(pendingPlaceIds, PLACE_BATCH_SIZE);
       batch.forEach((placeId) => inFlightPlaceIds.add(placeId));
-      let details = await getPlacesDetails(batch), returnedPlaceIds = /* @__PURE__ */ new Set();
-      for (let detail of details) {
+      let details2 = await getPlacesDetails(batch), returnedPlaceIds = /* @__PURE__ */ new Set();
+      for (let detail of details2) {
         if (detail?.placeId == null || detail?.universeId == null) continue;
         let placeId = String(detail.placeId), universeId = String(detail.universeId);
         returnedPlaceIds.add(placeId), placeToUniverse.set(placeId, universeId), retryPlaceAfter.delete(placeId);
@@ -84358,7 +86766,7 @@ Bundled Items:
   __name(storeVotes, "storeVotes");
   async function loadPendingUniverses() {
     for (; pendingUniverseIds.size; ) {
-      let universeBatch = takeFromSet(pendingUniverseIds, BATCH_SIZE2), needPlaying = [], needVotes = [];
+      let universeBatch = takeFromSet(pendingUniverseIds, BATCH_SIZE3), needPlaying = [], needVotes = [];
       universeBatch.forEach((universeId) => {
         inFlightUniverseIds.add(universeId);
         let cached = getCached(universeId);
@@ -84390,11 +86798,11 @@ Bundled Items:
     }
   }
   __name(queueFetch, "queueFetch");
-  function createIcon(className) {
+  function createIcon2(className) {
     let icon = document.createElement("span");
     return icon.className = `info-label ${className}`, icon;
   }
-  __name(createIcon, "createIcon");
+  __name(createIcon2, "createIcon");
   function createLabel(className, text3, title) {
     let label = document.createElement("span");
     return label.className = `info-label ${className}`, label.textContent = text3, title && (label.title = title), label;
@@ -84411,9 +86819,9 @@ Bundled Items:
       stats.downVotes
     );
     return [
-      createIcon("icon-votes-gray"),
+      createIcon2("icon-votes-gray"),
       createLabel("vote-percentage-label", `${ratingPercentage}%`),
-      createIcon("icon-playing-counts-gray"),
+      createIcon2("icon-playing-counts-gray"),
       createLabel(
         "playing-counts-label",
         abbr(stats.playing),
@@ -84518,10 +86926,10 @@ Bundled Items:
     });
   }
   __name(startObservers, "startObservers");
-  async function init43() {
+  async function init47() {
     initialized7 || (initialized7 = !0, await settings.wideGameTileStatsEnabled && (startObservers(), debouncedScan()));
   }
-  __name(init43, "init");
+  __name(init47, "init");
 
   // src/content/features/paymentmethods/bonusItems.js
   init_observer();
@@ -84668,8 +87076,8 @@ Bundled Items:
       "paymentSessionId"
     ), initialValue = bonusItems.some(
       (item) => item.value === currentSessionId
-    ) ? currentSessionId : void 0, card = document.createElement("div");
-    card.id = "rovalra-bonus-item-card", card.className = "flex flex-col gap-medium radius-medium stroke-standard stroke-default width-full padding-medium", activeCard = card;
+    ) ? currentSessionId : void 0, card2 = document.createElement("div");
+    card2.id = "rovalra-bonus-item-card", card2.className = "flex flex-col gap-medium radius-medium stroke-standard stroke-default width-full padding-medium", activeCard = card2;
     let heading = document.createElement("div");
     heading.className = "flex flex-col gap-xsmall";
     let title = document.createElement("h3");
@@ -84681,7 +87089,7 @@ Bundled Items:
       placeholder: "Choose a bonus item",
       onValueChange: navigateToBonusSession,
       onOpen: accelerateBonusLoading
-    }), activeDropdown.element.classList.add("width-full"), activeDropdown.trigger.id = "rovalra-bonus-item-select", activeDropdown.trigger.style.width = "100%", card.append(heading, activeDropdown.element), summaryColumn.insertBefore(card, summaryColumn.firstElementChild);
+    }), activeDropdown.element.classList.add("width-full"), activeDropdown.trigger.id = "rovalra-bonus-item-select", activeDropdown.trigger.style.width = "100%", card2.append(heading, activeDropdown.element), summaryColumn.insertBefore(card2, summaryColumn.firstElementChild);
     let isEligible = await isEligibleForPersonalizedBonus();
     if (!(generation3 !== renderGeneration || !purchaseSummary.isConnected)) {
       if (!isEligible) {
@@ -84692,7 +87100,7 @@ Bundled Items:
     }
   }
   __name(addBonusItemDropdown, "addBonusItemDropdown");
-  async function init44() {
+  async function init48() {
     if (window.location.pathname.toLowerCase().includes("/upgrades/paymentmethods")) {
       if (!await settings.bonusItemEnabled) {
         paymentMethodsObserver?.disconnect(), paymentMethodsObserver = null, activeDropdown?.destroy(), activeDropdown = null, activeCard?.remove(), activeCard = null, activePurchaseSummary = null;
@@ -84722,7 +87130,7 @@ Bundled Items:
       );
     }
   }
-  __name(init44, "init");
+  __name(init48, "init");
 
   // src/content/features/sitewide/backgroundImage.js
   init_getSettings();
@@ -84803,7 +87211,7 @@ Bundled Items:
   }
   __name(applyStoredBackgroundImage, "applyStoredBackgroundImage");
   var initialized8 = !1;
-  function init45() {
+  function init49() {
     initialized8 || (initialized8 = !0, chrome.storage.onChanged.addListener((changes, areaName) => {
       areaName === "local" && (changes[BACKGROUND_IMAGE_SETTING] || changes[BACKGROUND_IMAGE_ENABLED_SETTING]) && applyStoredBackgroundImage(changes).catch(
         (error3) => console.error("RoValra: Failed to refresh the custom background.", error3)
@@ -84812,7 +87220,7 @@ Bundled Items:
       (error3) => console.error("RoValra: Failed to apply the custom background.", error3)
     ));
   }
-  __name(init45, "init");
+  __name(init49, "init");
 
   // src/content/features/sitewide/freeRobloxPlusThemes.js
   init_observer();
@@ -84988,7 +87396,7 @@ Bundled Items:
     );
   }
   __name(publishInitialSettingState, "publishInitialSettingState");
-  function init46() {
+  function init50() {
     initialized9 || (initialized9 = !0, (async () => CACHE_KEY3 = CACHE_KEY_PREFIX + String(await getAuthenticatedUserId()))(), observeElement(THEME_SECTION_SELECTOR, observeThemeSection, {
       onRemove: /* @__PURE__ */ __name(() => {
         themeSectionObserver?.disconnect(), themeSectionObserver = null;
@@ -85006,7 +87414,7 @@ Bundled Items:
       event.detail?.name === SETTING_NAME2 && setEnabled(event.detail.value);
     }));
   }
-  __name(init46, "init");
+  __name(init50, "init");
 
   // src/content/features/sitewide/voiceBanIndicator.js
   init_api();
@@ -85168,7 +87576,7 @@ Bundled Items:
     cachedData = null, cachedAt = 0, await refresh2(!0);
   }
   __name(syncSetting, "syncSetting");
-  async function init47() {
+  async function init51() {
     initialized10 || (initialized10 = !0, enabled3 = !!await settings.voiceBanIndicatorEnabled, enabled3 && refresh2(), document.addEventListener(
       "rovalra:settingSaved",
       (event) => {
@@ -85186,7 +87594,7 @@ Bundled Items:
       }
     ));
   }
-  __name(init47, "init");
+  __name(init51, "init");
 
   // src/content/features/plus/sendRobux.js
   init_api();
@@ -85307,8 +87715,8 @@ Bundled Items:
     }
   }
   __name(applyGradientForUserId, "applyGradientForUserId");
-  function applyGradientToAvatarTile(tile, card) {
-    let userId = card?.userId, avatarContainer = card?.gradientAvatar;
+  function applyGradientToAvatarTile(tile, card2) {
+    let userId = card2?.userId, avatarContainer = card2?.gradientAvatar;
     if (!userId || !avatarContainer || tile.dataset.rovalraGradientQueued === String(userId)) return;
     avatarTileIntersections.get(tile)?.unobserve(), avatarTileIntersections.delete(tile), tile.dataset.rovalraGradientQueued = String(userId), delete tile.dataset.rovalraGradientApplied, clearGradientFromElement(avatarContainer);
     let intersection = observeIntersection(tile, /* @__PURE__ */ __name((entry) => {
@@ -85372,7 +87780,7 @@ Bundled Items:
     );
   }
   __name(observeProfileGradient, "observeProfileGradient");
-  async function init48() {
+  async function init52() {
     try {
       let settings2 = await loadSettings();
       if (!settings2.profileBackgroundGradientEnabled) {
@@ -85399,7 +87807,7 @@ Bundled Items:
       );
     }
   }
-  __name(init48, "init");
+  __name(init52, "init");
 
   // src/content/features/plus/sendRobux.js
   init_purifyCfg();
@@ -86264,12 +88672,12 @@ Bundled Items:
     currentNavItem && (currentNavItem.parentNode.remove(), currentNavItem = void 0), currentlisteners = [], abortController.abort(), abortController = new AbortController(), togglesEnabled = 0;
   }
   __name(cleanup, "cleanup");
-  async function init49() {
+  async function init53() {
     await settings[SETTING_NAME3] && addNavBtn(), document.addEventListener("rovalra:settingSaved", async ({ detail }) => {
       !detail.name || detail.name !== SETTING_NAME3 || (detail.value ? addNavBtn() : cleanup());
     });
   }
-  __name(init49, "init");
+  __name(init53, "init");
 
   // src/content/features/navigation/serviceincidentnotice.js
   init_api();
@@ -86306,12 +88714,12 @@ Bundled Items:
     document.querySelectorAll(".rovalra-status-alert").forEach((a) => a.parentElement.remove());
   }
   __name(removeStatuses, "removeStatuses");
-  async function init50() {
+  async function init54() {
     await settings[SETTING_NAME4] && statusChecker(), document.addEventListener("rovalra:settingSaved", async ({ detail }) => {
       !detail.name || detail.name !== SETTING_NAME4 || (detail.value ? statusChecker() : removeStatuses());
     });
   }
-  __name(init50, "init");
+  __name(init54, "init");
 
   // node_modules/fzstd/esm/index.mjs
   var ab2 = ArrayBuffer, u82 = Uint8Array, u162 = Uint16Array, i162 = Int16Array;
@@ -87144,11 +89552,11 @@ Bundled Items:
   function parseRobloxXml(textContent) {
     let robloxNode = new DOMParser().parseFromString(textContent, "text/xml").getElementsByTagName("roblox")[0];
     if (!robloxNode) return [];
-    let resultTree = [], cleanNum = /* @__PURE__ */ __name((n) => Math.abs(n) < 1e-5 ? 0 : Math.round(n * 1e5) / 1e5, "cleanNum"), childText = /* @__PURE__ */ __name((el3, tag) => {
-      let c = [...el3.children].find((x3) => x3.tagName === tag);
+    let resultTree = [], cleanNum = /* @__PURE__ */ __name((n) => Math.abs(n) < 1e-5 ? 0 : Math.round(n * 1e5) / 1e5, "cleanNum"), childText = /* @__PURE__ */ __name((el4, tag) => {
+      let c = [...el4.children].find((x3) => x3.tagName === tag);
       return c ? c.textContent.trim() : null;
-    }, "childText"), childNum = /* @__PURE__ */ __name((el3, tag) => {
-      let t3 = childText(el3, tag);
+    }, "childText"), childNum = /* @__PURE__ */ __name((el4, tag) => {
+      let t3 = childText(el4, tag);
       return t3 == null ? 0 : Number(t3);
     }, "childNum"), parseProp = /* @__PURE__ */ __name((prop) => {
       let tag = prop.tagName, text3 = prop.textContent.trim();
@@ -87380,7 +89788,7 @@ Bundled Items:
   init_dropdown();
   init_input();
   init_i18n();
-  function injectStyles2() {
+  function injectStyles3() {
     if (document.getElementById("rovalra-filters-ui-styles")) return;
     let style = document.createElement("style");
     style.id = "rovalra-filters-ui-styles", style.textContent = `
@@ -87396,9 +89804,9 @@ Bundled Items:
         }
     `, document.head.appendChild(style);
   }
-  __name(injectStyles2, "injectStyles");
+  __name(injectStyles3, "injectStyles");
   function createAvatarFilterUI({ avatarFiltersEnabled, searchbarEnabled, onApply, onSearch, filterConfig = [] }) {
-    injectStyles2();
+    injectStyles3();
     let container = document.createElement("div");
     if (container.id = "rovalra-fx-container", Object.assign(container.style, {
       display: "flex",
@@ -87524,7 +89932,7 @@ Bundled Items:
 
   // src/content/features/avatar/filters.js
   init_i18n();
-  function init51() {
+  function init55() {
     window.location.pathname.includes("/my/avatar") && chrome.storage.local.get({
       avatarFiltersEnabled: !1,
       searchbarEnabled: !1
@@ -87566,15 +89974,15 @@ Bundled Items:
           }, delay);
         }
         __name(scheduleEnsureUI, "scheduleEnsureUI");
-        function getAssetIdFromCard(card) {
-          let directId = card.querySelector("[data-thumbnail-target-id]")?.getAttribute("data-thumbnail-target-id") || card.getAttribute("data-item-id") || card.dataset?.itemId || card.dataset?.assetId, parsedDirectId = parseInt(directId, 10);
+        function getAssetIdFromCard(card2) {
+          let directId = card2.querySelector("[data-thumbnail-target-id]")?.getAttribute("data-thumbnail-target-id") || card2.getAttribute("data-item-id") || card2.dataset?.itemId || card2.dataset?.assetId, parsedDirectId = parseInt(directId, 10);
           if (parsedDirectId) return parsedDirectId;
-          let linkMatch = card.querySelector('a[href*="/catalog/"], a[href*="/library/"]')?.href?.match(/\/(?:catalog|library)\/(\d+)/);
+          let linkMatch = card2.querySelector('a[href*="/catalog/"], a[href*="/library/"]')?.href?.match(/\/(?:catalog|library)\/(\d+)/);
           return linkMatch ? parseInt(linkMatch[1], 10) : null;
         }
         __name(getAssetIdFromCard, "getAssetIdFromCard");
-        function getCardName(card) {
-          let nameContainer = card.querySelector('[data-item-name], .item-card-name, .item-card-thumb-container, a[href*="/catalog/"]');
+        function getCardName(card2) {
+          let nameContainer = card2.querySelector('[data-item-name], .item-card-name, .item-card-thumb-container, a[href*="/catalog/"]');
           return nameContainer && (nameContainer.dataset.itemName || nameContainer.getAttribute("data-item-name") || nameContainer.textContent) || "";
         }
         __name(getCardName, "getCardName");
@@ -87600,8 +90008,8 @@ Bundled Items:
         function fullStateReset() {
           scanSessionId++, activeObservers.forEach((obs) => {
             obs && (typeof obs.disconnect == "function" ? obs.disconnect() : obs.selector && (obs.active = !1));
-          }), activeObservers = [], scanQueueTimer && (clearTimeout(scanQueueTimer), scanQueueTimer = null), scanQueue.clear(), domUpdateAnimationFrame && (cancelAnimationFrame(domUpdateAnimationFrame), domUpdateAnimationFrame = null), ensureUITimer && (clearTimeout(ensureUITimer), ensureUITimer = null), itemDataCache = /* @__PURE__ */ new Map(), domMetadata = /* @__PURE__ */ new WeakMap(), observedLists2 = /* @__PURE__ */ new WeakSet(), selectedFilters.clear(), priceFilter = { min: { active: !1, value: null }, max: { active: !1, value: null } }, availabilityFilter = "all", creatorFilter = { active: !1, name: "" }, activeCategoryHash = getActiveCategoryKey(), document.querySelectorAll(".rovalra-filtering-enabled").forEach((el3) => {
-            el3.classList.remove("rovalra-filtering-enabled");
+          }), activeObservers = [], scanQueueTimer && (clearTimeout(scanQueueTimer), scanQueueTimer = null), scanQueue.clear(), domUpdateAnimationFrame && (cancelAnimationFrame(domUpdateAnimationFrame), domUpdateAnimationFrame = null), ensureUITimer && (clearTimeout(ensureUITimer), ensureUITimer = null), itemDataCache = /* @__PURE__ */ new Map(), domMetadata = /* @__PURE__ */ new WeakMap(), observedLists2 = /* @__PURE__ */ new WeakSet(), selectedFilters.clear(), priceFilter = { min: { active: !1, value: null }, max: { active: !1, value: null } }, availabilityFilter = "all", creatorFilter = { active: !1, name: "" }, activeCategoryHash = getActiveCategoryKey(), document.querySelectorAll(".rovalra-filtering-enabled").forEach((el4) => {
+            el4.classList.remove("rovalra-filtering-enabled");
           });
           let existingUI = document.getElementById("rovalra-fx-container");
           existingUI && existingUI.remove();
@@ -87617,8 +90025,8 @@ Bundled Items:
           if (assetIds.length !== 0)
             for (let i2 = 0; i2 < assetIds.length; i2 += 100) {
               if (currentSession !== scanSessionId) return;
-              let chunk = assetIds.slice(i2, i2 + 100), chunkIdsNeedingEffects = [];
-              if (chunk.forEach((id) => {
+              let chunk2 = assetIds.slice(i2, i2 + 100), chunkIdsNeedingEffects = [];
+              if (chunk2.forEach((id) => {
                 if (!itemDataCache) return;
                 let entry = itemDataCache.get(id);
                 entry ? entry.isValid || chunkIdsNeedingEffects.push(id) : (entry = {
@@ -87683,18 +90091,18 @@ Bundled Items:
           listContainer && (active2 ? listContainer.classList.add("rovalra-filtering-enabled") : listContainer.classList.remove("rovalra-filtering-enabled"));
           let itemCards = activeTabPane.getElementsByClassName("list-item");
           for (let i2 = 0, len = itemCards.length; i2 < len; i2++) {
-            let card = itemCards[i2], meta = domMetadata.get(card);
+            let card2 = itemCards[i2], meta = domMetadata.get(card2);
             if (!meta) continue;
             if (!active2) {
-              card.classList.contains("rovalra-fx-hidden") && card.classList.remove("rovalra-fx-hidden"), card.classList.add("rovalra-show");
+              card2.classList.contains("rovalra-fx-hidden") && card2.classList.remove("rovalra-fx-hidden"), card2.classList.add("rovalra-show");
               let img2 = meta.img;
               img2 && img2.dataset.rovalraSrc && (img2.src = img2.dataset.rovalraSrc, delete img2.dataset.rovalraSrc);
               continue;
             }
             let itemData = itemDataCache.get(meta.id), shouldShow = determineVisibility(meta, itemData, searchTerm), img = meta.img;
             if (shouldShow)
-              card.classList.add("rovalra-show"), card.classList.remove("rovalra-fx-hidden"), img && img.dataset.rovalraSrc && (img.src = img.dataset.rovalraSrc, delete img.dataset.rovalraSrc);
-            else if (card.classList.remove("rovalra-show"), img) {
+              card2.classList.add("rovalra-show"), card2.classList.remove("rovalra-fx-hidden"), img && img.dataset.rovalraSrc && (img.src = img.dataset.rovalraSrc, delete img.dataset.rovalraSrc);
+            else if (card2.classList.remove("rovalra-show"), img) {
               let currentSrc = img.src;
               currentSrc && !currentSrc.startsWith("data:") && (img.dataset.rovalraSrc = currentSrc, img.src = TRANSPARENT_PIXEL);
             }
@@ -87712,8 +90120,8 @@ Bundled Items:
           let minPrice = parseInt(document.getElementById("rovalra-min-price-value")?.value, 10), maxPrice = parseInt(document.getElementById("rovalra-max-price-value")?.value, 10);
           priceFilter.min = !isNaN(minPrice) && minPrice >= 0 ? { active: !0, value: minPrice } : { active: !1, value: null }, priceFilter.max = !isNaN(maxPrice) && maxPrice >= 0 ? { active: !0, value: maxPrice } : { active: !1, value: null }, availabilityFilter = document.getElementById("rovalra-availability-filter")?.value || "all", triggerDomUpdate();
           let activeTabPane = getActiveAvatarPane(), itemIdsToRecheck = /* @__PURE__ */ new Set();
-          activeTabPane && activeTabPane.querySelectorAll(".list-item").forEach((card) => {
-            let meta = domMetadata.get(card);
+          activeTabPane && activeTabPane.querySelectorAll(".list-item").forEach((card2) => {
+            let meta = domMetadata.get(card2);
             if (meta && meta.id) {
               let cacheEntry = itemDataCache.get(meta.id);
               (!cacheEntry || !cacheEntry.isValid) && itemIdsToRecheck.add(meta.id);
@@ -87789,12 +90197,12 @@ Bundled Items:
         function attachObserverToList(listElement) {
           if (observedLists2.has(listElement)) return;
           observedLists2.add(listElement), isFilteringActive() && listElement.classList.add("rovalra-filtering-enabled");
-          let itemObs = observeElement("li.list-item", (card) => {
-            if (!listElement.contains(card)) return;
-            let img = card.querySelector(".item-card-thumb img, [data-thumbnail-target-id] img, img"), id = getAssetIdFromCard(card);
+          let itemObs = observeElement("li.list-item", (card2) => {
+            if (!listElement.contains(card2)) return;
+            let img = card2.querySelector(".item-card-thumb img, [data-thumbnail-target-id] img, img"), id = getAssetIdFromCard(card2);
             if (!id) return;
-            let nameText = getCardName(card);
-            domMetadata.set(card, {
+            let nameText = getCardName(card2);
+            domMetadata.set(card2, {
               id,
               searchName: nameText.toLowerCase(),
               img
@@ -87804,15 +90212,15 @@ Bundled Items:
               let idsToProcess = Array.from(scanQueue);
               scanQueue.clear(), scanQueueTimer = null, processItemIds(idsToProcess, scanSessionId);
             }, 100))), isFilteringActive()) {
-              let searchInput = document.getElementById("rovalra-fx-search-bar"), searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : "", meta = domMetadata.get(card);
+              let searchInput = document.getElementById("rovalra-fx-search-bar"), searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : "", meta = domMetadata.get(card2);
               if (determineVisibility(meta, entry, searchTerm))
-                card.classList.add("rovalra-show"), card.classList.remove("rovalra-fx-hidden");
-              else if (card.classList.remove("rovalra-show"), img) {
+                card2.classList.add("rovalra-show"), card2.classList.remove("rovalra-fx-hidden");
+              else if (card2.classList.remove("rovalra-show"), img) {
                 let currentSrc = img.src;
                 currentSrc && !currentSrc.startsWith("data:") && (img.dataset.rovalraSrc = currentSrc, img.src = TRANSPARENT_PIXEL);
               }
             } else
-              card.classList.add("rovalra-show");
+              card2.classList.add("rovalra-show");
           }, { multiple: !0, scope: listElement });
           itemObs && activeObservers.push(itemObs);
         }
@@ -87822,7 +90230,7 @@ Bundled Items:
           spinner ? spinner.style.display = "block" : (spinner = document.createElement("div"), spinner.id = "rovalra-filter-loading", spinner.textContent = ts2("avatarFilters.filtering"), spinner.style.cssText = "position:absolute; top: 60px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 5px 10px; border-radius: 4px; z-index: 2000; font-size: 12px; pointer-events: none;", getActiveAvatarPane()?.prepend(spinner));
         }
         __name(addLoadingSpinner, "addLoadingSpinner");
-        function injectStyles5() {
+        function injectStyles6() {
           if (document.getElementById("rovalra-fx-styles")) return;
           let style = document.createElement("style");
           style.id = "rovalra-fx-styles", style.textContent = `
@@ -87838,7 +90246,7 @@ Bundled Items:
                     .tab-horizontal-submenu { z-index: 2;}
                     `, document.head.appendChild(style);
         }
-        __name(injectStyles5, "injectStyles");
+        __name(injectStyles6, "injectStyles");
         function cleanupFeature() {
           document.getElementById("rovalra-fx-container")?.remove();
         }
@@ -87855,7 +90263,7 @@ Bundled Items:
             ensureUIInActiveTab();
             return;
           }
-          observerBootstrapped = !0, injectStyles5(), window.addEventListener("hashchange", () => {
+          observerBootstrapped = !0, injectStyles6(), window.addEventListener("hashchange", () => {
             fullStateReset(), scheduleEnsureUI();
           }), initBreadcrumbMonitor();
           let tabContent = document.querySelector(".tab-content.rbx-tab-content");
@@ -87883,11 +90291,11 @@ Bundled Items:
       })();
     });
   }
-  __name(init51, "init");
+  __name(init55, "init");
 
   // src/content/features/avatar/R6Warning.js
   init_observer();
-  function init52() {
+  function init56() {
     function injectLayoutStyles() {
       if (document.getElementById("rovalra-avatar-layout-styles")) return;
       let link = document.createElement("link");
@@ -87952,7 +90360,7 @@ Bundled Items:
       }), observeElement(modalSelector, handleModalFound, { multiple: !0 });
     });
   }
-  __name(init52, "init");
+  __name(init56, "init");
 
   // src/content/features/avatar/avatarRotator.js
   init_observer();
@@ -87961,7 +90369,7 @@ Bundled Items:
   init_thumbnails();
   init_input();
   init_i18n();
-  function init53() {
+  function init57() {
     window.location.pathname.includes("/my/avatar") && chrome.storage.local.get("avatarRotatorEnabled", (data) => {
       data.avatarRotatorEnabled && observeElement(
         ".breadcrumb-container",
@@ -88043,8 +90451,8 @@ Bundled Items:
                 );
                 response.avatarInventoryItems.forEach(
                   (outfit, index) => {
-                    let card = document.createElement("div");
-                    card.className = "rovalra-avatar-card", card.style.cssText = "display: flex; flex-direction: column; align-items: center; width: 100px; margin: 5px; cursor: pointer; border-radius: 10px; padding: 5px; transition: all 0.2s; position: relative;";
+                    let card2 = document.createElement("div");
+                    card2.className = "rovalra-avatar-card", card2.style.cssText = "display: flex; flex-direction: column; align-items: center; width: 100px; margin: 5px; cursor: pointer; border-radius: 10px; padding: 5px; transition: all 0.2s; position: relative;";
                     let radio = createRadioButton({
                       id: `avatar-radio-${outfit.itemId}`,
                       checked: selectedAvatars.has(
@@ -88058,7 +90466,7 @@ Bundled Items:
                         ), updateButtonState();
                       }, "onChange")
                     });
-                    radio.style.position = "absolute", radio.style.top = "5px", radio.style.right = "5px", radio.style.zIndex = "10", card.onclick = () => {
+                    radio.style.position = "absolute", radio.style.top = "5px", radio.style.right = "5px", radio.style.zIndex = "10", card2.onclick = () => {
                       radio.disabled || radio.click();
                     };
                     let thumbData = thumbnails.find(
@@ -88074,7 +90482,7 @@ Bundled Items:
                         objectFit: "cover"
                       }
                     ), name = document.createElement("span");
-                    name.textContent = outfit.itemName, name.style.cssText = "font-size: 12px; text-align: center; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;", card.appendChild(radio), card.appendChild(img), card.appendChild(name), avatarListContainer.appendChild(card);
+                    name.textContent = outfit.itemName, name.style.cssText = "font-size: 12px; text-align: center; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;", card2.appendChild(radio), card2.appendChild(img), card2.appendChild(name), avatarListContainer.appendChild(card2);
                   }
                 ), avatarListContainer && avatarListContainer.parentElement && (avatarListContainer.parentElement.style.height = "auto"), updateButtonState();
               }
@@ -88121,14 +90529,14 @@ Bundled Items:
                   setRotatorsBtn.disabled = !0, setRotatorsBtn.textContent = ts2("avatarRotator.loadingDetails"), Promise.all(
                     avatars.map(async (outfitId) => {
                       if (!outfitDetailsCache2.has(outfitId)) {
-                        let details = await callRobloxApiJson({
+                        let details2 = await callRobloxApiJson({
                           subdomain: "avatar",
                           endpoint: `/v4/outfits/${outfitId}/details`,
                           method: "GET"
                         });
                         outfitDetailsCache2.set(
                           outfitId,
-                          details
+                          details2
                         );
                       }
                       return [
@@ -88136,10 +90544,10 @@ Bundled Items:
                         outfitDetailsCache2.get(outfitId)
                       ];
                     })
-                  ).then((details) => {
+                  ).then((details2) => {
                     chrome.storage.local.set({
                       rovalra_avatar_rotator_ids: avatars,
-                      rovalra_avatar_rotator_details: Object.fromEntries(details),
+                      rovalra_avatar_rotator_details: Object.fromEntries(details2),
                       rovalra_avatar_rotator_enabled: !0,
                       rovalra_avatar_rotator_interval: interval
                     }), setRotatorsBtn.textContent = ts2("avatarRotator.active"), disableRotatorBtn && (disableRotatorBtn.style.display = "inline-block"), setTimeout(
@@ -88198,7 +90606,7 @@ Bundled Items:
       );
     });
   }
-  __name(init53, "init");
+  __name(init57, "init");
 
   // src/content/core/utils/itemCategories.js
   init_api();
@@ -88262,7 +90670,7 @@ Bundled Items:
   __name(getIdsBySubcategory, "getIdsBySubcategory");
 
   // src/content/features/avatar/multiEquip.js
-  function init54() {
+  function init58() {
     let updateState = /* @__PURE__ */ __name(async (enabled10) => {
       if (document.dispatchEvent(new CustomEvent("rovalra-multi-equip", { detail: { enabled: enabled10 } })), enabled10)
         try {
@@ -88288,7 +90696,7 @@ Bundled Items:
       namespace === "local" && changes.multiEquipEnabled && updateState(changes.multiEquipEnabled.newValue === !0);
     });
   }
-  __name(init54, "init");
+  __name(init58, "init");
 
   // src/content/features/avatar/bodyColors.js
   init_observer();
@@ -88326,7 +90734,7 @@ Bundled Items:
     document.querySelector(".redraw-avatar button")?.click();
   }
   __name(refreshAvatarPreview, "refreshAvatarPreview");
-  function init55() {
+  function init59() {
     if (!window.location.pathname.includes("/my/avatar")) return;
     let teardown2 = null, activeList = null, release = /* @__PURE__ */ __name(() => {
       teardown2?.(), teardown2 = null;
@@ -88430,7 +90838,7 @@ Bundled Items:
       namespace !== "local" || !changes.bodyColorsEnabled || (release(), removeDots(activeList), changes.bodyColorsEnabled.newValue !== !1 && activeList && build(activeList));
     });
   }
-  __name(init55, "init");
+  __name(init59, "init");
 
   // src/content/features/avatar/gameOutfits.js
   init_observer();
@@ -88521,8 +90929,8 @@ Bundled Items:
     let write = applyOutfit(outfitId, knownAvatarType());
     write.then(async (ok) => {
       if (!ok) return;
-      let details = await getOutfitDetails(outfitId);
-      details?.playerAvatarType && rememberAvatarType(details.playerAvatarType);
+      let details2 = await getOutfitDetails(outfitId);
+      details2?.playerAvatarType && rememberAvatarType(details2.playerAvatarType);
     }).catch(() => {
     });
     let promise = Promise.race([
@@ -88555,8 +90963,8 @@ Bundled Items:
   }
   __name(resolveOutfitForPlace, "resolveOutfitForPlace");
   function createOutfitCard(outfit, thumbnailData, selected, type, onPick) {
-    let card = document.createElement("button");
-    card.type = "button", card.className = "rovalra-game-outfits-card", selected && card.classList.add("rovalra-game-outfits-selected");
+    let card2 = document.createElement("button");
+    card2.type = "button", card2.className = "rovalra-game-outfits-card", selected && card2.classList.add("rovalra-game-outfits-selected");
     let thumb = document.createElement("div");
     if (thumb.className = "rovalra-game-outfits-thumb", thumbnailData && thumb.appendChild(
       createThumbnailElement(thumbnailData, outfit.name, "", {
@@ -88569,7 +90977,7 @@ Bundled Items:
       badge.className = "rovalra-game-outfits-badge", badge.textContent = type, thumb.appendChild(badge);
     }
     let name = document.createElement("span");
-    return name.className = "rovalra-game-outfits-name", name.textContent = outfit.name, card.append(thumb, name), card.addEventListener("click", () => onPick(outfit.id)), card;
+    return name.className = "rovalra-game-outfits-name", name.textContent = outfit.name, card2.append(thumb, name), card2.addEventListener("click", () => onPick(outfit.id)), card2;
   }
   __name(createOutfitCard, "createOutfitCard");
   async function openPicker(userId, universeId) {
@@ -88634,10 +91042,10 @@ Bundled Items:
         let batch = outfits.slice(i2, i2 + TYPE_LOOKUP_BATCH);
         if (await Promise.all(
           batch.map(async (outfit) => {
-            let details = await getOutfitDetails(outfit.id).catch(
+            let details2 = await getOutfitDetails(outfit.id).catch(
               () => null
             );
-            details?.playerAvatarType && typeById.set(outfit.id, details.playerAvatarType);
+            details2?.playerAvatarType && typeById.set(outfit.id, details2.playerAvatarType);
           })
         ), !grid.isConnected) return;
         render2();
@@ -88683,11 +91091,11 @@ Bundled Items:
       if (container.querySelector(`.${GAME_BUTTON_CLASS}`)) return;
       let button = createButton("", "secondary");
       button.classList.add(GAME_BUTTON_CLASS), button.style.width = "40px", button.style.height = "40px", button.style.minWidth = "40px", button.style.padding = "0", button.style.display = "flex", button.style.alignItems = "center", button.style.justifyContent = "center", button.appendChild(Icon({ icon: "tshirt-play", size: "24px" })), addTooltip(button, ts2("avatar.gameOutfits.gameTitle")), button.addEventListener("click", async () => {
-        let [userId2, resolved] = await Promise.all([
+        let [userId2, resolved2] = await Promise.all([
           userIdPromise,
           targetPromise
         ]);
-        userId2 && resolved && openPicker(userId2, resolved.universeId);
+        userId2 && resolved2 && openPicker(userId2, resolved2.universeId);
       }), addQuickAction(container, button);
     }, "ensureButton"), onClick2 = /* @__PURE__ */ __name((event) => {
       let button = event.target.closest(PLAY_BUTTON_SELECTOR);
@@ -88783,26 +91191,26 @@ Bundled Items:
     }
   }
   __name(warmUp, "warmUp");
-  function init56() {
-    let running = !1, disposers = [], generation3 = 0, register = /* @__PURE__ */ __name((disposer) => {
+  function init60() {
+    let running2 = !1, disposers = [], generation3 = 0, register = /* @__PURE__ */ __name((disposer) => {
       disposer && disposers.push(disposer);
     }, "register"), stop = /* @__PURE__ */ __name(() => {
-      running && (running = !1, generation3 += 1, setPreLaunchHook(null), setFollowUserHook(null), setPrivateServerLaunchHook(null), disposers.forEach((disposer) => disposer.disconnect?.()), disposers = [], document.querySelectorAll(`.${EDITOR_BUTTON_CLASS}, .${GAME_BUTTON_CLASS}`).forEach(
+      running2 && (running2 = !1, generation3 += 1, setPreLaunchHook(null), setFollowUserHook(null), setPrivateServerLaunchHook(null), disposers.forEach((disposer) => disposer.disconnect?.()), disposers = [], document.querySelectorAll(`.${EDITOR_BUTTON_CLASS}, .${GAME_BUTTON_CLASS}`).forEach(
         (element) => (element.closest(".rovalra-game-outfits-item") || element).remove()
       ));
     }, "stop"), start = /* @__PURE__ */ __name(async () => {
-      if (running) return;
-      running = !0;
+      if (running2) return;
+      running2 = !0;
       let mine = generation3 += 1, isCurrent = /* @__PURE__ */ __name(() => generation3 === mine, "isCurrent");
       if (!await readEnabledFast() || !isCurrent()) {
-        isCurrent() && (running = !1);
+        isCurrent() && (running2 = !1);
         return;
       }
       let userIdPromise = getAuthenticatedUserId(), path = window.location.pathname;
       path.includes("/my/avatar") ? buildEditor(userIdPromise, register) : path.includes("/games/") && buildGamePage(userIdPromise, register, isCurrent);
       let userId = await userIdPromise;
       if (!userId || !isCurrent()) {
-        isCurrent() && (running = !1);
+        isCurrent() && (running2 = !1);
         return;
       }
       if (!await settings.gameOutfitsEnabled) {
@@ -88815,7 +91223,7 @@ Bundled Items:
       namespace !== "local" || !changes.gameOutfitsEnabled || (changes.gameOutfitsEnabled.newValue === !1 ? stop() : start());
     });
   }
-  __name(init56, "init");
+  __name(init60, "init");
 
   // src/content/features/catalog/itemsales.js
   init_api();
@@ -88824,7 +91232,7 @@ Bundled Items:
   init_purify_es();
   init_i18n();
   var cachedItemsData = null, currentActiveItemId = null;
-  function init57() {
+  function init61() {
     chrome.storage.local.get({ itemSalesEnabled: !1 }, async (settings2) => {
       if (!settings2.itemSalesEnabled) return;
       let url = window.location.href, regex = /https:\/\/www\.roblox\.com\/(?:[a-z]{2}\/)?(?:catalog|bundles)\/(\d+)/, match = url.match(regex);
@@ -88869,7 +91277,7 @@ Bundled Items:
       });
     });
   }
-  __name(init57, "init");
+  __name(init61, "init");
 
   // src/content/index.js
   init_method();
@@ -88990,13 +91398,13 @@ Bundled Items:
         grid.className = "rovalra-dep-grid";
         let assets7 = getAssets();
         deps.forEach((dep) => {
-          let details = detailsMap.get(dep.assetId) || {
+          let details2 = detailsMap.get(dep.assetId) || {
             name: ts2("catalogDependencies.assetFallback", {
               id: dep.assetId
             }),
             creatorName: ts2("catalogDependencies.unknown"),
             isVerified: !1
-          }, assetLinkUrl = `https://create.roblox.com/store/asset/${dep.assetId}`, thumbData = thumbMap.get(parseInt(dep.assetId)), creatorUrl = details.creatorType === "Group" ? `/groups/${details.creatorId}/about` : `/users/${details.creatorId}/profile`, container = document.createElement("div");
+          }, assetLinkUrl = `https://create.roblox.com/store/asset/${dep.assetId}`, thumbData = thumbMap.get(parseInt(dep.assetId)), creatorUrl = details2.creatorType === "Group" ? `/groups/${details2.creatorId}/about` : `/users/${details2.creatorId}/profile`, container = document.createElement("div");
           container.className = "item-card-container";
           let mainLink = document.createElement("a");
           mainLink.className = "item-card-link", mainLink.href = assetLinkUrl;
@@ -89008,7 +91416,7 @@ Bundled Items:
           thumb2d.className = "thumbnail-2d-container";
           let thumbEl = createThumbnailElement(
             thumbData,
-            details.name,
+            details2.name,
             "",
             {
               position: "absolute",
@@ -89025,7 +91433,7 @@ Bundled Items:
           let nameLink = document.createElement("div");
           nameLink.className = "item-card-name-link";
           let nameDiv = document.createElement("div");
-          nameDiv.className = "item-card-name", nameDiv.title = details.name, nameDiv.textContent = details.name, nameLink.appendChild(nameDiv), caption.appendChild(nameLink);
+          nameDiv.className = "item-card-name", nameDiv.title = details2.name, nameDiv.textContent = details2.name, nameLink.appendChild(nameDiv), caption.appendChild(nameLink);
           let secondary = document.createElement("div");
           secondary.className = "item-card-secondary-info text-secondary";
           let creatorDiv = document.createElement("div");
@@ -89033,8 +91441,8 @@ Bundled Items:
           let creatorText = document.createElement("span");
           creatorText.className = "item-card-creator-text";
           let badgeHtml = "";
-          details.isVerified && (badgeHtml = `<img src="${assets7.verifiedBadge}" title="${ts2("catalogDependencies.verifiedBadge")}" alt="${ts2("catalogDependencies.verifiedBadge")}" class="verified-badge-container">`), creatorText.innerHTML = purify.sanitize(
-            `${ts2("catalogDependencies.by")} <a href="${creatorUrl}" class="creator-name text-link">${details.creatorName} ${badgeHtml}</a>`
+          details2.isVerified && (badgeHtml = `<img src="${assets7.verifiedBadge}" title="${ts2("catalogDependencies.verifiedBadge")}" alt="${ts2("catalogDependencies.verifiedBadge")}" class="verified-badge-container">`), creatorText.innerHTML = purify.sanitize(
+            `${ts2("catalogDependencies.by")} <a href="${creatorUrl}" class="creator-name text-link">${details2.creatorName} ${badgeHtml}</a>`
           ), creatorText.querySelector(".creator-name")?.addEventListener("click", (e) => {
             e.stopPropagation();
           }), creatorDiv.appendChild(creatorText), secondary.appendChild(creatorDiv);
@@ -89048,15 +91456,15 @@ Bundled Items:
       }
   }
   __name(mountDependencyScanner, "mountDependencyScanner");
-  function init58() {
+  function init62() {
     /\/bundles\//i.test(window.location.pathname) || chrome.storage.local.get("EnableItemDependencies", (data) => {
       data.EnableItemDependencies === !0 && (startObserving(), observeElement(
         "#favorites-button",
-        (el3) => mountDependencyScanner(el3)
+        (el4) => mountDependencyScanner(el4)
       ));
     });
   }
-  __name(init58, "init");
+  __name(init62, "init");
 
   // src/content/features/catalog/pricefloor.js
   init_observer();
@@ -89065,7 +91473,7 @@ Bundled Items:
   init_assets();
   init_tooltip();
   init_i18n();
-  function init59() {
+  function init63() {
     chrome.storage.local.get("priceFloorEnabled", (data) => {
       data.priceFloorEnabled !== !1 && observeElement(
         ".item-price-value.icon-text-wrapper.clearfix.icon-robux-price-container",
@@ -89075,27 +91483,27 @@ Bundled Items:
           let assetId = getPlaceIdFromUrl();
           if (assetId)
             try {
-              let isBundlePage2 = window.location.pathname.includes("/bundles/"), details = await callRobloxApiJson({
+              let isBundlePage2 = window.location.pathname.includes("/bundles/"), details2 = await callRobloxApiJson({
                 subdomain: "catalog",
                 endpoint: `/v1/catalog/items/${assetId}/details?itemType=${isBundlePage2 ? "Bundle" : "Asset"}`
               });
-              if (!details) return;
-              let assetType = isBundlePage2 ? details.bundleType : details.assetType, isFullMask = details.taxonomy?.some(
+              if (!details2) return;
+              let assetType = isBundlePage2 ? details2.bundleType : details2.assetType, isFullMask = details2.taxonomy?.some(
                 (t3) => t3.taxonomyName === "Full Masks"
               );
-              if (details.taxonomy?.some(
+              if (details2.taxonomy?.some(
                 (t3) => t3.taxonomyName === "Heads"
               ) && (assetType = 2), !assetType && !isFullMask) return;
-              let isPbr = details.isPBR || !1, isBodysuit = details.taxonomy?.some(
+              let isPbr = details2.isPBR || !1, isBodysuit = details2.taxonomy?.some(
                 (t3) => t3.taxonomyName === "Bodysuit"
-              ) || !1, collectibleItemType = details.itemRestrictions && details.itemRestrictions.includes("Collectible") ? 1 : 2, typeParam = isBundlePage2 ? "bundleType" : "assetType", queryParams = `collectibleItemType=${collectibleItemType}&creationType=1&isPbr=${isPbr}&isBodysuit=${isBodysuit}`;
+              ) || !1, collectibleItemType = details2.itemRestrictions && details2.itemRestrictions.includes("Collectible") ? 1 : 2, typeParam = isBundlePage2 ? "bundleType" : "assetType", queryParams = `collectibleItemType=${collectibleItemType}&creationType=1&isPbr=${isPbr}&isBodysuit=${isBodysuit}`;
               isFullMask ? queryParams += "&categoryId=full_mask%7Cm4.1fullmask_20260224%7C6" : queryParams += `&${typeParam}=${assetType}`;
               let priceFloorData = await callRobloxApiJson({
                 subdomain: "itemconfiguration",
                 endpoint: `/v1/items/price-floor?${queryParams}`
               });
               if (priceFloorData && typeof priceFloorData.priceFloor == "number") {
-                let assets7 = getAssets(), floor2 = priceFloorData.priceFloor, currentPrice = details.lowestPrice, hasDiscount = element.querySelector(".original-price") !== null, icon = document.createElement("div");
+                let assets7 = getAssets(), floor2 = priceFloorData.priceFloor, currentPrice = details2.lowestPrice, hasDiscount = element.querySelector(".original-price") !== null, icon = document.createElement("div");
                 icon.className = "rovalra-price-floor-icon", Object.assign(icon.style, {
                   width: "16px",
                   height: "16px",
@@ -89129,14 +91537,14 @@ Bundled Items:
       );
     });
   }
-  __name(init59, "init");
+  __name(init63, "init");
 
   // src/content/core/ui/catalog/catalogBanner.js
   init_markdown();
   init_observer();
   init_purify_es();
   var isInitialized2 = !1;
-  function init60() {
+  function init64() {
     if (isInitialized2) return;
     isInitialized2 = !0, startObserving();
     let BANNER_ID3 = "rovalra-catalog-notice-banner", TARGET_PARENT_SELECTOR = ".page-content.menu-shown";
@@ -89190,14 +91598,14 @@ Bundled Items:
     }
     __name(initializeBannerContainer2, "initializeBannerContainer"), observeElement(TARGET_PARENT_SELECTOR, initializeBannerContainer2);
   }
-  __name(init60, "init");
+  __name(init64, "init");
 
   // src/content/features/catalog/bannerTest.js
   init_observer();
   var isInitialized3 = !1;
-  function init61() {
+  function init65() {
     window.location.href.includes("/catalog") && chrome.storage.local.get({ EnablebannerTest: !1 }, (settings2) => {
-      settings2.EnablebannerTest && (init60(), !isInitialized3 && (isInitialized3 = !0, observeElement("#rovalra-catalog-notice-banner", () => {
+      settings2.EnablebannerTest && (init64(), !isInitialized3 && (isInitialized3 = !0, observeElement("#rovalra-catalog-notice-banner", () => {
         window.location.href.includes("/catalog") && window.CatalogBannerManager && window.CatalogBannerManager.addNotice(
           "Catalog Test Banner",
           '<svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
@@ -89206,7 +91614,7 @@ Bundled Items:
       })));
     });
   }
-  __name(init61, "init");
+  __name(init65, "init");
 
   // src/content/features/catalog/ParentItem.js
   init_idExtractor();
@@ -89233,7 +91641,7 @@ Bundled Items:
     });
   }
   __name(observeNativeItemBundles, "observeNativeItemBundles");
-  function init62() {
+  function init66() {
     chrome.storage.local.get(
       { ParentItemsEnabled: !1 },
       async (settings2) => {
@@ -89247,7 +91655,7 @@ Bundled Items:
           currentItemId = null;
           return;
         }
-        currentItemId = itemId, init60(), observeNativeItemBundles(itemId);
+        currentItemId = itemId, init64(), observeNativeItemBundles(itemId);
         try {
           let response = await callRobloxApi({
             subdomain: "catalog",
@@ -89345,7 +91753,7 @@ Bundled Items:
       }
     );
   }
-  __name(init62, "init");
+  __name(init66, "init");
 
   // src/content/features/catalog/purchasePrompt.js
   init_observer();
@@ -89372,7 +91780,7 @@ Bundled Items:
         balance = parseInt(balanceText, 10);
       }
     }
-    let priceEl = Array.from(dialog.querySelectorAll(".text-robux")).find((el3) => !heading.contains(el3));
+    let priceEl = Array.from(dialog.querySelectorAll(".text-robux")).find((el4) => !heading.contains(el4));
     if (!priceEl || balance === null || isNaN(balance)) return;
     let after = balance - price, container = dialog.querySelector(".rovalra-robux-after");
     if (!container) {
@@ -89387,12 +91795,12 @@ Bundled Items:
     `;
   }
   __name(processDialog, "processDialog");
-  function init63() {
+  function init67() {
     chrome.storage.local.get({ EnableRobuxAfterPurchase: !0 }, (settings2) => {
       settings2.EnableRobuxAfterPurchase && observeElement(
         ".unified-purchase-dialog-content",
-        (el3) => {
-          processDialog(el3), observeAttributes(el3, () => processDialog(el3), [
+        (el4) => {
+          processDialog(el4), observeAttributes(el4, () => processDialog(el4), [
             "data-rovalra-expected-price"
           ]);
         },
@@ -89400,7 +91808,7 @@ Bundled Items:
       );
     });
   }
-  __name(init63, "init");
+  __name(init67, "init");
 
   // src/content/features/catalog/recentlyViewed.js
   init_observer();
@@ -89463,21 +91871,21 @@ Bundled Items:
     all[userId] = items, await chrome.storage.local.set({ [STORAGE_KEY7]: all });
   }
   __name(saveHistory, "saveHistory");
-  function getPrice(details) {
-    return !details || details.priceStatus === "Off Sale" ? null : details.lowestPrice ?? details.price ?? null;
+  function getPrice(details2) {
+    return !details2 || details2.priceStatus === "Off Sale" ? null : details2.lowestPrice ?? details2.price ?? null;
   }
   __name(getPrice, "getPrice");
   async function recordView() {
     let id = getPlaceIdFromUrl();
     if (!id) return;
-    let itemType = window.location.pathname.includes("/bundles/") ? "Bundle" : "Asset", details = await getCatalogItemDetails(id, itemType);
-    if (!details) return;
+    let itemType = window.location.pathname.includes("/bundles/") ? "Bundle" : "Asset", details2 = await getCatalogItemDetails(id, itemType);
+    if (!details2) return;
     let { userId, items } = await loadHistory();
     if (!userId) return;
     let entry = {
       id: String(id),
       itemType,
-      price: getPrice(details),
+      price: getPrice(details2),
       viewedAt: Date.now()
     }, next = [
       entry,
@@ -89488,8 +91896,8 @@ Bundled Items:
     await saveHistory(userId, next);
   }
   __name(recordView, "recordView");
-  function getPriceChange(entry, details) {
-    let now = getPrice(details);
+  function getPriceChange(entry, details2) {
+    let now = getPrice(details2);
     if (entry.price === null && now !== null)
       return { type: "backOnSale", text: ts2("recentlyViewed.backOnSale") };
     if (entry.price !== null && now === null)
@@ -89546,10 +91954,10 @@ Bundled Items:
     priceTrackingRegistered || (priceTrackingRegistered = !0, window.addEventListener("rovalra-catalog-details", (event) => {
       let list = document.querySelector(".rovalra-recently-viewed-list");
       if (list)
-        for (let details of event.detail?.data || []) {
-          let entry = priceEntries.get(`${details.itemType}:${details.id}`);
+        for (let details2 of event.detail?.data || []) {
+          let entry = priceEntries.get(`${details2.itemType}:${details2.id}`);
           if (!entry) continue;
-          let change = getPriceChange(entry, details), wrapper = list.querySelector(entrySelector(entry));
+          let change = getPriceChange(entry, details2), wrapper = list.querySelector(entrySelector(entry));
           !change || !wrapper || (wrapper.dataset.priceChange = change.type, wrapper.dataset.priceChangeText = change.text, applyPriceChange(wrapper));
         }
     }), observeElement(
@@ -89605,7 +92013,7 @@ Bundled Items:
     }
   }
   __name(renderRow, "renderRow");
-  async function init64() {
+  async function init68() {
     if (!await settings.recentlyViewedEnabled) return;
     let path = window.location.pathname;
     if (ITEM_PAGE_REGEX.test(path)) {
@@ -89622,7 +92030,7 @@ Bundled Items:
       });
     }
   }
-  __name(init64, "init");
+  __name(init68, "init");
 
   // src/content/features/catalog/ItemTrading.js
   init_observer();
@@ -89936,14 +92344,14 @@ Bundled Items:
       chunks.push(uniqueIds.slice(i2, i2 + 50));
     let assetIdToCollectibleId = /* @__PURE__ */ new Map();
     await Promise.all(
-      chunks.map(async (chunk) => {
+      chunks.map(async (chunk2) => {
         try {
           let response = await callRobloxApi({
             subdomain: "catalog",
             endpoint: "/v1/catalog/items/details",
             method: "POST",
             body: {
-              items: chunk.map((id) => ({
+              items: chunk2.map((id) => ({
                 itemType: "Asset",
                 id: parseInt(id)
               }))
@@ -90051,7 +92459,7 @@ Bundled Items:
   }
   __name(getRolimonsTooltip, "getRolimonsTooltip");
   function updateInfo(parent, referenceElement, assetId) {
-    parent.querySelectorAll(".rovalra-trading-row").forEach((el3) => el3.remove());
+    parent.querySelectorAll(".rovalra-trading-row").forEach((el4) => el4.remove());
     let data = getCachedRolimonsItem(assetId);
     if (!data) return;
     let assets7 = getAssets(), rows = [], value2 = data.default_price || data.rap || 0, valueHtml = `
@@ -90091,7 +92499,7 @@ Bundled Items:
   }
   __name(updateInfo, "updateInfo");
   function updateItemName(header, assetId) {
-    header.querySelectorAll(".rovalra-name-icon-container").forEach((el3) => el3.remove());
+    header.querySelectorAll(".rovalra-name-icon-container").forEach((el4) => el4.remove());
     let data = getCachedRolimonsItem(assetId), assets7 = getAssets(), container = document.createElement("span");
     container.className = "rovalra-name-icon-container", Object.assign(container.style, {
       display: "inline-flex",
@@ -90122,7 +92530,7 @@ Bundled Items:
     header.appendChild(container);
   }
   __name(updateItemName, "updateItemName");
-  function init65() {
+  function init69() {
     chrome.storage.local.get(
       { itemTradingEnabled: !0, tradeRiskEnabled: !0 },
       (settings2) => {
@@ -90165,7 +92573,7 @@ Bundled Items:
       }
     );
   }
-  __name(init65, "init");
+  __name(init69, "init");
 
   // src/content/features/catalog/lastEquipped.js
   init_observer();
@@ -90211,7 +92619,7 @@ Bundled Items:
     priceRow && updateLastEquippedRow(priceRow);
   }
   __name(updateCurrentItemPage, "updateCurrentItemPage");
-  async function init66() {
+  async function init70() {
     isInitialized5 || (isInitialized5 = !0, isEnabled = await settings.lastEquippedEnabled !== !1, observeElement(
       "#item-details .price-row-container",
       (priceRow) => {
@@ -90228,7 +92636,7 @@ Bundled Items:
       }
     }));
   }
-  __name(init66, "init");
+  __name(init70, "init");
 
   // src/content/features/catalog/ItemRender.ts
   init_observer();
@@ -108173,7 +110581,7 @@ void main() {
       return MeshBasicMaterial2;
     }
     extendParams(materialParams, materialDef, parser) {
-      let pending2 = [];
+      let pending3 = [];
       materialParams.color = new Color2(1, 1, 1), materialParams.opacity = 1;
       let metallicRoughness = materialDef.pbrMetallicRoughness;
       if (metallicRoughness) {
@@ -108181,9 +110589,9 @@ void main() {
           let array = metallicRoughness.baseColorFactor;
           materialParams.color.setRGB(array[0], array[1], array[2], LinearSRGBColorSpace2), materialParams.opacity = array[3];
         }
-        metallicRoughness.baseColorTexture !== void 0 && pending2.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace2));
+        metallicRoughness.baseColorTexture !== void 0 && pending3.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace2));
       }
-      return Promise.all(pending2);
+      return Promise.all(pending3);
     }
   }, GLTFMaterialsEmissiveStrengthExtension2 = class {
     static {
@@ -108209,12 +110617,12 @@ void main() {
     extendMaterialParams(materialIndex, materialParams) {
       let extension = getMaterialExtension(this.parser, materialIndex, this.name);
       if (extension === null) return Promise.resolve();
-      let pending2 = [];
-      if (extension.clearcoatFactor !== void 0 && (materialParams.clearcoat = extension.clearcoatFactor), extension.clearcoatTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "clearcoatMap", extension.clearcoatTexture)), extension.clearcoatRoughnessFactor !== void 0 && (materialParams.clearcoatRoughness = extension.clearcoatRoughnessFactor), extension.clearcoatRoughnessTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "clearcoatRoughnessMap", extension.clearcoatRoughnessTexture)), extension.clearcoatNormalTexture !== void 0 && (pending2.push(this.parser.assignTexture(materialParams, "clearcoatNormalMap", extension.clearcoatNormalTexture)), extension.clearcoatNormalTexture.scale !== void 0)) {
+      let pending3 = [];
+      if (extension.clearcoatFactor !== void 0 && (materialParams.clearcoat = extension.clearcoatFactor), extension.clearcoatTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "clearcoatMap", extension.clearcoatTexture)), extension.clearcoatRoughnessFactor !== void 0 && (materialParams.clearcoatRoughness = extension.clearcoatRoughnessFactor), extension.clearcoatRoughnessTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "clearcoatRoughnessMap", extension.clearcoatRoughnessTexture)), extension.clearcoatNormalTexture !== void 0 && (pending3.push(this.parser.assignTexture(materialParams, "clearcoatNormalMap", extension.clearcoatNormalTexture)), extension.clearcoatNormalTexture.scale !== void 0)) {
         let scale = extension.clearcoatNormalTexture.scale;
         materialParams.clearcoatNormalScale = new Vector22(scale, scale);
       }
-      return Promise.all(pending2);
+      return Promise.all(pending3);
     }
   }, GLTFMaterialsDispersionExtension2 = class {
     static {
@@ -108243,8 +110651,8 @@ void main() {
     extendMaterialParams(materialIndex, materialParams) {
       let extension = getMaterialExtension(this.parser, materialIndex, this.name);
       if (extension === null) return Promise.resolve();
-      let pending2 = [];
-      return extension.iridescenceFactor !== void 0 && (materialParams.iridescence = extension.iridescenceFactor), extension.iridescenceTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "iridescenceMap", extension.iridescenceTexture)), extension.iridescenceIor !== void 0 && (materialParams.iridescenceIOR = extension.iridescenceIor), materialParams.iridescenceThicknessRange === void 0 && (materialParams.iridescenceThicknessRange = [100, 400]), extension.iridescenceThicknessMinimum !== void 0 && (materialParams.iridescenceThicknessRange[0] = extension.iridescenceThicknessMinimum), extension.iridescenceThicknessMaximum !== void 0 && (materialParams.iridescenceThicknessRange[1] = extension.iridescenceThicknessMaximum), extension.iridescenceThicknessTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "iridescenceThicknessMap", extension.iridescenceThicknessTexture)), Promise.all(pending2);
+      let pending3 = [];
+      return extension.iridescenceFactor !== void 0 && (materialParams.iridescence = extension.iridescenceFactor), extension.iridescenceTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "iridescenceMap", extension.iridescenceTexture)), extension.iridescenceIor !== void 0 && (materialParams.iridescenceIOR = extension.iridescenceIor), materialParams.iridescenceThicknessRange === void 0 && (materialParams.iridescenceThicknessRange = [100, 400]), extension.iridescenceThicknessMinimum !== void 0 && (materialParams.iridescenceThicknessRange[0] = extension.iridescenceThicknessMinimum), extension.iridescenceThicknessMaximum !== void 0 && (materialParams.iridescenceThicknessRange[1] = extension.iridescenceThicknessMaximum), extension.iridescenceThicknessTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "iridescenceThicknessMap", extension.iridescenceThicknessTexture)), Promise.all(pending3);
     }
   }, GLTFMaterialsSheenExtension2 = class {
     static {
@@ -108259,12 +110667,12 @@ void main() {
     extendMaterialParams(materialIndex, materialParams) {
       let extension = getMaterialExtension(this.parser, materialIndex, this.name);
       if (extension === null) return Promise.resolve();
-      let pending2 = [];
+      let pending3 = [];
       if (materialParams.sheenColor = new Color2(0, 0, 0), materialParams.sheenRoughness = 0, materialParams.sheen = 1, extension.sheenColorFactor !== void 0) {
         let colorFactor = extension.sheenColorFactor;
         materialParams.sheenColor.setRGB(colorFactor[0], colorFactor[1], colorFactor[2], LinearSRGBColorSpace2);
       }
-      return extension.sheenRoughnessFactor !== void 0 && (materialParams.sheenRoughness = extension.sheenRoughnessFactor), extension.sheenColorTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "sheenColorMap", extension.sheenColorTexture, SRGBColorSpace2)), extension.sheenRoughnessTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "sheenRoughnessMap", extension.sheenRoughnessTexture)), Promise.all(pending2);
+      return extension.sheenRoughnessFactor !== void 0 && (materialParams.sheenRoughness = extension.sheenRoughnessFactor), extension.sheenColorTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "sheenColorMap", extension.sheenColorTexture, SRGBColorSpace2)), extension.sheenRoughnessTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "sheenRoughnessMap", extension.sheenRoughnessTexture)), Promise.all(pending3);
     }
   }, GLTFMaterialsTransmissionExtension2 = class {
     static {
@@ -108279,8 +110687,8 @@ void main() {
     extendMaterialParams(materialIndex, materialParams) {
       let extension = getMaterialExtension(this.parser, materialIndex, this.name);
       if (extension === null) return Promise.resolve();
-      let pending2 = [];
-      return extension.transmissionFactor !== void 0 && (materialParams.transmission = extension.transmissionFactor), extension.transmissionTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "transmissionMap", extension.transmissionTexture)), Promise.all(pending2);
+      let pending3 = [];
+      return extension.transmissionFactor !== void 0 && (materialParams.transmission = extension.transmissionFactor), extension.transmissionTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "transmissionMap", extension.transmissionTexture)), Promise.all(pending3);
     }
   }, GLTFMaterialsVolumeExtension2 = class {
     static {
@@ -108295,10 +110703,10 @@ void main() {
     extendMaterialParams(materialIndex, materialParams) {
       let extension = getMaterialExtension(this.parser, materialIndex, this.name);
       if (extension === null) return Promise.resolve();
-      let pending2 = [];
-      materialParams.thickness = extension.thicknessFactor !== void 0 ? extension.thicknessFactor : 0, extension.thicknessTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "thicknessMap", extension.thicknessTexture)), materialParams.attenuationDistance = extension.attenuationDistance || 1 / 0;
+      let pending3 = [];
+      materialParams.thickness = extension.thicknessFactor !== void 0 ? extension.thicknessFactor : 0, extension.thicknessTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "thicknessMap", extension.thicknessTexture)), materialParams.attenuationDistance = extension.attenuationDistance || 1 / 0;
       let colorArray = extension.attenuationColor || [1, 1, 1];
-      return materialParams.attenuationColor = new Color2().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace2), Promise.all(pending2);
+      return materialParams.attenuationColor = new Color2().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace2), Promise.all(pending3);
     }
   }, GLTFMaterialsIorExtension2 = class {
     static {
@@ -108327,10 +110735,10 @@ void main() {
     extendMaterialParams(materialIndex, materialParams) {
       let extension = getMaterialExtension(this.parser, materialIndex, this.name);
       if (extension === null) return Promise.resolve();
-      let pending2 = [];
-      materialParams.specularIntensity = extension.specularFactor !== void 0 ? extension.specularFactor : 1, extension.specularTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "specularIntensityMap", extension.specularTexture));
+      let pending3 = [];
+      materialParams.specularIntensity = extension.specularFactor !== void 0 ? extension.specularFactor : 1, extension.specularTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "specularIntensityMap", extension.specularTexture));
       let colorArray = extension.specularColorFactor || [1, 1, 1];
-      return materialParams.specularColor = new Color2().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace2), extension.specularColorTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "specularColorMap", extension.specularColorTexture, SRGBColorSpace2)), Promise.all(pending2);
+      return materialParams.specularColor = new Color2().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace2), extension.specularColorTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "specularColorMap", extension.specularColorTexture, SRGBColorSpace2)), Promise.all(pending3);
     }
   }, GLTFMaterialsBumpExtension2 = class {
     static {
@@ -108345,8 +110753,8 @@ void main() {
     extendMaterialParams(materialIndex, materialParams) {
       let extension = getMaterialExtension(this.parser, materialIndex, this.name);
       if (extension === null) return Promise.resolve();
-      let pending2 = [];
-      return materialParams.bumpScale = extension.bumpFactor !== void 0 ? extension.bumpFactor : 1, extension.bumpTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "bumpMap", extension.bumpTexture)), Promise.all(pending2);
+      let pending3 = [];
+      return materialParams.bumpScale = extension.bumpFactor !== void 0 ? extension.bumpFactor : 1, extension.bumpTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "bumpMap", extension.bumpTexture)), Promise.all(pending3);
     }
   }, GLTFMaterialsAnisotropyExtension2 = class {
     static {
@@ -108361,8 +110769,8 @@ void main() {
     extendMaterialParams(materialIndex, materialParams) {
       let extension = getMaterialExtension(this.parser, materialIndex, this.name);
       if (extension === null) return Promise.resolve();
-      let pending2 = [];
-      return extension.anisotropyStrength !== void 0 && (materialParams.anisotropy = extension.anisotropyStrength), extension.anisotropyRotation !== void 0 && (materialParams.anisotropyRotation = extension.anisotropyRotation), extension.anisotropyTexture !== void 0 && pending2.push(this.parser.assignTexture(materialParams, "anisotropyMap", extension.anisotropyTexture)), Promise.all(pending2);
+      let pending3 = [];
+      return extension.anisotropyStrength !== void 0 && (materialParams.anisotropy = extension.anisotropyStrength), extension.anisotropyRotation !== void 0 && (materialParams.anisotropyRotation = extension.anisotropyRotation), extension.anisotropyTexture !== void 0 && pending3.push(this.parser.assignTexture(materialParams, "anisotropyMap", extension.anisotropyTexture)), Promise.all(pending3);
     }
   }, GLTFTextureBasisUExtension = class {
     static {
@@ -108462,10 +110870,10 @@ void main() {
       for (let primitive of meshDef.primitives)
         if (primitive.mode !== WEBGL_CONSTANTS2.TRIANGLES && primitive.mode !== WEBGL_CONSTANTS2.TRIANGLE_STRIP && primitive.mode !== WEBGL_CONSTANTS2.TRIANGLE_FAN && primitive.mode !== void 0)
           return null;
-      let attributesDef = nodeDef.extensions[this.name].attributes, pending2 = [], attributes = {};
+      let attributesDef = nodeDef.extensions[this.name].attributes, pending3 = [], attributes = {};
       for (let key in attributesDef)
-        pending2.push(this.parser.getDependency("accessor", attributesDef[key]).then((accessor) => (attributes[key] = accessor, attributes[key])));
-      return pending2.length < 1 ? null : (pending2.push(this.parser.createNodeMesh(nodeIndex)), Promise.all(pending2).then((results) => {
+        pending3.push(this.parser.getDependency("accessor", attributesDef[key]).then((accessor) => (attributes[key] = accessor, attributes[key])));
+      return pending3.length < 1 ? null : (pending3.push(this.parser.createNodeMesh(nodeIndex)), Promise.all(pending3).then((results) => {
         let nodeObject = results.pop(), meshes = nodeObject.isGroup ? nodeObject.children : [nodeObject], count = results[0].count, instancedMeshes = [];
         for (let mesh of meshes) {
           let m2 = new Matrix42(), p2 = new Vector32(), q2 = new Quaternion2(), s = new Vector32(1, 1, 1), instancedMesh = new InstancedMesh2(mesh.geometry, mesh.material, count);
@@ -108885,12 +111293,12 @@ void main() {
     _invokeAll(func) {
       let extensions = Object.values(this.plugins);
       extensions.unshift(this);
-      let pending2 = [];
+      let pending3 = [];
       for (let i2 = 0; i2 < extensions.length; i2++) {
         let result = func(extensions[i2]);
-        result && pending2.push(result);
+        result && pending3.push(result);
       }
-      return pending2;
+      return pending3;
     }
     /**
      * Requests the specified dependency asynchronously, with caching.
@@ -109162,33 +111570,33 @@ void main() {
      * @return {Promise<Material>}
      */
     loadMaterial(materialIndex) {
-      let parser = this, json = this.json, extensions = this.extensions, materialDef = json.materials[materialIndex], materialType, materialParams = {}, materialExtensions = materialDef.extensions || {}, pending2 = [];
+      let parser = this, json = this.json, extensions = this.extensions, materialDef = json.materials[materialIndex], materialType, materialParams = {}, materialExtensions = materialDef.extensions || {}, pending3 = [];
       if (materialExtensions[EXTENSIONS.KHR_MATERIALS_UNLIT]) {
         let kmuExtension = extensions[EXTENSIONS.KHR_MATERIALS_UNLIT];
-        materialType = kmuExtension.getMaterialType(), pending2.push(kmuExtension.extendParams(materialParams, materialDef, parser));
+        materialType = kmuExtension.getMaterialType(), pending3.push(kmuExtension.extendParams(materialParams, materialDef, parser));
       } else {
         let metallicRoughness = materialDef.pbrMetallicRoughness || {};
         if (materialParams.color = new Color2(1, 1, 1), materialParams.opacity = 1, Array.isArray(metallicRoughness.baseColorFactor)) {
           let array = metallicRoughness.baseColorFactor;
           materialParams.color.setRGB(array[0], array[1], array[2], LinearSRGBColorSpace2), materialParams.opacity = array[3];
         }
-        metallicRoughness.baseColorTexture !== void 0 && pending2.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace2)), materialParams.metalness = metallicRoughness.metallicFactor !== void 0 ? metallicRoughness.metallicFactor : 1, materialParams.roughness = metallicRoughness.roughnessFactor !== void 0 ? metallicRoughness.roughnessFactor : 1, metallicRoughness.metallicRoughnessTexture !== void 0 && (pending2.push(parser.assignTexture(materialParams, "metalnessMap", metallicRoughness.metallicRoughnessTexture)), pending2.push(parser.assignTexture(materialParams, "roughnessMap", metallicRoughness.metallicRoughnessTexture))), materialType = this._invokeOne(function(ext) {
+        metallicRoughness.baseColorTexture !== void 0 && pending3.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace2)), materialParams.metalness = metallicRoughness.metallicFactor !== void 0 ? metallicRoughness.metallicFactor : 1, materialParams.roughness = metallicRoughness.roughnessFactor !== void 0 ? metallicRoughness.roughnessFactor : 1, metallicRoughness.metallicRoughnessTexture !== void 0 && (pending3.push(parser.assignTexture(materialParams, "metalnessMap", metallicRoughness.metallicRoughnessTexture)), pending3.push(parser.assignTexture(materialParams, "roughnessMap", metallicRoughness.metallicRoughnessTexture))), materialType = this._invokeOne(function(ext) {
           return ext.getMaterialType && ext.getMaterialType(materialIndex);
-        }), pending2.push(Promise.all(this._invokeAll(function(ext) {
+        }), pending3.push(Promise.all(this._invokeAll(function(ext) {
           return ext.extendMaterialParams && ext.extendMaterialParams(materialIndex, materialParams);
         })));
       }
       materialDef.doubleSided === !0 && (materialParams.side = DoubleSide2);
       let alphaMode = materialDef.alphaMode || ALPHA_MODES.OPAQUE;
-      if (alphaMode === ALPHA_MODES.BLEND ? (materialParams.transparent = !0, materialParams.depthWrite = !1) : (materialParams.transparent = !1, alphaMode === ALPHA_MODES.MASK && (materialParams.alphaTest = materialDef.alphaCutoff !== void 0 ? materialDef.alphaCutoff : 0.5)), materialDef.normalTexture !== void 0 && materialType !== MeshBasicMaterial2 && (pending2.push(parser.assignTexture(materialParams, "normalMap", materialDef.normalTexture)), materialParams.normalScale = new Vector22(1, 1), materialDef.normalTexture.scale !== void 0)) {
+      if (alphaMode === ALPHA_MODES.BLEND ? (materialParams.transparent = !0, materialParams.depthWrite = !1) : (materialParams.transparent = !1, alphaMode === ALPHA_MODES.MASK && (materialParams.alphaTest = materialDef.alphaCutoff !== void 0 ? materialDef.alphaCutoff : 0.5)), materialDef.normalTexture !== void 0 && materialType !== MeshBasicMaterial2 && (pending3.push(parser.assignTexture(materialParams, "normalMap", materialDef.normalTexture)), materialParams.normalScale = new Vector22(1, 1), materialDef.normalTexture.scale !== void 0)) {
         let scale = materialDef.normalTexture.scale;
         materialParams.normalScale.set(scale, scale);
       }
-      if (materialDef.occlusionTexture !== void 0 && materialType !== MeshBasicMaterial2 && (pending2.push(parser.assignTexture(materialParams, "aoMap", materialDef.occlusionTexture)), materialDef.occlusionTexture.strength !== void 0 && (materialParams.aoMapIntensity = materialDef.occlusionTexture.strength)), materialDef.emissiveFactor !== void 0 && materialType !== MeshBasicMaterial2) {
+      if (materialDef.occlusionTexture !== void 0 && materialType !== MeshBasicMaterial2 && (pending3.push(parser.assignTexture(materialParams, "aoMap", materialDef.occlusionTexture)), materialDef.occlusionTexture.strength !== void 0 && (materialParams.aoMapIntensity = materialDef.occlusionTexture.strength)), materialDef.emissiveFactor !== void 0 && materialType !== MeshBasicMaterial2) {
         let emissiveFactor = materialDef.emissiveFactor;
         materialParams.emissive = new Color2().setRGB(emissiveFactor[0], emissiveFactor[1], emissiveFactor[2], LinearSRGBColorSpace2);
       }
-      return materialDef.emissiveTexture !== void 0 && materialType !== MeshBasicMaterial2 && pending2.push(parser.assignTexture(materialParams, "emissiveMap", materialDef.emissiveTexture, SRGBColorSpace2)), Promise.all(pending2).then(function() {
+      return materialDef.emissiveTexture !== void 0 && materialType !== MeshBasicMaterial2 && pending3.push(parser.assignTexture(materialParams, "emissiveMap", materialDef.emissiveTexture, SRGBColorSpace2)), Promise.all(pending3).then(function() {
         let material = new materialType(materialParams);
         return materialDef.name && (material.name = materialDef.name), assignExtrasToUserData(material, materialDef), parser.associations.set(material, { materials: materialIndex }), materialDef.extensions && addUnknownExtensionsToUserData(extensions, material, materialDef), material;
       });
@@ -109221,17 +111629,17 @@ void main() {
         });
       }
       __name(createDracoPrimitive, "createDracoPrimitive");
-      let pending2 = [];
+      let pending3 = [];
       for (let i2 = 0, il = primitives.length; i2 < il; i2++) {
         let primitive = primitives[i2], cacheKey = createPrimitiveKey(primitive), cached = cache2[cacheKey];
         if (cached)
-          pending2.push(cached.promise);
+          pending3.push(cached.promise);
         else {
           let geometryPromise;
-          primitive.extensions && primitive.extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION] ? geometryPromise = createDracoPrimitive(primitive) : geometryPromise = addPrimitiveAttributes(new BufferGeometry2(), primitive, parser), cache2[cacheKey] = { primitive, promise: geometryPromise }, pending2.push(geometryPromise);
+          primitive.extensions && primitive.extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION] ? geometryPromise = createDracoPrimitive(primitive) : geometryPromise = addPrimitiveAttributes(new BufferGeometry2(), primitive, parser), cache2[cacheKey] = { primitive, promise: geometryPromise }, pending3.push(geometryPromise);
         }
       }
-      return Promise.all(pending2);
+      return Promise.all(pending3);
     }
     /**
      * Specification: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#meshes
@@ -109241,12 +111649,12 @@ void main() {
      * @return {Promise<Group|Mesh|SkinnedMesh|Line|Points>}
      */
     loadMesh(meshIndex) {
-      let parser = this, json = this.json, extensions = this.extensions, meshDef = json.meshes[meshIndex], primitives = meshDef.primitives, pending2 = [];
+      let parser = this, json = this.json, extensions = this.extensions, meshDef = json.meshes[meshIndex], primitives = meshDef.primitives, pending3 = [];
       for (let i2 = 0, il = primitives.length; i2 < il; i2++) {
         let material = primitives[i2].material === void 0 ? createDefaultMaterial(this.cache) : this.getDependency("material", primitives[i2].material);
-        pending2.push(material);
+        pending3.push(material);
       }
-      return pending2.push(parser.loadGeometries(primitives)), Promise.all(pending2).then(function(results) {
+      return pending3.push(parser.loadGeometries(primitives)), Promise.all(pending3).then(function(results) {
         let materials = results.slice(0, results.length - 1), geometries = results[results.length - 1], meshes = [];
         for (let i2 = 0, il = geometries.length; i2 < il; i2++) {
           let geometry = geometries[i2], primitive = primitives[i2], mesh, material = materials[i2];
@@ -109301,10 +111709,10 @@ void main() {
      * @return {Promise<Skeleton>}
      */
     loadSkin(skinIndex) {
-      let skinDef = this.json.skins[skinIndex], pending2 = [];
+      let skinDef = this.json.skins[skinIndex], pending3 = [];
       for (let i2 = 0, il = skinDef.joints.length; i2 < il; i2++)
-        pending2.push(this._loadNodeShallow(skinDef.joints[i2]));
-      return skinDef.inverseBindMatrices !== void 0 ? pending2.push(this.getDependency("accessor", skinDef.inverseBindMatrices)) : pending2.push(null), Promise.all(pending2).then(function(results) {
+        pending3.push(this._loadNodeShallow(skinDef.joints[i2]));
+      return skinDef.inverseBindMatrices !== void 0 ? pending3.push(this.getDependency("accessor", skinDef.inverseBindMatrices)) : pending3.push(null), Promise.all(pending3).then(function(results) {
         let inverseBindMatrices = results.pop(), jointNodes = results, bones = [], boneInverses = [];
         for (let i2 = 0, il = jointNodes.length; i2 < il; i2++) {
           let jointNode = jointNodes[i2];
@@ -109399,16 +111807,16 @@ void main() {
       let json = this.json, extensions = this.extensions, parser = this;
       if (this.nodeCache[nodeIndex] !== void 0)
         return this.nodeCache[nodeIndex];
-      let nodeDef = json.nodes[nodeIndex], nodeName = nodeDef.name ? parser.createUniqueName(nodeDef.name) : "", pending2 = [], meshPromise = parser._invokeOne(function(ext) {
+      let nodeDef = json.nodes[nodeIndex], nodeName = nodeDef.name ? parser.createUniqueName(nodeDef.name) : "", pending3 = [], meshPromise = parser._invokeOne(function(ext) {
         return ext.createNodeMesh && ext.createNodeMesh(nodeIndex);
       });
-      return meshPromise && pending2.push(meshPromise), nodeDef.camera !== void 0 && pending2.push(parser.getDependency("camera", nodeDef.camera).then(function(camera) {
+      return meshPromise && pending3.push(meshPromise), nodeDef.camera !== void 0 && pending3.push(parser.getDependency("camera", nodeDef.camera).then(function(camera) {
         return parser._getNodeRef(parser.cameraCache, nodeDef.camera, camera);
       })), parser._invokeAll(function(ext) {
         return ext.createNodeAttachment && ext.createNodeAttachment(nodeIndex);
       }).forEach(function(promise) {
-        pending2.push(promise);
-      }), this.nodeCache[nodeIndex] = Promise.all(pending2).then(function(objects) {
+        pending3.push(promise);
+      }), this.nodeCache[nodeIndex] = Promise.all(pending3).then(function(objects) {
         let node;
         if (nodeDef.isBone === !0 ? node = new Bone2() : objects.length > 1 ? node = new Group2() : objects.length === 1 ? node = objects[0] : node = new Object3D2(), node !== objects[0])
           for (let i2 = 0, il = objects.length; i2 < il; i2++)
@@ -109437,10 +111845,10 @@ void main() {
     loadScene(sceneIndex) {
       let extensions = this.extensions, sceneDef = this.json.scenes[sceneIndex], parser = this, scene = new Group2();
       sceneDef.name && (scene.name = parser.createUniqueName(sceneDef.name)), assignExtrasToUserData(scene, sceneDef), sceneDef.extensions && addUnknownExtensionsToUserData(extensions, scene, sceneDef);
-      let nodeIds = sceneDef.nodes || [], pending2 = [];
+      let nodeIds = sceneDef.nodes || [], pending3 = [];
       for (let i2 = 0, il = nodeIds.length; i2 < il; i2++)
-        pending2.push(parser.getDependency("node", nodeIds[i2]));
-      return Promise.all(pending2).then(function(nodes) {
+        pending3.push(parser.getDependency("node", nodeIds[i2]));
+      return Promise.all(pending3).then(function(nodes) {
         for (let i2 = 0, il = nodes.length; i2 < il; i2++) {
           let node = nodes[i2];
           node.parent !== null ? scene.add(clone2(node)) : scene.add(node);
@@ -109551,7 +111959,7 @@ void main() {
   }
   __name(computeBounds, "computeBounds");
   function addPrimitiveAttributes(geometry, primitiveDef, parser) {
-    let attributes = primitiveDef.attributes, pending2 = [];
+    let attributes = primitiveDef.attributes, pending3 = [];
     function assignAttributeAccessor(accessorIndex, attributeName) {
       return parser.getDependency("accessor", accessorIndex).then(function(accessor) {
         geometry.setAttribute(attributeName, accessor);
@@ -109560,15 +111968,15 @@ void main() {
     __name(assignAttributeAccessor, "assignAttributeAccessor");
     for (let gltfAttributeName in attributes) {
       let threeAttributeName = ATTRIBUTES[gltfAttributeName] || gltfAttributeName.toLowerCase();
-      threeAttributeName in geometry.attributes || pending2.push(assignAttributeAccessor(attributes[gltfAttributeName], threeAttributeName));
+      threeAttributeName in geometry.attributes || pending3.push(assignAttributeAccessor(attributes[gltfAttributeName], threeAttributeName));
     }
     if (primitiveDef.indices !== void 0 && !geometry.index) {
       let accessor = parser.getDependency("accessor", primitiveDef.indices).then(function(accessor2) {
         geometry.setIndex(accessor2);
       });
-      pending2.push(accessor);
+      pending3.push(accessor);
     }
-    return ColorManagement2.workingColorSpace !== LinearSRGBColorSpace2 && "COLOR_0" in attributes && console.warn(`THREE.GLTFLoader: Converting vertex colors from "srgb-linear" to "${ColorManagement2.workingColorSpace}" not supported.`), assignExtrasToUserData(geometry, primitiveDef), computeBounds(geometry, primitiveDef, parser), Promise.all(pending2).then(function() {
+    return ColorManagement2.workingColorSpace !== LinearSRGBColorSpace2 && "COLOR_0" in attributes && console.warn(`THREE.GLTFLoader: Converting vertex colors from "srgb-linear" to "${ColorManagement2.workingColorSpace}" not supported.`), assignExtrasToUserData(geometry, primitiveDef), computeBounds(geometry, primitiveDef, parser), Promise.all(pending3).then(function() {
       return primitiveDef.targets !== void 0 ? addMorphTargets(geometry, primitiveDef.targets, parser) : geometry;
     });
   }
@@ -109720,30 +112128,42 @@ void main() {
     "dark",
     "baseplate",
     "dark-baseplate"
-  ]), R6_ANIMATION_NAMES = ["idle", "walk", "jump", "fall", "climb"], R15_ANIMATION_NAMES = ["idle", "walk", "run", "jump", "fall", "climb", "swim"], ogAvatarDataLoaded = !1, ogAvatarData = new OutfitModel(), mainOutfit = new OutfitModel(), itemHoverOutfit = new OutfitModel(), mainScene = RBXRenderer.addScene(), itemHoverScene = RBXRenderer.addScene();
+  ]), R6_ANIMATION_NAMES = ["idle", "walk", "jump", "fall", "climb"], R15_ANIMATION_NAMES = [
+    "idle",
+    "walk",
+    "run",
+    "jump",
+    "fall",
+    "climb",
+    "swim"
+  ], ogAvatarDataLoaded = !1, ogAvatarData = new OutfitModel(), mainOutfit = new OutfitModel(), itemHoverOutfit = new OutfitModel(), mainScene = RBXRenderer.addScene(), itemHoverScene = RBXRenderer.addScene();
   RBXRenderer.firstScene.noRect();
   mainScene.noRect();
   itemHoverScene.noRect();
-  var needsMainOutfitRenderer = !0, mainOutfitRenderer, itemHoverOutfitRenderer, startedRenderer = !1, mainRendererEnabled = !1, hoverPreviewEnabled = !0, selectedAnimName = "idle", accessoriesEnabled = !0, selectedRenderEnvironmentMode = "default", renderEnvironmentMenu, renderEnvironmentDarkToggle, renderEnvironmentBaseplateToggle, baseplateEnvironmentConfig, itemRenderEnvironmentModel, itemRenderEnvironmentModelUrl, defaultMainSceneLightState, defaultMainScenePlaneState, currentlyLoadingAssets2 = !1, pendingAnimationUpdate = !1;
+  var needsMainOutfitRenderer = !0, mainOutfitRenderer, itemHoverOutfitRenderer, startedRenderer = !1, mainRendererEnabled = !1, hoverPreviewEnabled = !0, selectedAnimName = "idle", accessoriesEnabled = !0, itemOnlyEnabled = !1, hideMainRigBody = !1, mainRigAnimationsStopped = !1, needsItemCameraFocus = !1, savedMainCamera, selectedRenderEnvironmentMode = "default", renderEnvironmentMenu, renderEnvironmentDarkToggle, renderEnvironmentBaseplateToggle, baseplateEnvironmentConfig, itemRenderEnvironmentModel, itemRenderEnvironmentModelUrl, defaultMainSceneLightState, defaultMainScenePlaneState, currentlyLoadingAssets2 = !1, pendingAnimationUpdate = !1;
   API.Events.OnLoadingAssets.Connect((newValue) => {
     currentlyLoadingAssets2 = newValue;
   });
-  var mainSceneContainer, mainButtonContainer, mousePos = [0, 0], buttonFor3d, animationDropdown, toggleAccessories, buttonForRig, selectedRigType, lastUrl = window.location.href, lastCurrentHoveredItemElement, currentHoveredItemFrames = 0, currentHoveredItemElement, currentHoveredItemLink, currentHoveredItemThumbElement, currentHoveredItemLoading = !1, currentHoveredItemType, itemHoverCameraRotation = 0, itemHoverCameraRotating = !1, itemHoverRotateButton, itemHoverShouldAutoSwitchAnim = !1, itemHoverAutoSwitchAnimTimePassed = 0, toggleDefaultButtons = /* @__PURE__ */ __name((enabled10) => {
+  var mainSceneContainer, mainButtonContainer, mousePos = [0, 0], buttonFor3d, animationDropdown, toggleAccessories, buttonForRig, buttonForItemOnly, selectedRigType, lastUrl = window.location.href, lastCurrentHoveredItemElement, currentHoveredItemFrames = 0, currentHoveredItemElement, currentHoveredItemLink, currentHoveredItemThumbElement, currentHoveredItemLoading = !1, currentHoveredItemType, itemHoverCameraRotation = 0, itemHoverCameraRotating = !1, itemHoverRotateButton, itemHoverShouldAutoSwitchAnim = !1, itemHoverAutoSwitchAnimTimePassed = 0, toggleDefaultButtons = /* @__PURE__ */ __name((enabled10) => {
     if (!mainButtonContainer) return;
     for (let child of mainButtonContainer.children)
       if (child instanceof HTMLElement) {
         if (child.dataset.rovalraItemRendererControl) continue;
         child.style.display = enabled10 ? "none" : "";
       }
-    let leftAlignContainer = document.body.querySelector(".thumbnail-ui-container > .bottom-align-container > .left-align-container");
+    let leftAlignContainer = document.body.querySelector(
+      ".thumbnail-ui-container > .bottom-align-container > .left-align-container"
+    );
     if (leftAlignContainer && (leftAlignContainer.style = enabled10 ? "width: 0;" : ""), enabled10) {
-      let bigstop = document.body.querySelector(".enable-three-dee.btn-control > .icon-bigstop");
+      let bigstop = document.body.querySelector(
+        ".enable-three-dee.btn-control > .icon-bigstop"
+      );
       bigstop && bigstop.click();
     }
   }, "toggleDefaultButtons"), updateRigButtonText = /* @__PURE__ */ __name(() => {
     buttonForRig && (buttonForRig.textContent = selectedRigType || ogAvatarData.outfit.playerAvatarType || "R15");
   }, "updateRigButtonText"), updateAnimationDropdown = /* @__PURE__ */ __name(() => {
-    if (!mainButtonContainer || (animationDropdown && (animationDropdown.remove(), animationDropdown = void 0), !mainRendererEnabled || mainOutfit.outfit.containsAssetType("EmoteAnimation")))
+    if (!mainButtonContainer || (animationDropdown && (animationDropdown.remove(), animationDropdown = void 0), !mainRendererEnabled || hideMainRigBody || mainOutfit.outfit.containsAssetType("EmoteAnimation")))
       return;
     selectedAnimName = "idle";
     let trueItems = ((selectedRigType || ogAvatarData.outfit.playerAvatarType || "R15") === "R6" ? R6_ANIMATION_NAMES : R15_ANIMATION_NAMES).map((v2) => ({ label: ts2(`animations.${v2}`), value: v2 })), { element: dropdownElement } = createDropdown({
@@ -109761,7 +112181,7 @@ void main() {
       mainScene.ambientLight,
       mainScene.directionalLight,
       mainScene.directionalLight2
-    ].filter(((v2) => !!v2));
+    ].filter((v2) => !!v2);
   }
   __name(getMainSceneDefaultLights, "getMainSceneDefaultLights");
   function captureMainSceneDefaults() {
@@ -109815,7 +112235,10 @@ void main() {
     };
   }
   __name(getRenderEnvironmentTogglesFromMode, "getRenderEnvironmentTogglesFromMode");
-  function getRenderEnvironmentModeFromToggles({ dark, baseplate }) {
+  function getRenderEnvironmentModeFromToggles({
+    dark,
+    baseplate
+  }) {
     return dark && baseplate ? "dark-baseplate" : dark ? "dark" : baseplate ? "baseplate" : "default";
   }
   __name(getRenderEnvironmentModeFromToggles, "getRenderEnvironmentModeFromToggles");
@@ -109992,7 +112415,10 @@ void main() {
     renderEnvironmentMenu.panel.style.top = `${buttonBounds.bottom + 8}px`, renderEnvironmentMenu.panel.style.left = `${panelLeft}px`, renderEnvironmentMenu.panel.style.right = "auto";
   }
   __name(positionRenderEnvironmentPanel, "positionRenderEnvironmentPanel");
-  function createRenderEnvironmentToggleRow({ label, toggleName }) {
+  function createRenderEnvironmentToggleRow({
+    label,
+    toggleName
+  }) {
     let row = document.createElement("div");
     row.className = "flex items-center justify-between";
     let text3 = document.createElement("label");
@@ -110083,6 +112509,10 @@ void main() {
     )}`;
   }
   __name(getSettingsIcon, "getSettingsIcon");
+  function updateItemOnlyIcon(iconElement) {
+    ChangeIcon(iconElement, { filled: itemOnlyEnabled });
+  }
+  __name(updateItemOnlyIcon, "updateItemOnlyIcon");
   function getApparelIcon() {
     let icon = accessoriesEnabled ? assets3.apparelFillIcon : assets3.apparelIcon;
     return applyIconTheme(icon);
@@ -110251,6 +112681,61 @@ void main() {
     });
   }
   __name(loadCurrentHoveredItem, "loadCurrentHoveredItem");
+  function canHideBodyForOutfit(outfitModel) {
+    let assets7 = outfitModel.outfit.assets;
+    return assets7.length > 0 && assets7.every(
+      (asset) => AccessoryAssetTypes.includes(asset.assetType.name) || LayeredAssetTypes.includes(asset.assetType.name)
+    );
+  }
+  __name(canHideBodyForOutfit, "canHideBodyForOutfit");
+  function updateMainRigBodyVisibility() {
+    let rig = mainOutfitRenderer?.currentRig;
+    if (rig)
+      for (let child of rig.GetChildren()) {
+        if (!child.IsA("BasePart") || child.Prop("Name") === "HumanoidRootPart")
+          continue;
+        let transparency = hideMainRigBody ? 1 : 0;
+        child.Prop("Transparency") !== transparency && child.setProperty("Transparency", transparency);
+      }
+  }
+  __name(updateMainRigBodyVisibility, "updateMainRigBodyVisibility");
+  function updateMainRigAnimationState() {
+    if (!mainOutfitRenderer) return;
+    let controls2 = mainScene.controls;
+    if (hideMainRigBody && !mainRigAnimationsStopped ? (mainOutfitRenderer.stopAnimating(), mainRigAnimationsStopped = !0, controls2 && (savedMainCamera = {
+      position: mainScene.camera.position.clone(),
+      target: controls2.target.clone()
+    })) : !hideMainRigBody && mainRigAnimationsStopped && (mainOutfitRenderer.startAnimating(), mainRigAnimationsStopped = !1, controls2 && savedMainCamera && (mainScene.camera.position.copy(savedMainCamera.position), controls2.target.copy(savedMainCamera.target), controls2.update()), savedMainCamera = void 0), !mainRigAnimationsStopped) return;
+    let rig = mainOutfitRenderer.currentRig;
+    rig && (mainOutfitRenderer.animatorW?.restPose(), rig.preRender(), RBXRenderer.addInstance(rig, mainOutfitRenderer.auth, mainScene));
+  }
+  __name(updateMainRigAnimationState, "updateMainRigAnimationState");
+  function focusCameraOnWornItem() {
+    let rig = mainOutfitRenderer?.currentRig, controls2 = mainScene.controls;
+    if (!rig || !controls2) return !1;
+    let min = [1 / 0, 1 / 0, 1 / 0], max2 = [-1 / 0, -1 / 0, -1 / 0], foundItem = !1;
+    for (let accessory of rig.GetChildren()) {
+      if (accessory.className !== "Accessory") continue;
+      let handle = accessory.FindFirstChild("Handle");
+      if (!handle || !handle.IsA("BasePart")) continue;
+      let position = handle.Prop("CFrame").Position, size = handle.Prop("Size"), halfSize = Math.max(size.X, size.Y, size.Z) / 2;
+      for (let i2 = 0; i2 < 3; i2++)
+        min[i2] = Math.min(min[i2], position[i2] - halfSize), max2[i2] = Math.max(max2[i2], position[i2] + halfSize);
+      foundItem = !0;
+    }
+    if (!foundItem) return !1;
+    let center = [
+      (min[0] + max2[0]) / 2,
+      (min[1] + max2[1]) / 2,
+      (min[2] + max2[2]) / 2
+    ], extent = Math.max(max2[0] - min[0], max2[1] - min[1], max2[2] - min[2]), distance2 = Math.max(extent * 1.75, 1.5);
+    return controls2.target.set(...center), mainScene.camera.position.set(
+      center[0],
+      center[1] + distance2 * 0.15,
+      center[2] - distance2
+    ), controls2.update(), !0;
+  }
+  __name(focusCameraOnWornItem, "focusCameraOnWornItem");
   function playAppropriateAnim(outfitModel, outfitRenderer) {
     let outfit = outfitModel.outfit;
     if (outfit.containsAssetType("EmoteAnimation"))
@@ -110280,8 +112765,8 @@ void main() {
     if (!startedRenderer || !mainRendererEnabled) return;
     let targetUrl = window.location.href;
     if (needsMainOutfitRenderer = targetUrl.includes("/catalog") || targetUrl.includes("/bundles") || targetUrl.includes("/looks"), await loadOgAvatar(), window.location.href === targetUrl && needsMainOutfitRenderer) {
-      let buildOutfit = ogAvatarData.clone();
-      if (selectedRigType && (buildOutfit.outfit.playerAvatarType = selectedRigType), accessoriesEnabled === !1) {
+      let buildOutfit = itemOnlyEnabled ? new OutfitModel() : ogAvatarData.clone();
+      if (buildOutfit.outfit.playerAvatarType = selectedRigType || ogAvatarData.outfit.playerAvatarType, accessoriesEnabled === !1) {
         let assetsToRemove = [];
         for (let asset of buildOutfit.outfit.assets)
           (asset.assetType.name.includes("Accessory") || asset.assetType.name === "Hat") && assetsToRemove.push(asset.id);
@@ -110289,7 +112774,7 @@ void main() {
           buildOutfit.outfit.removeAsset(assetToRemove);
       }
       if (await addItemFromLink(buildOutfit, targetUrl), window.location.href !== targetUrl) return;
-      mainOutfit = buildOutfit, mainOutfitRenderer && (mainOutfitRenderer.setOutfitModel(mainOutfit), playAppropriateAnim(mainOutfit, mainOutfitRenderer), pendingAnimationUpdate = !0, updateRigButtonText(), updateAnimationDropdown());
+      mainOutfit = buildOutfit, hideMainRigBody = itemOnlyEnabled && canHideBodyForOutfit(mainOutfit), needsItemCameraFocus = hideMainRigBody, mainOutfitRenderer && (mainOutfitRenderer.doCameraUpdateOnLoad = !hideMainRigBody, mainOutfitRenderer.setOutfitModel(mainOutfit), playAppropriateAnim(mainOutfit, mainOutfitRenderer), pendingAnimationUpdate = !0, updateRigButtonText(), updateAnimationDropdown());
     }
   }
   __name(updateMainRenderer, "updateMainRenderer");
@@ -110316,17 +112801,21 @@ void main() {
       itemHoverCameraRotation
     ), itemHoverAutoSwitchAnimTimePassed += deltaTime, itemHoverAutoSwitchAnimTimePassed >= HOVER_AUTO_SWITCH_ANIM_TIME && itemHoverShouldAutoSwitchAnim) {
       itemHoverAutoSwitchAnimTimePassed = 0;
-      let animationNames = itemHoverOutfit.outfit.playerAvatarType === "R15" ? R15_ANIMATION_NAMES : R6_ANIMATION_NAMES, currentIndex = animationNames.indexOf(itemHoverOutfitRenderer?.animatorW?.data?.currentAnimation || "");
+      let animationNames = itemHoverOutfit.outfit.playerAvatarType === "R15" ? R15_ANIMATION_NAMES : R6_ANIMATION_NAMES, currentIndex = animationNames.indexOf(
+        itemHoverOutfitRenderer?.animatorW?.data?.currentAnimation || ""
+      );
       if (currentIndex > -1) {
         let nextIndex = (currentIndex + 1) % animationNames.length;
-        itemHoverOutfitRenderer?.setMainAnimation(animationNames[nextIndex]);
+        itemHoverOutfitRenderer?.setMainAnimation(
+          animationNames[nextIndex]
+        );
       }
     }
     if (hoverPreviewEnabled && currentHoveredItemElement && currentHoveredItemFrames >= HOVER_FRAME_TIME && (currentlyLoadingAssets2 || currentHoveredItemLoading) && currentHoveredItemThumbElement && RBXRenderer.loadingIcon) {
       let itemHoverBounds = currentHoveredItemThumbElement.getBoundingClientRect();
       resetLoadingIconPos(), RBXRenderer.loadingIcon.style.left = itemHoverBounds.left + 12 + "px", RBXRenderer.loadingIcon.style.top = itemHoverBounds.top + 12 + "px";
     }
-    RBXRenderer.animateAll(!1), lastFrameTime2 = Date.now() / 1e3, window.requestAnimationFrame(customAnimate);
+    updateMainRigBodyVisibility(), updateMainRigAnimationState(), needsItemCameraFocus && mainOutfitRenderer && !mainOutfitRenderer.currentlyUpdating && !mainOutfitRenderer.currentlyChangingRig && !currentlyLoadingAssets2 && focusCameraOnWornItem() && (needsItemCameraFocus = !1), RBXRenderer.animateAll(!1), lastFrameTime2 = Date.now() / 1e3, window.requestAnimationFrame(customAnimate);
   }
   __name(customAnimate, "customAnimate");
   function removeCurrentHoveredItemData() {
@@ -110365,10 +112854,11 @@ void main() {
       chrome.storage.local.get(
         {
           marketplace3DRenderEnvironment: selectedRenderEnvironmentMode,
-          marketplace3DRenderHoverPreviewDisabled: !1
+          marketplace3DRenderHoverPreviewDisabled: !1,
+          marketplace3DRenderItemOnly: !1
         },
         (data) => {
-          selectedRenderEnvironmentMode = renderEnvironmentModeValues.has(
+          itemOnlyEnabled = data.marketplace3DRenderItemOnly === !0, selectedRenderEnvironmentMode = renderEnvironmentModeValues.has(
             data.marketplace3DRenderEnvironment
           ) ? data.marketplace3DRenderEnvironment : "default", hoverPreviewEnabled = !data.marketplace3DRenderHoverPreviewDisabled, resolve(null);
         }
@@ -110392,7 +112882,7 @@ void main() {
             success && (animationLoopStarted || (animationLoopStarted = !0, customAnimate()), await updateMainRenderer());
           }), buttonFor3dIcon.src = applyIconTheme(
             mainRendererEnabled ? assets3.closeIcon : assets3.viewInArIcon
-          ), updateAnimationDropdown(), updateRenderEnvironmentDropdown(), toggleAccessories && (toggleAccessories.style.display = mainRendererEnabled ? "" : "none"), buttonForRig && (buttonForRig.style.display = mainRendererEnabled ? "" : "none"), toggleDefaultButtons(mainRendererEnabled);
+          ), updateAnimationDropdown(), updateRenderEnvironmentDropdown(), toggleAccessories && (toggleAccessories.style.display = mainRendererEnabled ? "" : "none"), buttonForRig && (buttonForRig.style.display = mainRendererEnabled ? "" : "none"), buttonForItemOnly && (buttonForItemOnly.style.display = mainRendererEnabled ? "" : "none"), toggleDefaultButtons(mainRendererEnabled);
         });
       }
       let b3dIcon = buttonFor3d.querySelector("img");
@@ -110407,16 +112897,40 @@ void main() {
       }
       toggleAccessories.style.display = mainRendererEnabled ? "" : "none";
       let toggleAccessoriesIcon = toggleAccessories.querySelector("img");
-      toggleAccessoriesIcon && (toggleAccessoriesIcon.src = getApparelIcon()), buttonForRig || (buttonForRig = document.createElement("button"), buttonForRig.className = "enable-three-dee btn-control button-placement btn-control-md btn--width", buttonForRig.dataset.rovalraItemRendererControl = "true", buttonForRig.style.zIndex = "2", buttonForRig.style.display = mainRendererEnabled ? "" : "none", buttonForRig.style.color = "var(--rovalra-main-text-color)", buttonForRig.style.fontSize = "12px", buttonForRig.style.fontWeight = "bold", buttonForRig.addEventListener("click", async () => {
+      if (toggleAccessoriesIcon && (toggleAccessoriesIcon.src = getApparelIcon()), buttonForRig || (buttonForRig = document.createElement("button"), buttonForRig.className = "enable-three-dee btn-control button-placement btn-control-md btn--width", buttonForRig.dataset.rovalraItemRendererControl = "true", buttonForRig.style.zIndex = "2", buttonForRig.style.display = mainRendererEnabled ? "" : "none", buttonForRig.style.color = "var(--rovalra-main-text-color)", buttonForRig.style.fontSize = "12px", buttonForRig.style.fontWeight = "bold", buttonForRig.addEventListener("click", async () => {
         selectedRigType = (selectedRigType || ogAvatarData.outfit.playerAvatarType) === "R6" ? "R15" : "R6", updateRigButtonText(), await updateMainRenderer(), updateAnimationDropdown();
-      })), buttonForRig.style.display = mainRendererEnabled ? "" : "none", updateRigButtonText(), updateAnimationDropdown(), updateRenderEnvironmentDropdown(), renderEnvironmentMenu && element.appendChild(renderEnvironmentMenu.wrapper), element.appendChild(buttonForRig), element.appendChild(toggleAccessories), element.appendChild(buttonFor3d), observeChildren(
+      })), buttonForRig.style.display = mainRendererEnabled ? "" : "none", updateRigButtonText(), !buttonForItemOnly) {
+        buttonForItemOnly = document.createElement("button"), buttonForItemOnly.className = "enable-three-dee btn-control button-placement btn-control-md btn--width", buttonForItemOnly.dataset.rovalraItemRendererControl = "true", buttonForItemOnly.setAttribute(
+          "aria-label",
+          ts2("itemRender.itemOnly")
+        ), buttonForItemOnly.title = ts2("itemRender.itemOnly"), buttonForItemOnly.style.zIndex = "2", buttonForItemOnly.style.color = "var(--rovalra-main-text-color)";
+        let itemOnlyIcon2 = Icon({
+          icon: "dot-frame-tshirt",
+          filled: itemOnlyEnabled,
+          size: "20px",
+          material: !1,
+          rovalra: !1
+        });
+        itemOnlyIcon2.setAttribute("aria-hidden", "true"), buttonForItemOnly.appendChild(itemOnlyIcon2), buttonForItemOnly.addEventListener("click", () => {
+          itemOnlyEnabled = !itemOnlyEnabled, chrome.storage.local.set({
+            marketplace3DRenderItemOnly: itemOnlyEnabled
+          }), updateItemOnlyIcon(itemOnlyIcon2), updateMainRenderer();
+        });
+      }
+      buttonForItemOnly.style.display = mainRendererEnabled ? "" : "none";
+      let itemOnlyIcon = buttonForItemOnly.querySelector(
+        "icon"
+      );
+      itemOnlyIcon && updateItemOnlyIcon(itemOnlyIcon), updateAnimationDropdown(), updateRenderEnvironmentDropdown(), renderEnvironmentMenu && element.appendChild(renderEnvironmentMenu.wrapper), element.appendChild(buttonForItemOnly), element.appendChild(buttonForRig), element.appendChild(toggleAccessories), element.appendChild(buttonFor3d), observeChildren(
         element,
         () => toggleDefaultButtons(mainRendererEnabled)
       ), toggleDefaultButtons(mainRendererEnabled);
     }), observeElement(
       "div.item-card-container",
       (element) => {
-        let itemLinkElement = element.querySelector("a.item-card-link");
+        let itemLinkElement = element.querySelector(
+          "a.item-card-link"
+        );
         if (!itemLinkElement || !itemLinkElement.href.includes("/catalog") && !itemLinkElement.href.includes("/bundles") && !itemLinkElement.href.includes("/looks"))
           return;
         let itemThumbContainer = element.querySelector(
@@ -110427,11 +112941,16 @@ void main() {
         itemLinkElement && itemThumbContainer && (itemThumbContainer.addEventListener("mouseenter", () => {
           hoverPreviewEnabled && (startedRenderer || startRenderer().then(async (success) => {
             success && (await loadOgAvatar(), animationLoopStarted || (animationLoopStarted = !0, customAnimate()));
-          }), currentHoveredItemElement = element, currentHoveredItemThumbElement = itemThumbContainer, currentHoveredItemLink = itemLinkElement.href, currentHoveredItemType = void 0, setSceneColor(itemHoverScene, getItemCardColor(itemThumbContainer)), updateHoveredItemTypeFromThumbnail(
+          }), currentHoveredItemElement = element, currentHoveredItemThumbElement = itemThumbContainer, currentHoveredItemLink = itemLinkElement.href, currentHoveredItemType = void 0, setSceneColor(
+            itemHoverScene,
+            getItemCardColor(itemThumbContainer)
+          ), updateHoveredItemTypeFromThumbnail(
             itemThumbnailImageContainer
           ));
         }), itemThumbContainer.addEventListener("mouseleave", (e) => {
-          itemHoverRotateButton?.contains(e.relatedTarget) || currentHoveredItemElement === element && removeCurrentHoveredItemData();
+          itemHoverRotateButton?.contains(
+            e.relatedTarget
+          ) || currentHoveredItemElement === element && removeCurrentHoveredItemData();
         }));
       },
       { multiple: !0 }
@@ -110445,7 +112964,9 @@ void main() {
           return;
         let itemThumbContainerContainer = element.querySelector(
           ".item-card-thumb-container"
-        ), itemThumbContainer = element.querySelector(".item-card-thumb"), itemThumbnailImageContainer = element.querySelector(
+        ), itemThumbContainer = element.querySelector(
+          ".item-card-thumb"
+        ), itemThumbnailImageContainer = element.querySelector(
           ".thumbnail-2d-container"
         );
         itemThumbContainerContainer && itemLinkElement && itemThumbContainer && (itemThumbContainerContainer.addEventListener(
@@ -110453,14 +112974,19 @@ void main() {
           () => {
             hoverPreviewEnabled && (startedRenderer || startRenderer().then(async (success) => {
               success && (await loadOgAvatar(), animationLoopStarted || (animationLoopStarted = !0, customAnimate()));
-            }), currentHoveredItemElement = element, currentHoveredItemThumbElement = itemThumbContainerContainer, currentHoveredItemLink = itemLinkElement.href, currentHoveredItemType = void 0, setSceneColor(itemHoverScene, getItemCardColor(itemThumbContainerContainer)), updateHoveredItemTypeFromThumbnail(
+            }), currentHoveredItemElement = element, currentHoveredItemThumbElement = itemThumbContainerContainer, currentHoveredItemLink = itemLinkElement.href, currentHoveredItemType = void 0, setSceneColor(
+              itemHoverScene,
+              getItemCardColor(itemThumbContainerContainer)
+            ), updateHoveredItemTypeFromThumbnail(
               itemThumbnailImageContainer
             ));
           }
         ), itemThumbContainerContainer.addEventListener(
           "mouseleave",
           (e) => {
-            itemHoverRotateButton?.contains(e.relatedTarget) || currentHoveredItemElement === element && removeCurrentHoveredItemData();
+            itemHoverRotateButton?.contains(
+              e.relatedTarget
+            ) || currentHoveredItemElement === element && removeCurrentHoveredItemData();
           }
         ));
       },
@@ -110476,9 +113002,14 @@ void main() {
         !itemLinkElement || !itemThumbContainer || (itemThumbContainer.addEventListener("mouseenter", () => {
           hoverPreviewEnabled && (startedRenderer || startRenderer().then(async (success) => {
             success && (await loadOgAvatar(), animationLoopStarted || (animationLoopStarted = !0, customAnimate()));
-          }), currentHoveredItemElement = element, currentHoveredItemThumbElement = itemThumbContainer, currentHoveredItemLink = itemLinkElement.href, currentHoveredItemType = void 0, setSceneColor(itemHoverScene, getItemCardColor(itemThumbContainer)), updateHoveredItemTypeFromThumbnail(itemThumbContainer));
+          }), currentHoveredItemElement = element, currentHoveredItemThumbElement = itemThumbContainer, currentHoveredItemLink = itemLinkElement.href, currentHoveredItemType = void 0, setSceneColor(
+            itemHoverScene,
+            getItemCardColor(itemThumbContainer)
+          ), updateHoveredItemTypeFromThumbnail(itemThumbContainer));
         }), itemThumbContainer.addEventListener("mouseleave", (e) => {
-          itemHoverRotateButton?.contains(e.relatedTarget) || currentHoveredItemElement === element && removeCurrentHoveredItemData();
+          itemHoverRotateButton?.contains(
+            e.relatedTarget
+          ) || currentHoveredItemElement === element && removeCurrentHoveredItemData();
         }));
       },
       { multiple: !0 }
@@ -110486,7 +113017,7 @@ void main() {
   }
   __name(asyncInit2, "asyncInit");
   var animationLoopStarted = !1;
-  function init67() {
+  function init71() {
     chrome.storage.onChanged.addListener((changes, areaName) => {
       areaName !== "local" || !changes.marketplace3DRenderHoverPreviewDisabled || (hoverPreviewEnabled = !changes.marketplace3DRenderHoverPreviewDisabled.newValue, hoverPreviewEnabled || (removeCurrentHoveredItemData(), itemHoverScene.noRect()));
     }), !window.location.href.includes("/catalog") && !window.location.href.includes("/bundles") && !window.location.href.includes("/looks") && (needsMainOutfitRenderer = !1), chrome.storage.local.remove("marketplace3DRenderEnabled", () => {
@@ -110542,7 +113073,7 @@ void main() {
     }
     `, document.body.appendChild(customStyle);
   }
-  __name(init67, "init");
+  __name(init71, "init");
 
   // src/content/features/catalog/friendOwnership.js
   init_api();
@@ -110554,7 +113085,7 @@ void main() {
   init_assets();
   init_thumbnails();
   init_friendslist();
-  var CONTAINER_SELECTOR = "#item-report-button-frontend", assets4 = getAssets(), pillCache = /* @__PURE__ */ new Map(), initialized11 = !1;
+  var CONTAINER_SELECTOR = ".item-details-thumbnail-container", assets4 = getAssets(), pillCache = /* @__PURE__ */ new Map(), MAX_PREVIEW_AVATARS = 3, initialized11 = !1;
   function getCatalogItemType() {
     return /\/bundles\//i.test(window.location.pathname) ? "Bundle" : "Asset";
   }
@@ -110581,40 +113112,20 @@ void main() {
     };
   }
   __name(fetchOwners, "fetchOwners");
-  function createAvatar(thumbnail, name, size = "16px") {
-    let image = document.createElement("img");
-    return image.src = thumbnail?.imageUrl || "", image.alt = name, image.title = name, Object.assign(image.style, {
-      width: size,
-      height: size,
-      borderRadius: "50%",
-      objectFit: "cover",
-      flexShrink: "0"
-    }), image;
-  }
-  __name(createAvatar, "createAvatar");
-  function createPillContent(owners, friendMap, thumbnailMap, totalCount) {
+  function createPillContent(owners, thumbnailMap, totalCount) {
     let content = document.createElement("span");
-    content.className = "rovalra-friend-ownership-pill-content", Object.assign(content.style, {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "4px",
-      lineHeight: "16px",
-      whiteSpace: "nowrap"
-    }), owners.slice(0, 2).forEach((owner) => {
-      let friend = friendMap.get(Number(owner.id)), name = friend?.displayName || friend?.username || ts2("friendOwnership.unknownUser", { id: owner.id });
-      content.appendChild(
-        createAvatar(thumbnailMap.get(Number(owner.id)), name)
-      );
+    content.className = "rovalra-friend-ownership-content";
+    let avatars = document.createElement("span");
+    avatars.className = "rovalra-friend-ownership-avatars", owners.slice(0, MAX_PREVIEW_AVATARS).forEach((owner) => {
+      let thumb = thumbnailMap.get(Number(owner.id));
+      if (thumb?.state !== "Completed" || !thumb.imageUrl) return;
+      let img = document.createElement("img");
+      img.src = thumb.imageUrl, img.alt = "", avatars.appendChild(img);
     });
     let text3 = document.createElement("span");
     return text3.textContent = ts2("friendOwnership.pillLabel", {
       count: totalCount.toLocaleString()
-    }), Object.assign(text3.style, {
-      display: "inline-flex",
-      alignItems: "center",
-      height: "16px",
-      lineHeight: "16px"
-    }), content.appendChild(text3), content;
+    }), content.append(avatars, text3), content;
   }
   __name(createPillContent, "createPillContent");
   async function showOwnersOverlay(owners, friendMap, thumbnailMap, totalCount) {
@@ -110657,21 +113168,19 @@ void main() {
     });
   }
   __name(showOwnersOverlay, "showOwnersOverlay");
-  async function addOwnershipPill(reportButton) {
-    if (reportButton.dataset.rovalraFriendOwnershipInjected) return;
+  async function addOwnershipPill(thumbnail) {
+    if (thumbnail.dataset.rovalraFriendOwnershipInjected) return;
     let itemId = Number(getPlaceIdFromUrl());
     if (!itemId) return;
-    let clearfix = reportButton.closest(".clearfix"), parent = reportButton.parentNode;
-    if (!clearfix || !parent || !clearfix.contains(parent)) return;
     let container = document.createElement("div");
-    container.className = "rovalra-friend-ownership-container", parent.insertBefore(container, reportButton.nextSibling);
+    container.className = "rovalra-friend-ownership-container", thumbnail.appendChild(container);
     let itemType = getCatalogItemType(), cacheKey = `${itemType}:${itemId}`;
-    reportButton.dataset.rovalraFriendOwnershipInjected = "loading";
+    thumbnail.dataset.rovalraFriendOwnershipInjected = "loading";
     try {
       let ownerData = pillCache.get(cacheKey);
       if (!ownerData) {
         if (ownerData = await fetchOwners(itemId, itemType), ownerData.totalCount === 0) {
-          reportButton.dataset.rovalraFriendOwnershipInjected = "empty", container.remove();
+          thumbnail.dataset.rovalraFriendOwnershipInjected = "empty", container.remove();
           return;
         }
         let [cachedFriends, thumbnailMap] = await Promise.all([
@@ -110679,8 +113188,7 @@ void main() {
           fetchThumbnails(
             ownerData.connections.map((owner) => ({ id: owner.id })),
             "AvatarHeadshot",
-            "150x150",
-            !0
+            "150x150"
           )
         ]);
         ownerData.friendMap = new Map(
@@ -110690,7 +113198,6 @@ void main() {
       let pill = createPill(
         createPillContent(
           ownerData.connections,
-          ownerData.friendMap,
           ownerData.thumbnailMap,
           ownerData.totalCount
         ),
@@ -110705,35 +113212,13 @@ void main() {
           ownerData.thumbnailMap,
           ownerData.totalCount
         )
-      ), Object.assign(container.style, {
-        display: "inline-flex",
-        alignItems: "center",
-        width: "fit-content",
-        maxWidth: "100%",
-        verticalAlign: "middle",
-        marginTop: "20px",
-        marginLeft: "12px"
-      }), Object.assign(pill.style, {
-        display: "inline-flex",
-        width: "fit-content",
-        minWidth: "0",
-        flex: "0 0 auto",
-        marginLeft: "0",
-        marginRight: "0",
-        alignItems: "center"
-      });
-      let pillText = pill.querySelector(".text-no-wrap");
-      pillText && Object.assign(pillText.style, {
-        display: "inline-flex",
-        alignItems: "center",
-        lineHeight: "16px"
-      }), container.appendChild(pill), reportButton.dataset.rovalraFriendOwnershipInjected = String(itemId);
+      ), container.appendChild(pill), thumbnail.dataset.rovalraFriendOwnershipInjected = String(itemId);
     } catch (error3) {
-      container.remove(), delete reportButton.dataset.rovalraFriendOwnershipInjected, console.warn("RoValra: Failed to load friend ownership", error3);
+      container.remove(), delete thumbnail.dataset.rovalraFriendOwnershipInjected, console.warn("RoValra: Failed to load friend ownership", error3);
     }
   }
   __name(addOwnershipPill, "addOwnershipPill");
-  function init68() {
+  function init72() {
     initialized11 || (initialized11 = !0, chrome.storage.local.get({ friendOwnershipEnabled: !0 }, (settings2) => {
       settings2.friendOwnershipEnabled && (observeElement(CONTAINER_SELECTOR, addOwnershipPill, {
         multiple: !0
@@ -110746,7 +113231,7 @@ void main() {
       ));
     }));
   }
-  __name(init68, "init");
+  __name(init72, "init");
 
   // src/content/features/games/about/botDetector.js
   init_api();
@@ -110959,7 +113444,7 @@ void main() {
     }
   };
   window.BotDetector = BotDetector;
-  function init69() {
+  function init73() {
     chrome.storage.local.get({ botdataEnabled: !1 }, function(settings2) {
       settings2.botdataEnabled && window.location.href.includes("/games/") && getPlaceIdFromUrl2(window.location.href) && (window.botDetector = new BotDetector(), observeElement && typeof observeElement == "function" && observeElement(
         "#btr-description-wrapper, .game-description-container",
@@ -110969,7 +113454,7 @@ void main() {
       ));
     });
   }
-  __name(init69, "init");
+  __name(init73, "init");
 
   // src/content/features/games/quickplay.js
   init_review();
@@ -110985,7 +113470,7 @@ void main() {
   init_purify_es();
   init_i18n();
   init_dompurify();
-  var GLOBAL_CONTAINER_ID = "rovalra-private-servers-global-container", GAME_CARD_LINK_SELECTOR = 'a.game-card-link[href*="/games/"]', HOVER_CARD_EXIT_DELAY = 100, PRIVATE_SERVER_EXIT_DELAY = 200, State = {
+  var GLOBAL_CONTAINER_ID = "rovalra-private-servers-global-container", GAME_CARD_LINK_SELECTOR = 'a.game-card-link[href*="/games/"], a.sdui-game-tile-wrapper[href*="/games/"]', THUMB_CONTAINER_SELECTOR = ".game-card-thumb-container, .featured-game-icon-container, .sdui-tile-image-container", HOVER_CARD_EXIT_DELAY = 100, PRIVATE_SERVER_EXIT_DELAY = 200, State = {
     currentUserId: null,
     activePlaceId: null,
     activeGameCardLink: null,
@@ -111108,10 +113593,10 @@ void main() {
       (id) => !paidPlayabilityCache.has(id)
     );
     if (paidPlayabilityTimer = null, !universeIds.length) return;
-    let chunk = universeIds.slice(0, 3);
+    let chunk2 = universeIds.slice(0, 3);
     paidPlayabilityInFlight = !0;
     try {
-      let playabilityEndpoint = `/v1/games/multiget-playability-status?${chunk.map((id) => `universeIds=${encodeURIComponent(id)}`).join("&")}`, playabilityRes = await callRobloxApi({
+      let playabilityEndpoint = `/v1/games/multiget-playability-status?${chunk2.map((id) => `universeIds=${encodeURIComponent(id)}`).join("&")}`, playabilityRes = await callRobloxApi({
         subdomain: "games",
         endpoint: playabilityEndpoint,
         method: "GET"
@@ -111129,7 +113614,7 @@ void main() {
             shouldHidePaidPriceForPlayability(statusData)
           ));
         }
-      chunk.forEach((universeId) => {
+      chunk2.forEach((universeId) => {
         returned.has(universeId) || resolvePaidPlayabilityCallbacks(universeId, !1);
       });
     } catch (e) {
@@ -111141,42 +113626,38 @@ void main() {
   __name(flushPaidPlayabilityQueue, "flushPaidPlayabilityQueue");
   function getPaidPriceCardRoot(gameLink) {
     return gameLink.closest(
-      ".game-card-container, .game-card, .list-item, .item-card, li, .game-tile"
+      '.game-card-container, .game-card, .list-item, .item-card, li, .game-tile, [data-testid^="sdui-carousel-item"]'
     ) || gameLink.parentElement || gameLink;
   }
   __name(getPaidPriceCardRoot, "getPaidPriceCardRoot");
   function hasNativePaidPrice(gameLink, price) {
-    let card = getPaidPriceCardRoot(gameLink);
-    if (!card) return !1;
-    let text3 = (card.textContent || "").replace(/\s+/g, " ").trim();
+    let card2 = getPaidPriceCardRoot(gameLink);
+    if (!card2) return !1;
+    let text3 = (card2.textContent || "").replace(/\s+/g, " ").trim();
     if (/\b\d[\d,.]*\s*Robux\b/i.test(text3)) return !0;
     let escapedPrice = String(price || "").replace(
       /[.*+?^${}()|[\]\\]/g,
       "\\$&"
     );
-    return !!(price && new RegExp(`\\b${escapedPrice}\\b`).test(text3) && card.querySelector(
+    return !!(price && new RegExp(`\\b${escapedPrice}\\b`).test(text3) && card2.querySelector(
       '.icon-robux, [class*="robux" i], [aria-label*="Robux" i], [title*="Robux" i]'
     ));
   }
   __name(hasNativePaidPrice, "hasNativePaidPrice");
   function isLargeSearchCard(gameLink) {
-    let card = getPaidPriceCardRoot(gameLink), rect = (card || gameLink).getBoundingClientRect?.();
+    let card2 = getPaidPriceCardRoot(gameLink), rect = (card2 || gameLink).getBoundingClientRect?.();
     if (rect && rect.width > 430) return !0;
-    let text3 = (card?.textContent || "").replace(/\s+/g, " ");
+    let text3 = (card2?.textContent || "").replace(/\s+/g, " ");
     return /\bBy\s+[^\n]+/.test(text3) || text3.length > 180;
   }
   __name(isLargeSearchCard, "isLargeSearchCard");
   function placePaidPriceBadge(gameLink, badge) {
-    let thumbContainer = gameLink.querySelector(
-      ".game-card-thumb-container, .featured-game-icon-container"
-    );
+    let thumbContainer = gameLink.querySelector(THUMB_CONTAINER_SELECTOR);
     thumbContainer && (thumbContainer.style.position = "relative", thumbContainer.appendChild(badge));
   }
   __name(placePaidPriceBadge, "placePaidPriceBadge");
   function addPaidPriceBadge(gameLink, price) {
-    if (price = Number(price || 0), !price || !gameLink || gameLink.querySelector(`.${PAID_PRICE_BADGE_CLASS}`) || hasNativePaidPrice(gameLink, price) || isLargeSearchCard(gameLink) || !gameLink.querySelector(
-      ".game-card-thumb-container, .featured-game-icon-container"
-    )) return;
+    if (price = Number(price || 0), !price || !gameLink || gameLink.querySelector(`.${PAID_PRICE_BADGE_CLASS}`) || hasNativePaidPrice(gameLink, price) || isLargeSearchCard(gameLink) || !gameLink.querySelector(THUMB_CONTAINER_SELECTOR)) return;
     let badge = document.createElement("span");
     badge.className = PAID_PRICE_BADGE_CLASS, badge.title = `Paid access: ${price.toLocaleString()} Robux`;
     let icon = document.createElement("span");
@@ -111224,9 +113705,9 @@ void main() {
     let placeIds = unresolved.map(([placeId]) => placeId).filter(Boolean);
     if (placeIds.length)
       for (let i2 = 0; i2 < placeIds.length; i2 += 50) {
-        let chunk = placeIds.slice(i2, i2 + 50);
-        fetchPaidPriceChunk(chunk).then(({ prices, placeToUniverse: placeToUniverse2, placePlayable }) => {
-          for (let placeId of chunk) {
+        let chunk2 = placeIds.slice(i2, i2 + 50);
+        fetchPaidPriceChunk(chunk2).then(({ prices, placeToUniverse: placeToUniverse2, placePlayable }) => {
+          for (let placeId of chunk2) {
             let key = getPaidPriceKey(placeId), price = prices.get(key) || 0, universeId = placeToUniverse2.get(key), directPlayable = placePlayable.get(key), links = unresolvedLinks.get(placeId) || [];
             if (!price) {
               paidPriceCache.set(placeId, 0);
@@ -111257,7 +113738,7 @@ void main() {
             });
           }
         }).catch(() => {
-          chunk.forEach((placeId) => {
+          chunk2.forEach((placeId) => {
             paidPriceCache.set(placeId, 0);
           });
         });
@@ -111547,10 +114028,10 @@ void main() {
     }
     let fragment2 = document.createDocumentFragment();
     servers.forEach((server) => {
-      let el3 = document.createElement("div");
-      el3.className = "private-server-item";
+      let el4 = document.createElement("div");
+      el4.className = "private-server-item";
       let thumbUrl = thumbnails[server.owner.id];
-      el3.innerHTML = safeHtml`
+      el4.innerHTML = safeHtml`
             <a href="https://www.roblox.com/users/${server.owner.id}/profile" target="_blank" class="private-server-owner-thumb-link">
                 <img class="private-server-owner-thumb" src="${thumbUrl || ""}">
             </a>
@@ -111559,7 +114040,7 @@ void main() {
                 <span class="private-server-players">${server.players.length} / ${server.maxPlayers}</span>
             </div>
         `;
-      let thumbLink = el3.querySelector(".private-server-owner-thumb-link");
+      let thumbLink = el4.querySelector(".private-server-owner-thumb-link");
       if (thumbLink && thumbLink.addEventListener("click", (e) => e.stopPropagation()), server.owner.id === State.currentUserId) {
         let actions = document.createElement("div");
         actions.className = "private-server-owner-actions";
@@ -111583,10 +114064,10 @@ void main() {
             ts2("quickPlay.copyLink"),
             async (btn) => {
               btn.disabled = !0;
-              let details = await getVipServerDetails(
+              let details2 = await getVipServerDetails(
                 server.vipServerId
               );
-              details?.link ? (await navigator.clipboard.writeText(details.link), showTemporaryTooltip(btn, ts2("quickPlay.copied"))) : showTemporaryTooltip(btn, ts2("quickPlay.error")), setTimeout(() => btn.disabled = !1, 1500);
+              details2?.link ? (await navigator.clipboard.writeText(details2.link), showTemporaryTooltip(btn, ts2("quickPlay.copied"))) : showTemporaryTooltip(btn, ts2("quickPlay.error")), setTimeout(() => btn.disabled = !1, 1500);
             },
             !0
           ),
@@ -111610,14 +114091,14 @@ void main() {
         ), getVipServerDetails(server.vipServerId).then((d2) => {
           let copyBtn = actions.querySelector("button:nth-child(2)");
           d2?.link && copyBtn && (copyBtn.disabled = !1);
-        }), el3.appendChild(actions);
+        }), el4.appendChild(actions);
       }
       let joinBtn = document.createElement("button");
       joinBtn.className = "private-server-join-btn", joinBtn.innerHTML = purify.sanitize(
         '<span class="icon-common-play"></span>'
       ), joinBtn.onclick = (e) => {
         e.preventDefault(), e.stopPropagation(), launchPrivateGame(placeId, server.accessCode, server.vipServerId), showReviewPopup("quickplay"), hidePrivateServersOverlay();
-      }, el3.appendChild(joinBtn), fragment2.appendChild(el3);
+      }, el4.appendChild(joinBtn), fragment2.appendChild(el4);
     }), State.privateServersContainer.appendChild(fragment2);
   }
   __name(renderPrivateServers, "renderPrivateServers");
@@ -111665,7 +114146,7 @@ void main() {
     gameLink.classList.remove(
       "quick-play-hover-active",
       "quick-play-hover-superseded"
-    ), gameLink.querySelector(".hover-background")?.remove(), gameLink.querySelector(".play-button-overlay")?.remove(), gameLink.classList.remove("game-tile-styles"), gameLink.querySelectorAll(".quick-play-original-stats").forEach((el3) => el3.classList.remove("quick-play-original-stats"));
+    ), gameLink.querySelector(".hover-background")?.remove(), gameLink.querySelector(".play-button-overlay")?.remove(), gameLink.classList.remove("game-tile-styles"), gameLink.querySelectorAll(".quick-play-original-stats").forEach((el4) => el4.classList.remove("quick-play-original-stats"));
   }
   __name(performCardCleanup, "performCardCleanup");
   function scheduleCardCleanup(gameLink, delay) {
@@ -111677,7 +114158,7 @@ void main() {
   }
   __name(scheduleCardCleanup, "scheduleCardCleanup");
   function hideOtherHoverCards(gameLink) {
-    document.querySelectorAll(`${GAME_CARD_LINK_SELECTOR}.quick-play-hover-active`).forEach((otherGameLink) => {
+    document.querySelectorAll('a.quick-play-hover-active[href*="/games/"]').forEach((otherGameLink) => {
       otherGameLink !== gameLink && (otherGameLink.classList.remove("quick-play-hover-active"), otherGameLink.classList.add("quick-play-hover-superseded"));
     });
   }
@@ -111686,10 +114167,36 @@ void main() {
     overlay.style.top = `${overlay.offsetTop}px`, overlay.style.bottom = "auto";
   }
   __name(lockSpecialLayoutOverlayPosition, "lockSpecialLayoutOverlayPosition");
+  var SDUI_HOVER_BLEED = 8, SDUI_CAROUSEL_ITEM_SELECTOR = "#collection-carousel-item";
+  function isClippingOverflow(style) {
+    return style.overflowX !== "visible" || style.overflowY !== "visible";
+  }
+  __name(isClippingOverflow, "isClippingOverflow");
+  function makeRoomForSduiHover(gameLink) {
+    if (!gameLink.classList.contains("sdui-game-tile-wrapper")) return;
+    let carouselItem = gameLink.closest(SDUI_CAROUSEL_ITEM_SELECTOR), el4 = gameLink.parentElement;
+    for (; el4 && el4 !== document.body; ) {
+      if (el4.dataset.rovalraHoverRoom) return;
+      let style = getComputedStyle(el4);
+      if (isClippingOverflow(style))
+        if (carouselItem && carouselItem.contains(el4))
+          el4.style.overflow = "visible";
+        else {
+          el4.dataset.rovalraHoverRoom = "true";
+          for (let side of ["Top", "Right", "Bottom", "Left"]) {
+            let padding = parseFloat(style[`padding${side}`]) || 0, margin = parseFloat(style[`margin${side}`]) || 0;
+            el4.style[`padding${side}`] = `${padding + SDUI_HOVER_BLEED}px`, el4.style[`margin${side}`] = `${margin - SDUI_HOVER_BLEED}px`;
+          }
+          return;
+        }
+      el4 = el4.parentElement;
+    }
+  }
+  __name(makeRoomForSduiHover, "makeRoomForSduiHover");
   function setupHoverCard(gameLink, settings2) {
     if (hideOtherHoverCards(gameLink), cancelCardCleanup(gameLink), gameLink.classList.remove("quick-play-hover-superseded"), gameLink.classList.add("quick-play-hover-active"), gameLink.querySelector(".play-button-overlay"))
       return;
-    gameLink.classList.add("game-tile-styles");
+    makeRoomForSduiHover(gameLink), gameLink.classList.add("game-tile-styles");
     let isSpecialLayout = gameLink.closest(
       ".featured-game-container, .featured-grid-item-container"
     );
@@ -111727,7 +114234,9 @@ void main() {
         e.preventDefault(), e.stopPropagation(), placeId && showPrivateServerOverlay(gameLink, placeId);
       }, wrapper.appendChild(psBtn);
     }
-    overlay.appendChild(wrapper), gameLink.appendChild(overlay), isSpecialLayout && lockSpecialLayoutOverlayPosition(overlay), isSpecialLayout || gameLink.querySelectorAll(".game-card-info, .game-card-friend-info").forEach((el3) => el3.classList.add("quick-play-original-stats"));
+    overlay.appendChild(wrapper), gameLink.appendChild(overlay), isSpecialLayout && lockSpecialLayoutOverlayPosition(overlay), isSpecialLayout || gameLink.querySelectorAll(
+      '.game-card-info, .game-card-friend-info, [data-testid="sdui-tile-footer-content"]'
+    ).forEach((el4) => el4.classList.add("quick-play-original-stats"));
   }
   __name(setupHoverCard, "setupHoverCard");
   async function addRegionTooltip(button) {
@@ -111758,7 +114267,7 @@ void main() {
     );
   }
   __name(initializeQuickPlay, "initializeQuickPlay");
-  function init70() {
+  function init74() {
     chrome.storage.local.get({ QuickPlayEnable: !0 }, (settings2) => {
       settings2.QuickPlayEnable && (document.readyState === "loading" ? document.addEventListener(
         "DOMContentLoaded",
@@ -111766,7 +114275,7 @@ void main() {
       ) : initializeQuickPlay());
     });
   }
-  __name(init70, "init");
+  __name(init74, "init");
 
   // src/content/features/games/hiddenBadges.js
   init_api();
@@ -111884,7 +114393,7 @@ void main() {
   async function getBadgeDetailsBatch(badgeIds) {
     let results = [];
     for (let i2 = 0; i2 < badgeIds.length; i2 += 10) {
-      let batch = badgeIds.slice(i2, i2 + 10), details = await Promise.all(
+      let batch = badgeIds.slice(i2, i2 + 10), details2 = await Promise.all(
         batch.map(
           (badgeId) => getBadgeDetails(badgeId).catch((error3) => (console.warn(
             "RoValra: Failed to fetch hidden badge details",
@@ -111893,7 +114402,7 @@ void main() {
           ), null))
         )
       );
-      results.push(...details.filter(Boolean));
+      results.push(...details2.filter(Boolean));
     }
     return results;
   }
@@ -111985,16 +114494,16 @@ void main() {
         showHiddenMessage(hiddenList, message), isScanning || hiddenBadgeMemoryCache.set(String(placeId), { message }), hiddenList.dataset.rovalraHiddenBadgesLoaded = "true", delete hiddenList.dataset.rovalraHiddenBadgesLoading;
         return;
       }
-      let details = await getBadgeDetailsBatch(hiddenBadgeIds), thumbMap = await fetchThumbnails(
-        details.map((badge) => ({ id: badge.id })),
+      let details2 = await getBadgeDetailsBatch(hiddenBadgeIds), thumbMap = await fetchThumbnails(
+        details2.map((badge) => ({ id: badge.id })),
         "BadgeIcon",
         "150x150"
       );
-      if (hiddenBadgeMemoryCache.set(String(placeId), { details, thumbMap }), hiddenList.dataset.rovalraHiddenBadgesLoaded = "true", details.length === 0) {
+      if (hiddenBadgeMemoryCache.set(String(placeId), { details: details2, thumbMap }), hiddenList.dataset.rovalraHiddenBadgesLoaded = "true", details2.length === 0) {
         let message = localeText.noneOwnedFound;
         hiddenBadgeMemoryCache.set(String(placeId), { message }), showHiddenMessage(hiddenList, message);
       } else
-        renderBadgeRows(hiddenList, details, thumbMap, localeText);
+        renderBadgeRows(hiddenList, details2, thumbMap, localeText);
     } catch (error3) {
       showHiddenMessage(hiddenList, localeText.failedToLoad), console.warn("RoValra: Failed to render hidden badges", error3);
     } finally {
@@ -112026,7 +114535,7 @@ void main() {
     header.prepend(toggle), heading.remove();
   }
   __name(setupBadgeTabs, "setupBadgeTabs");
-  async function init71() {
+  async function init75() {
     initialized12 || await settings.hiddenBadgesEnabled && (initialized12 = !0, observeElement(".game-badges-list", setupBadgeTabs, {
       multiple: !0
     }), chrome.storage.onChanged.addListener((changes, area) => {
@@ -112038,7 +114547,7 @@ void main() {
       }));
     }));
   }
-  __name(init71, "init");
+  __name(init75, "init");
 
   // src/content/features/games/badgeLayoutToggle.js
   init_api();
@@ -112401,12 +114910,12 @@ void main() {
     toggle.classList.add("rovalra-badge-layout-toggle"), header.appendChild(toggle);
   }
   __name(setupBadgeLayoutToggle, "setupBadgeLayoutToggle");
-  async function init72() {
+  async function init76() {
     initialized13 || await settings.badgeLayoutToggleEnabled && (initialized13 = !0, observeElement(".game-badges-list", setupBadgeLayoutToggle, {
       multiple: !0
     }));
   }
-  __name(init72, "init");
+  __name(init76, "init");
 
   // src/content/features/games/badgeOwnership.js
   init_api();
@@ -112589,12 +115098,12 @@ void main() {
     }));
   }
   __name(setupBadgeOwnership, "setupBadgeOwnership");
-  async function init73() {
+  async function init77() {
     initialized14 || await settings.badgeOwnershipEnabled !== !1 && (initialized14 = !0, observeElement(".game-badges-list", setupBadgeOwnership, {
       multiple: !0
     }));
   }
-  __name(init73, "init");
+  __name(init77, "init");
 
   // src/content/features/games/badgeEarnedDate.js
   init_api();
@@ -112603,7 +115112,7 @@ void main() {
   init_user();
   init_i18n();
   init_getSettings();
-  var MARKER = "data-rovalra-badge-earned-date", cache = /* @__PURE__ */ new Map(), pending = /* @__PURE__ */ new Map(), observed = /* @__PURE__ */ new WeakSet();
+  var MARKER = "data-rovalra-badge-earned-date", cache = /* @__PURE__ */ new Map(), pending2 = /* @__PURE__ */ new Map(), observed = /* @__PURE__ */ new WeakSet();
   function isValidDate(value2) {
     let date = new Date(value2);
     return !!value2 && !Number.isNaN(date.getTime());
@@ -112612,7 +115121,7 @@ void main() {
   async function getAwardedDate(userId, badgeId) {
     let key = `${userId}:${badgeId}`;
     if (cache.has(key)) return cache.get(key);
-    if (pending.has(key)) return pending.get(key);
+    if (pending2.has(key)) return pending2.get(key);
     let promise = callRobloxApi({
       subdomain: "badges",
       endpoint: `/v1/users/${userId}/badges/${badgeId}/awarded-date`
@@ -112621,8 +115130,8 @@ void main() {
         return cache.set(key, null), null;
       let data = await response.json(), awardedDate = data?.awardedDate || data?.date, validAwardedDate = isValidDate(awardedDate) ? awardedDate : null;
       return cache.set(key, validAwardedDate), validAwardedDate;
-    }).catch(() => (cache.set(key, null), null)).finally(() => pending.delete(key));
-    return pending.set(key, promise), promise;
+    }).catch(() => (cache.set(key, null), null)).finally(() => pending2.delete(key));
+    return pending2.set(key, promise), promise;
   }
   __name(getAwardedDate, "getAwardedDate");
   function getTargetDataContainer(target) {
@@ -112695,12 +115204,12 @@ void main() {
     observeChildren(target, refresh4), refresh4();
   }
   __name(setup, "setup");
-  async function init74() {
+  async function init78() {
     await settings.badgeEarnedDateEnabled !== !1 && observeElement(".item-details, .stack-row.badge-row", setup, {
       multiple: !0
     });
   }
-  __name(init74, "init");
+  __name(init78, "init");
 
   // src/content/features/games/serverlist/serverlist.js
   init_api();
@@ -112711,7 +115220,12 @@ void main() {
 
   // src/content/core/games/servers/serverids.js
   init_observer();
-  var extractorScriptInjected = !1;
+  var SERVER_ROW_SELECTOR = [
+    ".rbx-public-game-server-item",
+    ".rbx-friends-game-server-item",
+    ".rbx-private-game-server-item",
+    ".flex.items-center.justify-between.padding-y-medium.width-full"
+  ].join(", "), extractorScriptInjected = !1;
   function injectExtractorScript() {
     if (extractorScriptInjected) return;
     let script = document.createElement("script");
@@ -112740,22 +115254,30 @@ void main() {
     })) : null;
   }
   __name(extractServerIdFromFiber, "extractServerIdFromFiber");
+  async function syncServerId(serverItem) {
+    let requestId = (serverItem._rovalraIdRequest || 0) + 1;
+    serverItem._rovalraIdRequest = requestId;
+    let extractionResult = await extractServerIdFromFiber(serverItem);
+    if (serverItem._rovalraIdRequest !== requestId || !extractionResult || extractionResult.error) return null;
+    let { serverId, privateServerId, accessCode, isFriendServer, isOwner } = extractionResult;
+    if (privateServerId && serverItem.setAttribute("data-private-server-id", privateServerId), accessCode && serverItem.setAttribute("data-access-code", accessCode), serverItem.setAttribute(
+      "data-rovalra-is-friend-server",
+      String(!!isFriendServer)
+    ), serverItem.setAttribute("data-rovalra-is-owner", String(!!isOwner)), serverId) {
+      let previousId = serverItem.getAttribute("data-rovalra-serverid");
+      previousId !== serverId && (serverItem.setAttribute("data-rovalra-serverid", serverId), serverItem.dispatchEvent(
+        new CustomEvent("rovalra-serverid-set", {
+          detail: { serverId, previousId },
+          bubbles: !0
+        })
+      ));
+    }
+    return extractionResult;
+  }
+  __name(syncServerId, "syncServerId");
   async function processServerElement(serverItem, retries = 5) {
     try {
-      let extractionResult = await extractServerIdFromFiber(serverItem), serverId = extractionResult?.serverId, privateServerId = extractionResult?.privateServerId, accessCode = extractionResult?.accessCode;
-      if (serverId && serverId.length > 0 && serverItem.getAttribute(
-        "data-rovalra-serverid"
-      ) !== serverId) {
-        serverItem.setAttribute("data-rovalra-serverid", serverId);
-        let event = new CustomEvent("rovalra-serverid-set", {
-          detail: { serverId },
-          bubbles: !0
-        });
-        serverItem.dispatchEvent(event);
-      }
-      if (privateServerId && serverItem.setAttribute("data-private-server-id", privateServerId), accessCode)
-        serverItem.setAttribute("data-access-code", accessCode);
-      else if (serverItem.classList.contains("rbx-private-game-server-item") && !serverItem.hasAttribute("data-private-server-id") && retries > 0) {
+      if (await syncServerId(serverItem), serverItem.classList.contains("rbx-private-game-server-item") && !serverItem.hasAttribute("data-access-code") && !serverItem.hasAttribute("data-private-server-id") && retries > 0) {
         setTimeout(
           () => processServerElement(serverItem, retries - 1),
           1e3
@@ -112768,37 +115290,36 @@ void main() {
     }
   }
   __name(processServerElement, "processServerElement");
+  function scheduleServerIdSync(serverItem) {
+    serverItem._rovalraIdSyncQueued || (serverItem._rovalraIdSyncQueued = !0, queueMicrotask(() => {
+      serverItem._rovalraIdSyncQueued = !1, serverItem.isConnected && processServerElement(serverItem);
+    }));
+  }
+  __name(scheduleServerIdSync, "scheduleServerIdSync");
   function watchServerElement(serverItem) {
-    let observer2 = new MutationObserver((mutations) => {
-      mutations.some((mutation) => {
-        if (mutation.type === "childList") {
-          let target = mutation.target;
-          if (target.classList?.contains("player-thumbnails-container") || target.closest(".player-thumbnails-container"))
-            return !0;
-        }
-        return !1;
-      }) && (serverItem.classList.remove("rovalra-checked"), processServerElement(serverItem));
-    });
-    observer2.observe(serverItem, {
-      childList: !0,
-      subtree: !0
-    }), serverItem._rovalraServerObserver = observer2;
+    if (serverItem._rovalraIdWatchers) return;
+    let onChange = /* @__PURE__ */ __name(() => scheduleServerIdSync(serverItem), "onChange"), watchers = [], card2 = serverItem.firstElementChild;
+    card2 && watchers.push(
+      observeAttributes(card2, onChange, ["src", "href"], {
+        subtree: !0
+      })
+    );
+    let thumbnails = serverItem.querySelector(".player-thumbnails-container");
+    thumbnails && watchers.push(observeChildren(thumbnails, onChange)), serverItem._rovalraIdWatchers = watchers;
   }
   __name(watchServerElement, "watchServerElement");
+  function unwatchServerElement(serverItem) {
+    serverItem._rovalraIdWatchers?.forEach((watcher) => watcher.disconnect()), serverItem._rovalraIdWatchers = null;
+  }
+  __name(unwatchServerElement, "unwatchServerElement");
   function initServerIdExtraction() {
-    injectExtractorScript(), [
-      ".rbx-public-game-server-item",
-      ".rbx-friends-game-server-item",
-      ".rbx-private-game-server-item"
-    ].forEach((selector) => {
-      observeElement(
-        selector,
-        (serverElement) => {
-          processServerElement(serverElement), watchServerElement(serverElement);
-        },
-        { multiple: !0 }
-      );
-    });
+    injectExtractorScript(), observeElement(
+      SERVER_ROW_SELECTOR,
+      (serverElement) => {
+        processServerElement(serverElement), watchServerElement(serverElement);
+      },
+      { multiple: !0, onRemove: unwatchServerElement }
+    );
   }
   __name(initServerIdExtraction, "initServerIdExtraction");
 
@@ -113855,7 +116376,7 @@ void main() {
   init_tooltip();
   init_purify_es();
   init_i18n();
-  var isInitialized7 = !1, currentCursor2 = null, currentDropdownInstance2 = null, inputInstance = null, STYLES = `
+  var isInitialized7 = !1, currentCursor2 = null, currentDropdownInstance2 = null, inputInstance = null, STYLES2 = `
     .rovalra-version-list {
         flex: 1;
         overflow-y: auto;
@@ -113968,7 +116489,7 @@ void main() {
   async function createVersionWidget(container) {
     if (!document.getElementById("rovalra-version-filter-styles")) {
       let s = document.createElement("style");
-      s.id = "rovalra-version-filter-styles", s.textContent = STYLES, document.head.appendChild(s);
+      s.id = "rovalra-version-filter-styles", s.textContent = STYLES2, document.head.appendChild(s);
     }
     let dropdown = createDropdown({
       items: [],
@@ -114062,9 +116583,9 @@ void main() {
     Region: 5,
     Purchase: 6,
     Status: 7
-  }, STYLES2 = {
-    container: "display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 4px; min-height: 44px;",
-    containerFriends: "display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; width: 100%; min-height: 48px;",
+  }, STYLES3 = {
+    container: "display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 4px;",
+    containerFriends: "display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; width: 100%;",
     row: "display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400;",
     icon: "display: flex; align-items: center; flex-shrink: 0; height: 20px;",
     text: "line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%; flex: 1;"
@@ -114078,7 +116599,7 @@ void main() {
     private: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2m-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2m3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1z" stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>',
     purchase: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M11 8.17 6.49 3.66C8.07 2.61 9.96 2 12 2c5.52 0 10 4.48 10 10 0 2.04-.61 3.93-1.66 5.51l-1.46-1.46C19.59 14.87 20 13.48 20 12c0-3.35-2.07-6.22-5-7.41V5c0 1.1-.9 2-2 2h-2zm10.19 13.02-1.41 1.41-2.27-2.27C15.93 21.39 14.04 22 12 22 6.48 22 2 17.52 2 12c0-2.04.61-3.93 1.66-5.51L1.39 4.22 2.8 2.81zM11 18c-1.1 0-2-.9-2-2v-1l-4.79-4.79C4.08 10.79 4 11.38 4 12c0 4.08 3.05 7.44 7 7.93z" stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>',
     inactive: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V12M12 16H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"/> stroke="currentColor" fill="currentColor" stroke-width="0.01"/></svg>'
-  }, isShareLinkEnabled = !0, isServerUptimeEnabled = !0, isServerRegionEnabled = !0, isPlaceVersionEnabled = !0, isFullServerIDEnabled = !0, isFullServerIndicatorsEnabled = !0, isServerPerformanceEnabled = !0, isMiscIndicatorsEnabled = !0, isDatacenterAndIdEnabled = !0, isServerListModificationsEnabled = !0, cacheReadyPromise = new Promise((resolve) => {
+  }, serverNetworkInfo = /* @__PURE__ */ new Map(), isShareLinkEnabled = !0, isServerUptimeEnabled = !0, isServerRegionEnabled = !0, isPlaceVersionEnabled = !0, isFullServerIDEnabled = !0, isFullServerIndicatorsEnabled = !0, isServerPerformanceEnabled = !0, isMiscIndicatorsEnabled = !0, isDatacenterAndIdEnabled = !0, isServerListModificationsEnabled = !0, cacheReadyPromise = new Promise((resolve) => {
     loadDatacenterMap().then(resolve).catch(() => resolve()), !(typeof chrome > "u" || !chrome.storage?.local) && (chrome.storage.local.get(
       [
         "ServerlistmodificationsEnabled",
@@ -114098,11 +116619,67 @@ void main() {
     ), chrome.storage.onChanged?.addListener((changes, area) => {
       area === "local" && (changes.ServerlistmodificationsEnabled && (isServerListModificationsEnabled = changes.ServerlistmodificationsEnabled.newValue, isServerListModificationsEnabled || document.querySelectorAll(
         ".rovalra-details-container, .rovalra-server-extra-details, .rovalra-copy-join-link, .rovalra-meta-pill"
-      ).forEach((el3) => el3.remove())), changes.enableShareLink && (isShareLinkEnabled = changes.enableShareLink.newValue), changes.EnableServerUptime && (isServerUptimeEnabled = changes.EnableServerUptime.newValue), changes.EnableServerRegion && (isServerRegionEnabled = changes.EnableServerRegion.newValue), changes.EnablePlaceVersion && (isPlaceVersionEnabled = changes.EnablePlaceVersion.newValue), changes.EnableFullServerID && (isFullServerIDEnabled = changes.EnableFullServerID.newValue), changes.EnableFullServerIndicators && (isFullServerIndicatorsEnabled = changes.EnableFullServerIndicators.newValue), changes.EnableServerPerformance && (isServerPerformanceEnabled = changes.EnableServerPerformance.newValue), changes.EnableMiscIndicators && (isMiscIndicatorsEnabled = changes.EnableMiscIndicators.newValue), changes.EnableDatacenterandId && (isDatacenterAndIdEnabled = changes.EnableDatacenterandId.newValue, document.querySelectorAll("[data-rovalra-serverid]").forEach((server) => {
+      ).forEach((el4) => el4.remove())), changes.enableShareLink && (isShareLinkEnabled = changes.enableShareLink.newValue), changes.EnableServerUptime && (isServerUptimeEnabled = changes.EnableServerUptime.newValue), changes.EnableServerRegion && (isServerRegionEnabled = changes.EnableServerRegion.newValue), changes.EnablePlaceVersion && (isPlaceVersionEnabled = changes.EnablePlaceVersion.newValue), (changes.EnableServerUptime || changes.EnablePlaceVersion) && refreshContainerMinHeights(), changes.EnableFullServerID && (isFullServerIDEnabled = changes.EnableFullServerID.newValue), changes.EnableFullServerIndicators && (isFullServerIndicatorsEnabled = changes.EnableFullServerIndicators.newValue), changes.EnableServerPerformance && (isServerPerformanceEnabled = changes.EnableServerPerformance.newValue), changes.EnableMiscIndicators && (isMiscIndicatorsEnabled = changes.EnableMiscIndicators.newValue), changes.EnableDatacenterandId && (isDatacenterAndIdEnabled = changes.EnableDatacenterandId.newValue, document.querySelectorAll("[data-rovalra-serverid]").forEach((server) => {
         displayIpAndDcId(server);
       })));
     }));
   });
+  function getRowServerId(server) {
+    if (!server) return null;
+    let serverId = server.getAttribute("data-rovalra-serverid");
+    return serverId || server.classList.contains("rbx-private-game-server-item") && server.dataset.accessCode || null;
+  }
+  __name(getRowServerId, "getRowServerId");
+  function getServerRows(serverId) {
+    if (!serverId) return [];
+    let id = CSS.escape(String(serverId));
+    return Array.from(
+      document.querySelectorAll(
+        `[data-rovalra-serverid="${id}"], .rbx-private-game-server-item[data-access-code="${id}"]`
+      )
+    ).filter((server) => getRowServerId(server) === String(serverId));
+  }
+  __name(getServerRows, "getServerRows");
+  function setServerNetworkInfo(serverId, ip, dcId) {
+    if (!serverId) return;
+    let existing = serverNetworkInfo.get(serverId) || {};
+    serverNetworkInfo.set(serverId, {
+      ip: ip ?? existing.ip ?? null,
+      dcId: dcId ?? existing.dcId ?? null
+    });
+  }
+  __name(setServerNetworkInfo, "setServerNetworkInfo");
+  function restoreJoinButton(server) {
+    let joinBtn = server.querySelector(
+      ".game-server-join-btn, .rovalra-join-btn"
+    );
+    if (!joinBtn || joinBtn.dataset.rovalraOriginalLabel === void 0) return;
+    let joinLabel = joinBtn.querySelector(".text-no-wrap") || joinBtn;
+    joinLabel.textContent = joinBtn.dataset.rovalraOriginalLabel, joinBtn.classList.replace("btn-secondary-md", "btn-primary-md"), delete joinBtn.dataset.rovalraOriginalLabel;
+  }
+  __name(restoreJoinButton, "restoreJoinButton");
+  function markJoinButtonFull(server) {
+    let joinBtn = server.querySelector(
+      ".game-server-join-btn, .rovalra-join-btn"
+    );
+    if (!joinBtn) return;
+    let joinLabel = joinBtn.querySelector(".text-no-wrap") || joinBtn;
+    joinBtn.dataset.rovalraOriginalLabel === void 0 && (joinBtn.dataset.rovalraOriginalLabel = joinLabel.textContent), joinLabel.textContent = ts2("common.joinServerFull"), joinBtn.classList.replace("btn-primary-md", "btn-secondary-md");
+  }
+  __name(markJoinButtonFull, "markJoinButtonFull");
+  function resetServerRow(server) {
+    server.querySelectorAll(
+      `.${CLASSES.CONTAINER}, .rovalra-meta-pill, .rovalra-meta-icons, .rovalra-server-extra-details`
+    ).forEach((el4) => el4.remove()), restoreJoinButton(server), server._rovalraApiData = null, server.removeAttribute("data-rovalra-api");
+  }
+  __name(resetServerRow, "resetServerRow");
+  function displayServerStatus(server, status) {
+    if (status === "full") {
+      if (!isFullServerIndicatorsEnabled) return;
+      markJoinButtonFull(server), displayServerFullStatus(server);
+    } else status === "purchase" ? displayPurchaseGameStatus(server) : status === "inactive" && displayInactivePlaceStatus(server);
+  }
+  __name(displayServerStatus, "displayServerStatus");
   function createUUID2() {
     return crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
       let r = Math.random() * 16 | 0;
@@ -114189,6 +116766,20 @@ void main() {
     return [...new Set(parts)].join(", ") || null;
   }
   __name(normalizeRegionName, "normalizeRegionName");
+  function applyContainerMinHeight(container, isFriends) {
+    let rows = (isServerUptimeEnabled ? 1 : 0) + (isPlaceVersionEnabled ? 1 : 0);
+    rows === 2 ? container.style.minHeight = isFriends ? "48px" : "44px" : rows === 1 ? container.style.minHeight = "20px" : container.style.minHeight = "";
+  }
+  __name(applyContainerMinHeight, "applyContainerMinHeight");
+  function refreshContainerMinHeights() {
+    document.querySelectorAll(`.${CLASSES.CONTAINER}`).forEach((container) => {
+      container.closest(".rbx-private-game-server-item") || applyContainerMinHeight(
+        container,
+        !!container.closest(".rbx-friends-game-server-item")
+      );
+    });
+  }
+  __name(refreshContainerMinHeights, "refreshContainerMinHeights");
   function getOrCreateDetailsContainer(server) {
     if (!isServerListModificationsEnabled)
       return server.querySelector(`.${CLASSES.CONTAINER}`);
@@ -114196,7 +116787,7 @@ void main() {
     if (container) return container;
     container = document.createElement("div"), container.className = CLASSES.CONTAINER;
     let isFriends = server.classList.contains("rbx-friends-game-server-item");
-    server.classList.contains("rbx-private-game-server-item") ? container.style.cssText = "display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 4px; width: 100%;" : container.style.cssText = isFriends ? STYLES2.containerFriends : STYLES2.container;
+    server.classList.contains("rbx-private-game-server-item") ? container.style.cssText = "display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 4px; width: 100%;" : (container.style.cssText = isFriends ? STYLES3.containerFriends : STYLES3.container, applyContainerMinHeight(container, isFriends));
     let statusNode = server.querySelector(".text-info.rbx-game-status");
     if (statusNode && statusNode.parentNode)
       statusNode.parentNode.insertBefore(container, statusNode.nextSibling);
@@ -114222,11 +116813,11 @@ void main() {
   __name(getOrCreateDetailsContainer, "getOrCreateDetailsContainer");
   function createInfoElement(className, svg2, text3) {
     let element = document.createElement("div");
-    element.className = `${className} ${CLASSES.INFO_ROW}`, element.style.cssText = STYLES2.row, element.style.color = "var(--rovalra-main-text-color)";
+    element.className = `${className} ${CLASSES.INFO_ROW}`, element.style.cssText = STYLES3.row, element.style.color = "var(--rovalra-main-text-color)";
     let iconSpan = document.createElement("span");
-    iconSpan.className = "rovalra-icon-wrapper", iconSpan.style.cssText = STYLES2.icon, iconSpan.innerHTML = svg2;
+    iconSpan.className = "rovalra-icon-wrapper", iconSpan.style.cssText = STYLES3.icon, iconSpan.innerHTML = svg2;
     let textSpan = document.createElement("span");
-    return textSpan.style.cssText = STYLES2.text, textSpan.textContent = text3, element.appendChild(iconSpan), element.appendChild(textSpan), element;
+    return textSpan.style.cssText = STYLES3.text, textSpan.textContent = text3, element.appendChild(iconSpan), element.appendChild(textSpan), element;
   }
   __name(createInfoElement, "createInfoElement");
   function updateInfoElement(container, type, iconHTML, text3, isVisible3 = !0) {
@@ -114274,7 +116865,7 @@ void main() {
     ].forEach((cls) => container.querySelector(`.${cls}`)?.remove()), server.querySelector(`.rovalra-meta-pill.${CLASSES.Region}`)?.remove();
   }
   __name(clearExclusiveStatuses, "clearExclusiveStatuses");
-  function injectStyles3() {
+  function injectStyles4() {
     if (document.getElementById("rovalra-dynamic-styles")) return;
     let style = document.createElement("style");
     style.id = "rovalra-dynamic-styles", style.textContent = `
@@ -114289,6 +116880,9 @@ void main() {
         .server-id-text:hover span.show-on-hover {
             background-color: transparent;
             color: inherit;
+        }
+        .${CLASSES.CONTAINER}:not(:has(> :not([style*="display: none"]))) {
+            margin: 0 !important;
         }
         .rovalra-meta-icons {
             display: flex;
@@ -114323,7 +116917,7 @@ void main() {
         }
     `, document.head.appendChild(style);
   }
-  __name(injectStyles3, "injectStyles");
+  __name(injectStyles4, "injectStyles");
   function shouldSpoilerServerId(server) {
     return server.dataset.rovalraIsFriendServer === "true" || server.dataset.rovalraIsRecentServer === "true" || server.classList.contains("rbx-friends-game-server-item") || !!server.querySelector(
       '.player-thumbnails-container .avatar-card-link[href*="/users/"]'
@@ -114375,7 +116969,7 @@ void main() {
       return;
     }
     let container = getOrCreateDetailsContainer(server), text3 = ts2("serverInfo.versionUnknown"), visible = !1, existingVersion = container.querySelector(`.${CLASSES.Version}`);
-    if ((!version || version === "Unknown") && existingVersion && existingVersion.style.display !== "none" && existingVersion.textContent.includes("Version "))
+    if ((!version || version === "Unknown") && existingVersion?.dataset.rovalraVersion)
       return existingVersion;
     if (version && version !== "Unknown") {
       text3 = ts2("serverInfo.version", { version });
@@ -114384,7 +116978,14 @@ void main() {
       );
       containerList && (String(version) === containerList.dataset.newestVersion ? text3 += ts2("serverInfo.latest") : String(version) === containerList.dataset.oldestVersion && (text3 += ts2("serverInfo.oldest"))), visible = !0;
     }
-    updateInfoElement(container, "Version", ICONS.version, text3, visible);
+    let element = updateInfoElement(
+      container,
+      "Version",
+      ICONS.version,
+      text3,
+      visible
+    );
+    element && (visible ? element.dataset.rovalraVersion = String(version) : delete element.dataset.rovalraVersion);
   }
   __name(displayPlaceVersion, "displayPlaceVersion");
   function displayRegion(server, regionName, serverLocations3 = {}) {
@@ -114410,7 +117011,7 @@ void main() {
   }
   __name(displayRegion, "displayRegion");
   function displayRegionForServerId(serverId, regionName, serverLocations3) {
-    serverId && document.querySelectorAll(`[data-rovalra-serverid="${serverId}"]`).forEach(
+    getServerRows(serverId).forEach(
       (server) => displayRegion(server, regionName, serverLocations3)
     );
   }
@@ -114424,7 +117025,7 @@ void main() {
     let idDiv = server.querySelector(".server-id-text");
     if (!idDiv) return;
     extraDiv || (extraDiv = document.createElement("div"), idDiv.after(extraDiv)), extraDiv.className = "rovalra-server-extra-details text-info xsmall";
-    let ip = server.dataset.rovalraIp, dcId = server.dataset.rovalraDcId;
+    let { ip, dcId } = serverNetworkInfo.get(getRowServerId(server)) || {};
     if (extraDiv.style.cssText = "font-size: 9px; margin-top: 2px; display: flex; justify-content: space-between; min-height: 12px; padding: 0 8px; box-sizing: border-box;", extraDiv.innerHTML = "", isDatacenterAndIdEnabled) {
       let ipSpan = document.createElement("span");
       ipSpan.textContent = ip || "---", extraDiv.appendChild(ipSpan);
@@ -114499,34 +117100,28 @@ void main() {
           if (!serverId) return;
           foundIds.add(serverId);
           let versionToDisplay = getServerVersion(serverId) || placeVersion, normalizedRegion = normalizeRegionName(region);
-          normalizedRegion && (serverLocations3[serverId] = normalizedRegion), document.querySelectorAll(
-            `[data-rovalra-serverid="${serverId}"]`
-          ).forEach((serverEl) => {
-            ipAddress != null && (serverEl.dataset.rovalraIp = ipAddress), datacenterId != null && (serverEl.dataset.rovalraDcId = datacenterId), displayPlaceVersion(
+          normalizedRegion && (serverLocations3[serverId] = normalizedRegion), setServerNetworkInfo(serverId, ipAddress, datacenterId), getServerRows(serverId).forEach((serverEl) => {
+            displayPlaceVersion(
               serverEl,
               versionToDisplay,
               serverLocations3
             ), displayUptime(serverEl, uptime, isEstimate, serverLocations3), normalizedRegion && displayRegion(serverEl, normalizedRegion, serverLocations3), displayIpAndDcId(serverEl);
           });
         }), validIds.filter((id) => !foundIds.has(id)).forEach((id) => {
-          document.querySelectorAll(
-            `[data-rovalra-serverid="${id}"]`
-          ).forEach((el3) => {
+          getServerRows(id).forEach((el4) => {
             displayUptime(
-              el3,
+              el4,
               getServerUptime(id),
               getServerUptimeIsEstimate(id),
               serverLocations3
-            ), !getServerRegion(id) && !serverStatuses[id] && displayServerFullStatus(el3);
+            ), !getServerRegion(id) && !serverStatuses[id] && displayServerFullStatus(el4);
           });
         });
       } catch (e) {
         console.error("Failed to fetch server details:", e), validIds.forEach((id) => {
-          document.querySelectorAll(
-            `[data-rovalra-serverid="${id}"]`
-          ).forEach((el3) => {
+          getServerRows(id).forEach((el4) => {
             displayUptime(
-              el3,
+              el4,
               getServerUptime(id),
               getServerUptimeIsEstimate(id),
               serverLocations3
@@ -114537,59 +117132,54 @@ void main() {
   }
   __name(fetchServerUptime, "fetchServerUptime");
   async function fetchAndDisplayRegion(server, serverId, serverIpMap2, serverLocations3, options = {}) {
-    let serverStatuses = options.serverStatuses || {}, placeId = server.dataset.placeid || getPlaceIdFromUrl();
+    let serverStatuses = options.serverStatuses || {}, showFullIfUnknown = /* @__PURE__ */ __name(() => {
+      serverLocations3[serverId] || serverStatuses[serverId] || getServerRows(serverId).forEach((row) => displayServerFullStatus(row));
+    }, "showFullIfUnknown"), placeId = server.dataset.placeid || getPlaceIdFromUrl();
     if (!placeId) {
-      !serverLocations3[serverId] && !serverStatuses[serverId] && displayServerFullStatus(server);
+      showFullIfUnknown();
       return;
     }
     try {
-      let info = await fetchServerRegion2(placeId, serverId, options);
-      if (server.dataset.rovalraServerid !== serverId) return;
-      let joinBtn = server.querySelector(
-        ".game-server-join-btn, .rovalra-join-btn"
-      ), status = Number(info.status);
-      if (info.joinScript) {
-        let joinScript = info.joinScript, changed = !1;
-        if (joinScript.DataCenterId != null && !server.dataset.rovalraDcId && (server.dataset.rovalraDcId = joinScript.DataCenterId, changed = !0), !server.dataset.rovalraIp) {
-          let ip = null;
-          joinScript.UdmuxEndpoints && joinScript.UdmuxEndpoints.length > 0 && joinScript.UdmuxEndpoints[0].Address ? ip = joinScript.UdmuxEndpoints[0].Address : joinScript.MachineAddress && (ip = joinScript.MachineAddress), ip && (server.dataset.rovalraIp = ip, changed = !0);
-        }
-        changed && displayIpAndDcId(server);
+      let info = await fetchServerRegion2(placeId, serverId, options), status = Number(info.status), joinScript = info.joinScript;
+      if (joinScript?.GameId && !options.isPrivate && String(joinScript.GameId).toLowerCase() !== String(serverId).toLowerCase())
+        return;
+      if (joinScript) {
+        let ip = joinScript.UdmuxEndpoints?.[0]?.Address || joinScript.MachineAddress || null;
+        setServerNetworkInfo(serverId, ip, joinScript.DataCenterId), getServerRows(serverId).forEach((row) => displayIpAndDcId(row));
       }
       if (status === 12 && !info.message?.includes("private instance")) {
         if (info.message?.toLowerCase().includes("purchase access")) {
-          serverStatuses[serverId] || (serverStatuses[serverId] = "purchase", displayPurchaseGameStatus(server));
+          serverStatuses[serverId] || (serverStatuses[serverId] = "purchase", getServerRows(serverId).forEach(
+            (row) => displayServerStatus(row, "purchase")
+          ));
           return;
         }
       }
       if (status === 5) {
-        serverStatuses[serverId] || (serverStatuses[serverId] = "inactive", displayInactivePlaceStatus(server));
+        serverStatuses[serverId] || (serverStatuses[serverId] = "inactive", getServerRows(serverId).forEach(
+          (row) => displayServerStatus(row, "inactive")
+        ));
         return;
       }
       if (status === 22) {
-        if (isFullServerIndicatorsEnabled) {
-          if (joinBtn) {
-            let joinLabel = joinBtn.querySelector(".text-no-wrap") || joinBtn;
-            joinLabel.textContent = ts2("common.joinServerFull"), joinBtn.classList.replace(
-              "btn-primary-md",
-              "btn-secondary-md"
-            );
-          }
-          serverStatuses[serverId] = "full", displayServerFullStatus(server);
-        }
+        serverStatuses[serverId] = "full", getServerRows(serverId).forEach(
+          (row) => displayServerStatus(row, "full")
+        );
         return;
       }
-      if (info.joinScript?.PlaceVersion && !getServerVersion(serverId) && displayPlaceVersion(
-        server,
-        info.joinScript.PlaceVersion,
-        serverLocations3
+      if (joinScript?.PlaceVersion && !getServerVersion(serverId) && getServerRows(serverId).forEach(
+        (row) => displayPlaceVersion(
+          row,
+          joinScript.PlaceVersion,
+          serverLocations3
+        )
       ), !serverLocations3[serverId]) {
-        let dcId = info.joinScript?.DataCenterId, locInfo = dcId && serverIpMap2?.[dcId] ? serverIpMap2[dcId] : null;
+        let dcId = joinScript?.DataCenterId, locInfo = dcId && serverIpMap2?.[dcId] ? serverIpMap2[dcId] : null;
         if (!locInfo && dcId && (await cacheReadyPromise, locInfo = getLocationFromDataCenterId(dcId)), locInfo) {
           let fullName = normalizeRegionName(
             getFullLocationName(locInfo)
           );
-          fullName && (serverLocations3[serverId] = fullName, displayRegionForServerId(
+          fullName && !serverLocations3[serverId] && (serverLocations3[serverId] = fullName, displayRegionForServerId(
             serverId,
             fullName,
             serverLocations3
@@ -114597,7 +117187,7 @@ void main() {
         }
       }
     } catch {
-      !serverLocations3[serverId] && !serverStatuses[serverId] && displayServerFullStatus(server);
+      showFullIfUnknown();
     }
   }
   __name(fetchAndDisplayRegion, "fetchAndDisplayRegion");
@@ -114607,10 +117197,10 @@ void main() {
   __name(isExcludedButton, "isExcludedButton");
   function cleanupServerUI(server) {
     let toRemove = [".server-performance"];
-    server.querySelectorAll(toRemove.join(",")).forEach((el3) => {
-      isExcludedButton(el3) || el3.remove();
-    }), server.querySelectorAll(".text-info.rbx-game-status").forEach((el3) => {
-      el3.textContent = el3.textContent.replace(/^\s*(Region:|Ping:|Server is full).*$/gim, "").trim();
+    server.querySelectorAll(toRemove.join(",")).forEach((el4) => {
+      isExcludedButton(el4) || el4.remove();
+    }), server.querySelectorAll(".text-info.rbx-game-status").forEach((el4) => {
+      el4.textContent = el4.textContent.replace(/^\s*(Region:|Ping:|Server is full).*$/gim, "").trim();
     });
   }
   __name(cleanupServerUI, "cleanupServerUI");
@@ -114632,7 +117222,7 @@ void main() {
     let btn = document.createElement("button");
     btn.className = "btn-full-width btn-control-xs btn-primary-md btn-min-width rovalra-copy-join-link", btn.textContent = ts2("common.share"), btn.style.cssText = "margin-top: 5px; width: 100%;", btn.onclick = (e) => {
       e.preventDefault(), e.stopPropagation();
-      let link = `https://www.fishstrap.app/v1/joingame?placeId=${placeId}&gameInstanceId=${serverId}`;
+      let currentServerId = getRowServerId(server) || serverId, link = `https://www.fishstrap.app/v1/joingame?placeId=${placeId}&gameInstanceId=${currentServerId}`;
       navigator.clipboard.writeText(link).then(() => {
         btn.textContent = ts2("common.copied"), setTimeout(() => btn.textContent = ts2("common.share"), 2e3);
       });
@@ -114643,7 +117233,7 @@ void main() {
   __name(addCopyJoinLinkButton, "addCopyJoinLinkButton");
   async function enhanceServer(server, context) {
     if (await cacheReadyPromise, !isServerListModificationsEnabled) return;
-    injectStyles3();
+    injectStyles4();
     let {
       serverLocations: serverLocations3,
       serverStatuses = {},
@@ -114657,11 +117247,11 @@ void main() {
       "rovalra-serverid-set",
       server._rovalraListener
     ));
-    let serverId = server.getAttribute("data-rovalra-serverid"), isPrivate = server.classList.contains("rbx-private-game-server-item");
-    if (!serverId && isPrivate && (serverId = server.dataset.accessCode), !serverId) return;
+    let serverId = getRowServerId(server), isPrivate = server.classList.contains("rbx-private-game-server-item");
+    if (!serverId) return;
     let lastId = server._rovalraLastProcessedId;
-    if (lastId && lastId !== serverId ? (server.dataset.rovalraEnhanced = "false", cleanupServerUI(server)) : server.dataset.rovalraEnhanced === "true" && lastId === serverId && enableAvatarLinks(server), server._rovalraLastProcessedId = serverId, server.dataset.rovalraEnhanced = "true", server.classList.add("rovalra-checked"), server._rovalraUptimeListener || (server._rovalraUptimeListener = (e) => {
-      let currentServerId = server.dataset.rovalraServerid;
+    if (lastId && lastId !== serverId ? (server.dataset.rovalraEnhanced = "false", resetServerRow(server), cleanupServerUI(server)) : server.dataset.rovalraEnhanced === "true" && lastId === serverId && enableAvatarLinks(server), server._rovalraLastProcessedId = serverId, server.dataset.rovalraEnhanced = "true", server.classList.add("rovalra-checked"), server._rovalraUptimeListener || (server._rovalraUptimeListener = (e) => {
+      let currentServerId = getRowServerId(server);
       currentServerId && String(e.detail.serverId) === String(currentServerId) && displayUptime(
         server,
         e.detail.uptime,
@@ -114689,7 +117279,7 @@ void main() {
       serverLocations3
     );
     let cachedLocation = serverLocations3[serverId];
-    displayRegion(server, cachedLocation || "Unknown", serverLocations3);
+    displayRegion(server, cachedLocation || "Unknown", serverLocations3), serverStatuses[serverId] && displayServerStatus(server, serverStatuses[serverId]);
     let cachedApiData = context.serverDataCache?.get(String(serverId)), attachedApiData = server._rovalraApiData, attachedApiDataId = attachedApiData?.server_id || attachedApiData?.id, apiData = cachedApiData && String(cachedApiData.server_id || cachedApiData.id) === String(serverId) ? cachedApiData : attachedApiData && String(attachedApiDataId) === String(serverId) ? attachedApiData : null;
     if (apiData && (server._rovalraApiData = apiData), apiData) {
       if (apiData.place_version && !getServerVersion(serverId) && displayPlaceVersion(server, apiData.place_version, serverLocations3), apiData.first_seen && !isPrivate && !getServerUptime(serverId)) {
@@ -114746,7 +117336,7 @@ void main() {
     serverIpMap: {},
     processUptimeBatch: /* @__PURE__ */ __name(async () => {
     }, "processUptimeBatch")
-  }, vipServerDetailsCache = /* @__PURE__ */ new Map();
+  }, vipServerDetailsCache = /* @__PURE__ */ new Map(), showFriendsAllowedToggle = !0;
   async function getVipServerDetails2(vipServerId) {
     if (vipServerDetailsCache.has(vipServerId))
       return vipServerDetailsCache.get(vipServerId);
@@ -114761,7 +117351,7 @@ void main() {
     }
   }
   __name(getVipServerDetails2, "getVipServerDetails");
-  async function init75() {
+  async function init79() {
     let userId = await getAuthenticatedUserId();
     if (userId) {
       try {
@@ -114769,10 +117359,14 @@ void main() {
       } catch {
       }
       chrome.storage.local.get(
-        { PrivateQuickLinkCopy: !0, ServerlistmodificationsEnabled: !0 },
+        {
+          PrivateQuickLinkCopy: !0,
+          ServerlistmodificationsEnabled: !0,
+          privateServerFriendsToggleEnabled: !0
+        },
         (settings2) => {
           let enableControls = settings2.PrivateQuickLinkCopy, enableDetails = settings2.ServerlistmodificationsEnabled;
-          observeElement(
+          showFriendsAllowedToggle = settings2.privateServerFriendsToggleEnabled, observeElement(
             ".rbx-private-game-server-item",
             (serverItem) => {
               if (serverItem.dataset.rovalraPrivateEnhanced) return;
@@ -114806,24 +117400,24 @@ void main() {
             { multiple: !0 }
           ), observeElement(
             ".flex.items-center.justify-between.padding-y-medium.width-full",
-            (el3) => {
-              if (!el3.closest(
+            (el4) => {
+              if (!el4.closest(
                 '[data-rovalra-section-type="private"]'
-              ) || el3.dataset.rovalraPrivateEnhanced) return;
-              el3.dataset.rovalraPrivateEnhanced = "true";
+              ) || el4.dataset.rovalraPrivateEnhanced) return;
+              el4.dataset.rovalraPrivateEnhanced = "true";
               let check = /* @__PURE__ */ __name(() => {
-                let isOwner = el3.getAttribute("data-rovalra-is-owner") === "true";
-                if (el3.getAttribute(
+                let isOwner = el4.getAttribute("data-rovalra-is-owner") === "true";
+                if (el4.getAttribute(
                   "data-private-server-id"
                 )) {
                   if (isOwner && enableControls) {
-                    let btnContainer = el3.querySelector(
+                    let btnContainer = el4.querySelector(
                       ".flex.items-center.gap-small.grow-0.shrink-0.basis-auto"
-                    ) || el3.querySelector(
+                    ) || el4.querySelector(
                       ".flex.flex-col.items-center.gap-xsmall.grow-0.shrink-0.basis-auto"
                     );
                     btnContainer && addModernPrivateServerControls(
-                      el3,
+                      el4,
                       btnContainer,
                       getPlaceIdFromUrl()
                     );
@@ -114833,7 +117427,7 @@ void main() {
                 return !1;
               }, "check");
               if (!check()) {
-                let observer2 = observeAttributes(el3, () => {
+                let observer2 = observeAttributes(el4, () => {
                   check() && observer2.disconnect();
                 }, ["data-rovalra-is-owner", "data-private-server-id"]);
               }
@@ -114844,7 +117438,28 @@ void main() {
       );
     }
   }
-  __name(init75, "init");
+  __name(init79, "init");
+  function createFriendsAllowedToggle(privateServerId, friendsAllowed) {
+    let toggle = createToggle({
+      checked: friendsAllowed === !0,
+      onChange: /* @__PURE__ */ __name(async (newState) => {
+        try {
+          let response = await callRobloxApi({
+            subdomain: "games",
+            endpoint: `/v1/vip-servers/${privateServerId}/permissions`,
+            method: "PATCH",
+            body: { friendsAllowed: newState }
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          vipServerDetailsCache.delete(privateServerId);
+        } catch (error3) {
+          console.error("Error toggling friends allowed:", error3), toggle.setChecked(!newState);
+        }
+      }, "onChange")
+    });
+    return toggle;
+  }
+  __name(createFriendsAllowedToggle, "createFriendsAllowedToggle");
   async function addOwnerControls(serverItem, privateServerId) {
     let detailsDiv = serverItem.querySelector(
       ".rbx-private-game-server-details"
@@ -114937,14 +117552,25 @@ void main() {
         }
       }, "onChange")
     });
-    toggleRow.appendChild(toggleLabel), toggleRow.appendChild(toggle), container.appendChild(toggleRow);
+    if (toggleRow.appendChild(toggleLabel), toggleRow.appendChild(toggle), container.appendChild(toggleRow), showFriendsAllowedToggle) {
+      let friendsRow = toggleRow.cloneNode(!1), friendsLabel = toggleLabel.cloneNode(!1);
+      friendsLabel.textContent = await t2("privateServer.friendsAllowed", {
+        defaultValue: "Friends Allowed"
+      }), friendsRow.append(
+        friendsLabel,
+        createFriendsAllowedToggle(
+          privateServerId,
+          initialData?.permissions?.friendsAllowed
+        )
+      ), container.appendChild(friendsRow);
+    }
   }
   __name(addOwnerControls, "addOwnerControls");
-  async function addModernPrivateServerControls(el3, btnContainer, placeId) {
-    let privateServerId = el3.getAttribute("data-private-server-id");
-    if (!privateServerId || !(el3.getAttribute("data-rovalra-is-owner") === "true")) return;
-    let details = await getVipServerDetails2(privateServerId);
-    if (!details || details.subscription?.expired) return;
+  async function addModernPrivateServerControls(el4, btnContainer, placeId) {
+    let privateServerId = el4.getAttribute("data-private-server-id");
+    if (!privateServerId || !(el4.getAttribute("data-rovalra-is-owner") === "true")) return;
+    let details2 = await getVipServerDetails2(privateServerId);
+    if (!details2 || details2.subscription?.expired) return;
     btnContainer.className = "flex flex-col items-center gap-xsmall grow-0 shrink-0 basis-auto";
     let nativeJoinBtn = btnContainer.querySelector("button");
     nativeJoinBtn && nativeJoinBtn.setAttribute("data-rovalra-join-button", "true");
@@ -114959,7 +117585,7 @@ void main() {
     buttonsRow.className = "flex flex-row", buttonsRow.style.cssText = "width: 200px; min-width: 200px; max-width: 200px; gap: 5px;";
     let shareBtnWrapper = document.createElement("div");
     shareBtnWrapper.className = "rovalra-share-btn-container", shareBtnWrapper.style.cssText = "width: 95px; min-width: 95px; max-width: 95px;", shareBtnWrapper.innerHTML = purify.sanitize(`
-        <button type="button" ${details.link ? "" : "disabled"} style="opacity: ${details.link ? "1" : "0.5"}" class="foundation-web-button relative clip group/interactable focus-visible:outline-focus disabled:outline-none cursor-pointer relative flex items-center justify-center stroke-none padding-y-none select-none radius-medium text-label-small height-800 padding-x-small bg-action-standard content-action-standard width-full rovalra-share-btn">
+        <button type="button" ${details2.link ? "" : "disabled"} style="opacity: ${details2.link ? "1" : "0.5"}" class="foundation-web-button relative clip group/interactable focus-visible:outline-focus disabled:outline-none cursor-pointer relative flex items-center justify-center stroke-none padding-y-none select-none radius-medium text-label-small height-800 padding-x-small bg-action-standard content-action-standard width-full rovalra-share-btn">
             <div role="presentation" class="absolute inset-[0] transition-colors group-hover/interactable:bg-[var(--color-state-hover)] group-active/interactable:bg-[var(--color-state-press)] group-disabled/interactable:bg-none"></div>
             <span class="flex items-center min-width-0 gap-xsmall">
                 <span class="padding-y-xsmall text-truncate-end text-no-wrap">${ts2("quickPlay.copyLink", { defaultValue: "Copy Link" })}</span>
@@ -115000,7 +117626,7 @@ void main() {
         })).ok) {
           vipServerDetailsCache.delete(privateServerId);
           let newDetails = await getVipServerDetails2(privateServerId);
-          newDetails?.accessCode && el3.setAttribute("data-access-code", newDetails.accessCode);
+          newDetails?.accessCode && el4.setAttribute("data-access-code", newDetails.accessCode);
           let currentShareBtn = btnContainer.querySelector(".rovalra-share-btn");
           currentShareBtn && (currentShareBtn.disabled = !newDetails?.link, currentShareBtn.style.opacity = currentShareBtn.disabled ? "0.5" : "1"), span.textContent = await t2("privateServerPage.regenerated", {
             defaultValue: "Regenerated!"
@@ -115021,7 +117647,7 @@ void main() {
       defaultValue: "Allow Joining"
     });
     let toggle = createToggle({
-      checked: details.active !== !1,
+      checked: details2.active !== !1,
       onChange: /* @__PURE__ */ __name(async (newState) => {
         try {
           if ((await callRobloxApi({
@@ -115043,7 +117669,18 @@ void main() {
         }
       }, "onChange")
     });
-    friendJoinRow.appendChild(toggleLabel), friendJoinRow.appendChild(toggle), btnContainer.appendChild(friendJoinRow);
+    if (friendJoinRow.appendChild(toggleLabel), friendJoinRow.appendChild(toggle), btnContainer.appendChild(friendJoinRow), showFriendsAllowedToggle) {
+      let friendsRow = friendJoinRow.cloneNode(!1), friendsLabel = toggleLabel.cloneNode(!1);
+      friendsLabel.textContent = ts2("privateServer.friendsAllowed", {
+        defaultValue: "Friends Allowed"
+      }), friendsRow.append(
+        friendsLabel,
+        createFriendsAllowedToggle(
+          privateServerId,
+          details2.permissions?.friendsAllowed
+        )
+      ), btnContainer.appendChild(friendsRow);
+    }
   }
   __name(addModernPrivateServerControls, "addModernPrivateServerControls");
 
@@ -115272,7 +117909,7 @@ void main() {
     }
   }
   __name(isServerActive2, "isServerActive");
-  function init76() {
+  function init80() {
     if (typeof chrome > "u" || !chrome.storage || !chrome.storage.local) {
       safeInitAll();
       return;
@@ -115295,7 +117932,7 @@ void main() {
       }
     );
   }
-  __name(init76, "init");
+  __name(init80, "init");
   function safeInitAll() {
     if (!document.getElementById("rovalra-filter-shared-styles")) {
       let s = document.createElement("style");
@@ -115322,19 +117959,19 @@ void main() {
       return;
     let container = document.createElement("div");
     container.id = "rovalra-main-controls", parentContainer.closest("#roseal-running-game-instances-container") ? (parentContainer.insertAdjacentElement("afterend", container), container.style.marginTop = "5px", container.style.marginBottom = "5px") : parentContainer.appendChild(container), _state.elements.container = container;
-    let filters = _state.filterSettings;
-    if (filters.serverFilter) {
-      if (filters.version)
+    let filters2 = _state.filterSettings;
+    if (filters2.serverFilter) {
+      if (filters2.version)
         try {
           typeof initVersionFilters == "function" && initVersionFilters();
         } catch {
         }
-      if (filters.uptime)
+      if (filters2.uptime)
         try {
           typeof initUptimeFilters == "function" && initUptimeFilters();
         } catch {
         }
-      if (filters.region)
+      if (filters2.region)
         try {
           typeof initRegionFilters == "function" && initRegionFilters();
         } catch {
@@ -115368,8 +118005,8 @@ void main() {
   __name(handleFilterActivation, "handleFilterActivation");
   function clearAllFilters() {
     let serverListContainer = findServerListContainer();
-    document.getElementById("rovalra-load-more-btn")?.remove(), removeAutoLoadingIndicator(), serverListContainer && _state.originalServerElements.length && (serverListContainer.innerHTML = "", _state.originalServerElements.forEach((el3) => {
-      serverListContainer.appendChild(el3);
+    document.getElementById("rovalra-load-more-btn")?.remove(), removeAutoLoadingIndicator(), serverListContainer && _state.originalServerElements.length && (serverListContainer.innerHTML = "", _state.originalServerElements.forEach((el4) => {
+      serverListContainer.appendChild(el4);
     })), _state.isFilterActive = !1, _state.originalServerElements = [], document.body.classList.remove("rovalra-filter-active"), _state.elements.clearButton && (_state.elements.clearButton.style.display = "none");
     let footer = document.querySelector(".rbx-public-running-games-footer");
     footer && (footer.style.display = "block"), document.dispatchEvent(new CustomEvent("rovalraClearFilters"));
@@ -115471,16 +118108,11 @@ void main() {
   var _started = { value: !1 };
   function startController() {
     if (!_started.value) {
-      _started.value = !0, document.addEventListener(
-        "rovalra:settingSaved",
-        (event) => {
-          let settingName = event.detail?.name;
-          (settingName === "PrivateServerGridEnabled" || settingName === "ServerlistmodificationsEnabled") && refreshPrivateServerGrid().catch(
-            () => {
-            }
-          );
-        }
-      );
+      _started.value = !0, document.addEventListener("rovalra:settingSaved", (event) => {
+        let settingName = event.detail?.name;
+        (settingName === "PrivateServerGridEnabled" || settingName === "ServerlistmodificationsEnabled") && refreshPrivateServerGrid().catch(() => {
+        });
+      });
       try {
         typeof startObserving == "function" && startObserving();
       } catch {
@@ -115516,31 +118148,45 @@ void main() {
     }
   }
   __name(startController, "startController");
-  var currentPageIsSubplacePromise = null;
+  var subplaceCache = /* @__PURE__ */ new Map(), subplacePromises = /* @__PURE__ */ new Map();
   function isCurrentPageSubplace() {
-    if (currentPageIsSubplacePromise) return currentPageIsSubplacePromise;
     let placeId = getPlaceIdFromUrl();
-    return placeId ? (currentPageIsSubplacePromise = getPlaceDetails(placeId).then((details) => {
-      let rootPlaceId = details?.universeRootPlaceId || details?.rootPlaceId;
+    if (!placeId) return Promise.resolve(!1);
+    if (subplacePromises.has(placeId)) return subplacePromises.get(placeId);
+    let promise = getPlaceDetails(placeId).then((details2) => {
+      let rootPlaceId = details2?.universeRootPlaceId || details2?.rootPlaceId;
       return /^\d+$/.test(String(rootPlaceId || "")) && String(rootPlaceId) !== String(placeId);
-    }).catch(() => !1), currentPageIsSubplacePromise) : Promise.resolve(!1);
+    }).catch(() => !1).then((isSubplace) => (subplaceCache.set(placeId, isSubplace), isSubplace));
+    return subplacePromises.set(placeId, promise), promise;
   }
   __name(isCurrentPageSubplace, "isCurrentPageSubplace");
-  async function replaceSubplaceJoinButton(serverElement) {
-    if (!await isCurrentPageSubplace()) return;
-    let serverId = serverElement.getAttribute("data-rovalra-serverid"), placeId = getPlaceIdFromUrl();
-    if (!serverId || !placeId) return;
-    let joinButton = serverElement.querySelector(
-      '[data-rovalra-join-button="true"], .game-server-join-btn, .rovalra-join-btn'
-    );
-    if (!joinButton || joinButton.dataset.rovalraSubplaceJoin === "true")
-      return;
-    let rovalraJoinButton = joinButton.cloneNode(!0);
-    rovalraJoinButton.dataset.rovalraSubplaceJoin = "true", rovalraJoinButton.onclick = (event) => {
-      event.preventDefault(), event.stopPropagation(), launchGame(placeId, serverId);
-    }, joinButton.replaceWith(rovalraJoinButton);
+  var SUBPLACE_JOIN_BUTTON_SELECTOR = '[data-rovalra-join-button="true"], .game-server-join-btn, .rbx-public-game-server-join, .rovalra-join-btn';
+  function getSubplaceJoinTarget(event) {
+    let placeId = getPlaceIdFromUrl();
+    if (!placeId || subplaceCache.get(placeId) !== !0) return null;
+    let target = event.target;
+    if (!(target instanceof Element)) return null;
+    let joinButton = target.closest(SUBPLACE_JOIN_BUTTON_SELECTOR);
+    if (!joinButton) return null;
+    let serverId = joinButton.closest("[data-rovalra-serverid]")?.getAttribute("data-rovalra-serverid");
+    return serverId ? { placeId, serverId } : null;
   }
-  __name(replaceSubplaceJoinButton, "replaceSubplaceJoinButton");
+  __name(getSubplaceJoinTarget, "getSubplaceJoinTarget");
+  var subplaceJoinInterceptorInstalled = !1;
+  function installSubplaceJoinInterceptor() {
+    if (subplaceJoinInterceptorInstalled) return;
+    subplaceJoinInterceptorInstalled = !0;
+    let swallow = /* @__PURE__ */ __name((event) => {
+      getSubplaceJoinTarget(event) && event.stopImmediatePropagation();
+    }, "swallow"), onClick2 = /* @__PURE__ */ __name((event) => {
+      let joinTarget = getSubplaceJoinTarget(event);
+      joinTarget && (event.preventDefault(), event.stopImmediatePropagation(), launchGame(joinTarget.placeId, joinTarget.serverId));
+    }, "onClick");
+    for (let type of ["pointerdown", "pointerup", "mousedown", "mouseup"])
+      window.addEventListener(type, swallow, !0);
+    window.addEventListener("click", onClick2, !0);
+  }
+  __name(installSubplaceJoinInterceptor, "installSubplaceJoinInterceptor");
   async function loadServerIpMap() {
     try {
       typeof loadDatacenterMap == "function" && await loadDatacenterMap(), _state.serverIpMap = serverIpMap;
@@ -115551,7 +118197,9 @@ void main() {
   __name(loadServerIpMap, "loadServerIpMap");
   function processUptimeBatch() {
     if (_state.uptimeBatch.size === 0) return;
-    let placeId = window.location.pathname.match(/\/games\/(\d+)(?:\/|$)/)?.[1];
+    let placeId = window.location.pathname.match(
+      /\/games\/(\d+)(?:\/|$)/
+    )?.[1];
     if (!placeId) return;
     let batch = Array.from(_state.uptimeBatch);
     _state.uptimeBatch.clear();
@@ -115568,55 +118216,17 @@ void main() {
     }
   }
   __name(processUptimeBatch, "processUptimeBatch");
-  async function getReactServerId(element) {
-    return new Promise((resolve) => {
-      let extractionId = Math.random().toString(36).substring(2, 15);
-      element.setAttribute("data-rovalra-extraction-id", extractionId);
-      let listener = /* @__PURE__ */ __name((event) => {
-        if (event.detail.extractionId === extractionId) {
-          window.removeEventListener(
-            "rovalra-serverid-extracted",
-            listener
-          );
-          let {
-            serverId,
-            privateServerId,
-            accessCode,
-            isFriendServer,
-            isOwner
-          } = event.detail;
-          serverId && element.setAttribute("data-rovalra-serverid", serverId), privateServerId && element.setAttribute(
-            "data-private-server-id",
-            privateServerId
-          ), accessCode && element.setAttribute("data-access-code", accessCode), element.setAttribute(
-            "data-rovalra-is-friend-server",
-            String(!!isFriendServer)
-          ), element.setAttribute(
-            "data-rovalra-is-owner",
-            String(!!isOwner)
-          ), resolve(event.detail);
-        }
-      }, "listener");
-      window.addEventListener("rovalra-serverid-extracted", listener), window.dispatchEvent(
-        new CustomEvent("rovalra-extract-serverid-request", {
-          detail: { extractionId }
-        })
-      ), setTimeout(() => {
-        window.removeEventListener("rovalra-serverid-extracted", listener), resolve(null);
-      }, 1e3);
-    });
-  }
-  __name(getReactServerId, "getReactServerId");
-  function addModernShareButton(el3) {
-    let btnContainer = el3.querySelector(
+  function addModernShareButton(el4) {
+    let btnContainer = el4.querySelector(
       ".flex.items-center.gap-small.grow-0.shrink-0.basis-auto"
     );
     if (!btnContainer || btnContainer.querySelector(".rovalra-share-btn"))
       return;
     let nativeJoinBtn = btnContainer.querySelector("button");
     nativeJoinBtn && nativeJoinBtn.setAttribute("data-rovalra-join-button", "true");
-    let serverId = el3.getAttribute("data-rovalra-serverid"), privateServerId = el3.getAttribute("data-private-server-id"), placeId = getPlaceIdFromUrl();
-    if (!placeId || !serverId || privateServerId) return;
+    let privateServerId = el4.getAttribute("data-private-server-id"), placeId = getPlaceIdFromUrl();
+    if (!placeId || !el4.getAttribute("data-rovalra-serverid") || privateServerId)
+      return;
     btnContainer.className = "flex flex-col items-center gap-xsmall grow-0 shrink-0 basis-auto";
     let shareBtnWrapper = document.createElement("div");
     shareBtnWrapper.className = "width-[63px] large:width-[200px] rovalra-share-btn-container", shareBtnWrapper.innerHTML = purify.sanitize(`
@@ -115630,7 +118240,7 @@ void main() {
     let shareBtn = shareBtnWrapper.querySelector("button");
     shareBtn.onclick = async (e) => {
       e.stopPropagation();
-      let joinLink = `https://www.roblox.com/games/start?placeId=${placeId}&gameInstanceId=${serverId}`;
+      let serverId = el4.getAttribute("data-rovalra-serverid"), joinLink = `https://www.roblox.com/games/start?placeId=${placeId}&gameInstanceId=${serverId}`;
       joinLink && navigator.clipboard.writeText(joinLink).then(async () => {
         let span = shareBtn.querySelector(".text-no-wrap"), originalText = span.textContent;
         span.textContent = await t2("localizationFallbacks.serverCopied"), setTimeout(() => {
@@ -115642,18 +118252,10 @@ void main() {
   __name(addModernShareButton, "addModernShareButton");
   async function refreshPrivateServerGrid() {
     let serverListEnabled = await settings.ServerlistmodificationsEnabled, gridEnabled = await settings.PrivateServerGridEnabled, enabled10 = serverListEnabled !== !1 && gridEnabled === !0;
-    if (document.querySelectorAll(
-      ".rovalra-private-server-grid"
-    ).forEach((container) => {
-      container.classList.remove(
-        "rovalra-private-server-grid"
-      );
-    }), document.querySelectorAll(
-      ".rovalra-private-server-grid-card"
-    ).forEach((card) => {
-      card.classList.remove(
-        "rovalra-private-server-grid-card"
-      );
+    if (document.querySelectorAll(".rovalra-private-server-grid").forEach((container) => {
+      container.classList.remove("rovalra-private-server-grid");
+    }), document.querySelectorAll(".rovalra-private-server-grid-card").forEach((card2) => {
+      card2.classList.remove("rovalra-private-server-grid-card");
     }), !enabled10)
       return;
     let privateCards = Array.from(
@@ -115664,20 +118266,13 @@ void main() {
         ].join(",")
       )
     ), containers = /* @__PURE__ */ new Map();
-    for (let card of privateCards) {
-      let container = card.parentElement;
-      container && (containers.has(container) || containers.set(
-        container,
-        []
-      ), containers.get(container).push(card));
+    for (let card2 of privateCards) {
+      let container = card2.parentElement;
+      container && (containers.has(container) || containers.set(container, []), containers.get(container).push(card2));
     }
     for (let [container] of containers) {
-      container.classList.add(
-        "rovalra-private-server-grid"
-      );
-      let gridItems = Array.from(
-        container.children
-      ).filter(
+      container.classList.add("rovalra-private-server-grid");
+      let gridItems = Array.from(container.children).filter(
         (child) => child.matches(
           [
             ".flex.items-center.justify-between.padding-y-medium.width-full",
@@ -115686,50 +118281,28 @@ void main() {
         )
       );
       for (let item of gridItems)
-        item.classList.add(
-          "rovalra-private-server-grid-card"
-        );
+        item.classList.add("rovalra-private-server-grid-card");
     }
   }
   __name(refreshPrivateServerGrid, "refreshPrivateServerGrid");
   function initializeEnhancementObserver() {
     let serverSelector = ".rbx-public-game-server-item, .rbx-friends-game-server-item, .flex.items-center.justify-between.padding-y-medium.width-full", uptimeDebounce = null, scheduleUptime = /* @__PURE__ */ __name(() => {
-      clearTimeout(uptimeDebounce), uptimeDebounce = setTimeout(
-        () => processUptimeBatch(),
-        120
-      );
+      clearTimeout(uptimeDebounce), uptimeDebounce = setTimeout(() => processUptimeBatch(), 120);
     }, "scheduleUptime");
     observeElement(
       serverSelector,
-      async (el3) => {
-        let hasId = el3.hasAttribute(
-          "data-rovalra-serverid"
-        ), hasAccess = el3.hasAttribute(
-          "data-access-code"
-        ), hasPrivateId = el3.hasAttribute(
-          "data-private-server-id"
-        );
-        !hasId && !hasAccess && !hasPrivateId && await getReactServerId(el3), el3.hasAttribute(
-          "data-private-server-id"
-        ) && await refreshPrivateServerGrid(), el3.classList.contains(
-          "width-full"
-        ) && el3.classList.contains("flex") && addModernShareButton(el3), await replaceSubplaceJoinButton(el3);
-        let section = el3.closest(
-          ".flex.flex-col.gap-large.width-full"
-        );
+      async (el4) => {
+        await syncServerId(el4), el4.hasAttribute("data-private-server-id") && await refreshPrivateServerGrid(), el4.classList.contains("width-full") && el4.classList.contains("flex") && addModernShareButton(el4), installSubplaceJoinInterceptor(), isCurrentPageSubplace();
+        let section = el4.closest(".flex.flex-col.gap-large.width-full");
         if (section) {
-          section.classList.add(
-            "rovalra-modern-ui"
-          );
+          section.classList.add("rovalra-modern-ui");
           let mainWrapper = section.closest(
             ".flex.flex-col.padding-x-large.width-full"
           ) || section.parentElement;
-          mainWrapper && mainWrapper.classList.add(
-            "rovalra-modern-container"
-          );
+          mainWrapper && mainWrapper.classList.add("rovalra-modern-container");
         }
         try {
-          enhanceServer(el3, {
+          enhanceServer(el4, {
             serverDataCache: _state.serverDataCache,
             serverLocations: _state.serverLocations,
             serverStatuses: _state.serverStatuses,
@@ -115812,8 +118385,7 @@ void main() {
   }
   async function createServerCardFromRobloxApi(server, placeId, options = {}) {
     try {
-      if (!document.getElementById("rbx-public-game-server-item-container") && !!document.querySelector(".rovalra-modern-ui"))
-        return createModernServerCard(server, placeId, options);
+      if (!document.getElementById("rbx-public-game-server-item-container") && !!document.querySelector(".rovalra-modern-ui")) return createModernServerCard(server, placeId, options);
       let listItemClass = "rbx-public-game-server-item col-md-3 col-sm-4 col-xs-6", serverItem = document.createElement("li");
       serverItem.className = listItemClass;
       let serverId = server.id || server.server_id || "";
@@ -115852,8 +118424,7 @@ void main() {
   __name(createServerCardFromRobloxApi, "createServerCardFromRobloxApi");
   async function createServerCardFromApi(server, placeId = "", options = {}) {
     try {
-      if (!document.getElementById("rbx-public-game-server-item-container") && !!document.querySelector(".rovalra-modern-ui"))
-        return createModernServerCard(server, placeId, options);
+      if (!document.getElementById("rbx-public-game-server-item-container") && !!document.querySelector(".rovalra-modern-ui")) return createModernServerCard(server, placeId, options);
       let listItemClass = "rbx-public-game-server-item col-md-3 col-sm-4 col-xs-6", serverItem = document.createElement("li");
       serverItem.className = listItemClass;
       let serverId = server.server_id || server.id || "";
@@ -115987,11 +118558,11 @@ void main() {
       ".rbx-public-game-server-item .card-item"
     );
     if (serverCards.length < 2) return;
-    serverCards.forEach((card) => card.style.minHeight = "");
+    serverCards.forEach((card2) => card2.style.minHeight = "");
     let maxHeight = 0;
-    serverCards.forEach((card) => {
-      card.offsetHeight > maxHeight && (maxHeight = card.offsetHeight);
-    }), serverCards.forEach((card) => card.style.minHeight = `${maxHeight}px`);
+    serverCards.forEach((card2) => {
+      card2.offsetHeight > maxHeight && (maxHeight = card2.offsetHeight);
+    }), serverCards.forEach((card2) => card2.style.minHeight = `${maxHeight}px`);
   }
   __name(equalizeCardHeights, "equalizeCardHeights");
   function displayMessageInContainer(message, isError = !1) {
@@ -116088,7 +118659,9 @@ void main() {
       let joinLink = `https://www.roblox.com/games/start?placeId=${placeId}&gameInstanceId=${serverId}`;
       navigator.clipboard.writeText(joinLink).then(async () => {
         let span = shareBtn.querySelector(".text-no-wrap"), originalText = span.textContent;
-        span.textContent = await t2("localizationFallbacks.serverCopied"), setTimeout(() => {
+        span.textContent = await t2(
+          "localizationFallbacks.serverCopied"
+        ), setTimeout(() => {
           span.textContent = originalText;
         }, 1e3);
       });
@@ -116375,7 +118948,7 @@ void main() {
         let gridContainer = section.querySelector(".rbx-recent-servers-grid");
         gridContainer || (gridContainer = document.createElement("div"), gridContainer.className = "rbx-recent-servers-grid", section.appendChild(gridContainer)), gridContainer.innerHTML = "", section.querySelectorAll(
           ":scope > .section-content, :scope > .section-content-off"
-        ).forEach((el3) => el3.remove());
+        ).forEach((el4) => el4.remove());
         let spinnerSection = document.createElement("div");
         spinnerSection.style.cssText = "width: 100%; display: flex; justify-content: center; padding: 20px;", spinnerSection.innerHTML = '<span class="spinner spinner-default"></span>', gridContainer.appendChild(spinnerSection);
         let [settings2, userId] = await Promise.all([
@@ -116622,7 +119195,7 @@ void main() {
     playButton && regionButton && observeButtonHeight(regionButton, playButton);
   }
   __name(processContainer, "processContainer");
-  function init77() {
+  function init81() {
     chrome.storage.local.get({ PreferredRegionEnabled: !0 }, (settings2) => {
       settings2.PreferredRegionEnabled && (injectCustomCSS(), observeElement(targetContainerIdSelector, (container) => {
         processContainer(container);
@@ -116636,7 +119209,7 @@ void main() {
       ));
     });
   }
-  __name(init77, "init");
+  __name(init81, "init");
 
   // src/content/features/games/tab/Subplaces.js
   init_thumbnails();
@@ -116651,7 +119224,7 @@ void main() {
   init_getSettings();
   init_assets();
   var PAGE_SIZE = 12, isInitialized8 = !1;
-  async function init78() {
+  async function init82() {
     if (isInitialized8 || await settings.subplacesEnabled !== !0) return;
     isInitialized8 = !0;
     let cleanupByTabContainer = /* @__PURE__ */ new WeakMap(), fetchUniverseId4 = /* @__PURE__ */ __name(async (placeId) => {
@@ -116871,7 +119444,7 @@ void main() {
         div.className = "rovalra-filter-section";
         let labelEl = document.createElement("label");
         return labelEl.textContent = label, div.append(labelEl, element), div;
-      }, "createFilterSection"), filters = { sort: "default", order: "desc" }, sortDropdown = createDropdown({
+      }, "createFilterSection"), filters2 = { sort: "default", order: "desc" }, sortDropdown = createDropdown({
         items: [
           {
             value: "default",
@@ -116889,7 +119462,7 @@ void main() {
         ],
         initialValue: "default",
         onValueChange: /* @__PURE__ */ __name((v2) => {
-          filters.sort = v2, handleSortChange();
+          filters2.sort = v2, handleSortChange();
         }, "onValueChange")
       }), orderDropdown = createDropdown({
         items: [
@@ -116904,7 +119477,7 @@ void main() {
         ],
         initialValue: "desc",
         onValueChange: /* @__PURE__ */ __name((v2) => {
-          filters.order = v2, handleSortChange();
+          filters2.order = v2, handleSortChange();
         }, "onValueChange")
       }), destroyed = !1, removeHashChangeListener = /* @__PURE__ */ __name(() => {
       }, "removeHashChangeListener"), cleanup8 = /* @__PURE__ */ __name(() => {
@@ -116949,8 +119522,8 @@ void main() {
           try {
             let rawSubplaces = await fetchAllSubplaces(universeId), subplaces = sortSubplaces(
               rawSubplaces,
-              filters.sort,
-              filters.order
+              filters2.sort,
+              filters2.order
             );
             subplacesContainer.innerHTML = "";
             let displayedCount = 0, allDisplayed = !1, accurateUpdatedMap = null, displaySubplaces = /* @__PURE__ */ __name(async (gamesToDisplay) => {
@@ -116965,19 +119538,19 @@ void main() {
                   rootPlaceId: subplace.id
                 }, stats = { thumbnails }, version = placeVersions.get(subplace.id), infoParts = [];
                 version && infoParts.push(`v${version.toLocaleString()}`), subplace.isRootPlace && infoParts.push(await t2("subplaces.rootPlace"));
-                let customInfoText = infoParts.length > 0 ? infoParts : null, card = createGameCard({
+                let customInfoText = infoParts.length > 0 ? infoParts : null, card2 = createGameCard({
                   game: gameData,
                   stats,
                   showVotes: !1,
                   showPlayers: !1,
                   customInfoText
                 });
-                card.classList.add(
+                card2.classList.add(
                   "rovalra-subplace-card",
                   "game-card-container"
                 );
-                let nameEl = card.querySelector(".game-card-name");
-                nameEl && (nameEl.dataset.fullName = subplace.name), subplacesContainer.appendChild(card);
+                let nameEl = card2.querySelector(".game-card-name");
+                nameEl && (nameEl.dataset.fullName = subplace.name), subplacesContainer.appendChild(card2);
               }
             }, "displaySubplaces"), loadMore2 = /* @__PURE__ */ __name(async () => {
               let toLoad = subplaces.slice(
@@ -117006,12 +119579,12 @@ void main() {
               await loadMore2(), await applySearchFilter();
             }, "showSubplaces");
             handleSortChange = /* @__PURE__ */ __name(async () => {
-              filters.sort === "updated" && !accurateUpdatedMap && (subplacesContainer.innerHTML = '<div class="spinner spinner-default"></div>', loadMoreWrapper.style.display = "none", accurateUpdatedMap = await fetchAccurateUpdatedTimes(
+              filters2.sort === "updated" && !accurateUpdatedMap && (subplacesContainer.innerHTML = '<div class="spinner spinner-default"></div>', loadMoreWrapper.style.display = "none", accurateUpdatedMap = await fetchAccurateUpdatedTimes(
                 rawSubplaces.map((s) => s.id)
               )), subplaces = sortSubplaces(
                 rawSubplaces,
-                filters.sort,
-                filters.order,
+                filters2.sort,
+                filters2.order,
                 accurateUpdatedMap
               ), displayedCount = 0, allDisplayed = !1, subplacesContainer.innerHTML = "", await showSubplaces();
             }, "handleSortChange"), await showSubplaces(), searchInput.addEventListener("input", applySearchFilter);
@@ -117054,7 +119627,7 @@ void main() {
       }, "onTabContainerRemoved") }
     );
   }
-  __name(init78, "init");
+  __name(init82, "init");
 
   // src/content/features/games/thumbnails/gametrailers.js
   init_observer();
@@ -117132,7 +119705,7 @@ void main() {
     }, { multiple: !0 });
   }
   __name(hijackFirstSlot, "hijackFirstSlot");
-  function init79() {
+  function init83() {
     chrome.storage.local.get(["EnableGameTrailer", "Enableautoplay"], (result) => {
       if (result && result.EnableGameTrailer === !0) {
         let shouldAutoplay = result.Enableautoplay === !0;
@@ -117147,10 +119720,10 @@ void main() {
       }
     });
   }
-  __name(init79, "init");
+  __name(init83, "init");
 
   // src/content/features/games/banner.js
-  function init80() {
+  function init84() {
     chrome.storage.local.get({ EnablebannerTest: !1 }, (settings2) => {
       if (settings2.EnablebannerTest) {
         let checkApi = setInterval(() => {
@@ -117171,7 +119744,7 @@ Markdown test
       }
     });
   }
-  __name(init80, "init");
+  __name(init84, "init");
 
   // src/content/features/games/actions/quickOutfits.js
   init_observer();
@@ -117228,34 +119801,34 @@ Markdown test
         endpoint: `/v3/outfits/${outfitId}/details`
       });
       if (!detailsRes.ok) return detailsRes;
-      let details = await detailsRes.json(), promises = [];
-      return details.bodyColor3s && promises.push(
+      let details2 = await detailsRes.json(), promises = [];
+      return details2.bodyColor3s && promises.push(
         callWithRetry({
           subdomain: "avatar",
           endpoint: "/v2/avatar/set-body-colors",
           method: "POST",
-          body: details.bodyColor3s
+          body: details2.bodyColor3s
         })
-      ), details.assets && promises.push(
+      ), details2.assets && promises.push(
         callWithRetry({
           subdomain: "avatar",
           endpoint: "/v2/avatar/set-wearing-assets",
           method: "POST",
-          body: { assets: details.assets }
+          body: { assets: details2.assets }
         })
-      ), details.playerAvatarType && promises.push(
+      ), details2.playerAvatarType && promises.push(
         callWithRetry({
           subdomain: "avatar",
           endpoint: "/v1/avatar/set-player-avatar-type",
           method: "POST",
-          body: { playerAvatarType: details.playerAvatarType }
+          body: { playerAvatarType: details2.playerAvatarType }
         })
-      ), details.scale && promises.push(
+      ), details2.scale && promises.push(
         callWithRetry({
           subdomain: "avatar",
           endpoint: "/v1/avatar/set-scales",
           method: "POST",
-          body: details.scale
+          body: details2.scale
         })
       ), { ok: (await Promise.all(promises)).every((r) => r.ok) };
     } catch (e) {
@@ -117388,25 +119961,25 @@ Markdown test
         if (paginationContainer.innerHTML = "", totalPages <= 1) return;
         let { leftButton, rightButton } = createScrollButtons({
           onLeftClick: /* @__PURE__ */ __name(() => {
-            currentPage > 0 && (currentPage--, renderPage());
+            currentPage > 0 && (currentPage--, renderPage2());
           }, "onLeftClick"),
           onRightClick: /* @__PURE__ */ __name(() => {
-            currentPage < totalPages - 1 && (currentPage++, renderPage());
+            currentPage < totalPages - 1 && (currentPage++, renderPage2());
           }, "onRightClick")
         });
         currentPage === 0 && (leftButton.style.opacity = "0.5", leftButton.style.cursor = "default"), currentPage === totalPages - 1 && (rightButton.style.opacity = "0.5", rightButton.style.cursor = "default");
         let pageInfo = document.createElement("span");
         pageInfo.textContent = `${currentPage + 1} / ${totalPages}`, pageInfo.style.color = "var(--rovalra-secondary-text-color)", pageInfo.style.fontWeight = "500", paginationContainer.append(leftButton, pageInfo, rightButton);
-      }, "updatePagination"), renderPage = /* @__PURE__ */ __name(() => {
+      }, "updatePagination"), renderPage2 = /* @__PURE__ */ __name(() => {
         gridContainer.innerHTML = "";
         let start = currentPage * itemsPerPage, end = start + itemsPerPage;
         outfits.slice(start, end).forEach((outfit) => {
           let thumbData = thumbnailMap.get(outfit.id);
           !thumbData && isFetchingThumbnails && (thumbData = { state: "Pending" });
-          let card = createOutfitCard2(outfit, thumbData, () => {
+          let card2 = createOutfitCard2(outfit, thumbData, () => {
             close(), showSystemAlert(ts2("quickOutfits.success"));
           });
-          gridContainer.appendChild(card);
+          gridContainer.appendChild(card2);
         }), updatePagination();
       }, "renderPage"), calculateItemsPerPage = /* @__PURE__ */ __name(() => {
         let containerWidth = gridContainer.clientWidth;
@@ -117420,15 +119993,15 @@ Markdown test
         let newItemsPerPage = calculateItemsPerPage();
         if (newItemsPerPage !== itemsPerPage) {
           let firstVisibleItemIndex = currentPage * itemsPerPage;
-          itemsPerPage = newItemsPerPage, totalPages = Math.ceil(outfits.length / itemsPerPage), currentPage = Math.floor(firstVisibleItemIndex / itemsPerPage), currentPage >= totalPages && (currentPage = Math.max(0, totalPages - 1)), renderPage();
+          itemsPerPage = newItemsPerPage, totalPages = Math.ceil(outfits.length / itemsPerPage), currentPage = Math.floor(firstVisibleItemIndex / itemsPerPage), currentPage >= totalPages && (currentPage = Math.max(0, totalPages - 1)), renderPage2();
         }
-      }), resizeObserver.observe(gridContainer), renderPage();
+      }), resizeObserver.observe(gridContainer), renderPage2();
       let outfitIds = outfits.map((o) => ({ id: o.id }));
       thumbnailMap = await fetchThumbnails(
         outfitIds,
         "Outfit",
         "150x150"
-      ), isFetchingThumbnails = !1, renderPage();
+      ), isFetchingThumbnails = !1, renderPage2();
     } catch (e) {
       console.error(e), gridContainer.innerHTML = purify.sanitize(
         `<div style="padding: 20px; color: red;">${await t2("quickOutfits.errorFetching")}</div>`
@@ -117454,12 +120027,12 @@ Markdown test
     ), svg2.appendChild(path), button.appendChild(svg2), addTooltip(button, ts2("quickOutfits.title")), buttonContainer.appendChild(button), addQuickAction(container, buttonContainer);
   }
   __name(addQuickOutfitsButton, "addQuickOutfitsButton");
-  function init81() {
+  function init85() {
     chrome.storage.local.get("QuickOutfitsEnabled", (data) => {
       data.QuickOutfitsEnabled && observeElement(".game-calls-to-action", addQuickOutfitsButton);
     });
   }
-  __name(init81, "init");
+  __name(init85, "init");
 
   // src/content/features/games/tab/DevProducts.js
   init_api();
@@ -117470,8 +120043,8 @@ Markdown test
   init_thumbnails();
   init_i18n();
   function createDevProductCard({ id, name, price, thumbnail, universeId }) {
-    let card = document.createElement("li");
-    card.className = "list-item store-card", card.style.margin = "0 8.5px 20px 0";
+    let card2 = document.createElement("li");
+    card2.className = "list-item store-card", card2.style.margin = "0 8.5px 20px 0";
     let container = document.createElement("div");
     container.className = "store-card-container";
     let link = document.createElement("a");
@@ -117480,8 +120053,8 @@ Markdown test
     thumbContainer.className = "store-card-thumb-container", thumbContainer.style.position = "relative", thumbContainer.style.width = "100%", thumbContainer.style.paddingBottom = "100%";
     let thumb = createThumbnailElement(thumbnail, name, "store-card-thumb");
     thumb.style.position = "absolute", thumb.style.top = "0", thumb.style.left = "0", thumb.style.width = "100%", thumb.style.height = "100%", thumbContainer.appendChild(thumb);
-    let details = document.createElement("div");
-    details.className = "store-card-caption", details.style.textAlign = "left", details.style.position = "relative", details.style.zIndex = "1";
+    let details2 = document.createElement("div");
+    details2.className = "store-card-caption", details2.style.textAlign = "left", details2.style.position = "relative", details2.style.zIndex = "1";
     let nameDiv = document.createElement("div");
     nameDiv.className = "store-card-name", nameDiv.textContent = name || ts2("common.unnamedProduct"), nameDiv.title = name || "Unnamed Product", nameDiv.style.display = "-webkit-box", nameDiv.style.webkitLineClamp = "2", nameDiv.style.setProperty("-webkit-box-orient", "vertical"), nameDiv.style.overflow = "hidden", nameDiv.style.textAlign = "left", nameDiv.style.minHeight = "2.6em", nameDiv.style.lineHeight = "1.3em";
     let priceContainer = document.createElement("div");
@@ -117489,7 +120062,7 @@ Markdown test
     let icon = document.createElement("span");
     icon.className = "icon-robux-16x16";
     let priceSpan = document.createElement("span");
-    return priceSpan.className = "text-robux", priceSpan.textContent = price !== null ? price : ts2("common.offSale"), priceContainer.appendChild(icon), priceContainer.appendChild(priceSpan), details.appendChild(nameDiv), details.appendChild(priceContainer), link.appendChild(thumbContainer), link.appendChild(details), container.appendChild(link), card.appendChild(container), card;
+    return priceSpan.className = "text-robux", priceSpan.textContent = price !== null ? price : ts2("common.offSale"), priceContainer.appendChild(icon), priceContainer.appendChild(priceSpan), details2.appendChild(nameDiv), details2.appendChild(priceContainer), link.appendChild(thumbContainer), link.appendChild(details2), container.appendChild(link), card2.appendChild(container), card2;
   }
   __name(createDevProductCard, "createDevProductCard");
 
@@ -118015,8 +120588,8 @@ Markdown test
   }
   __name(getAllCategory, "getAllCategory");
   function createRobuxShopCard(item, thumbnailMap) {
-    let card = document.createElement("a");
-    card.className = "rovalra-shop-card bg-shift-200", card.href = item.href || "#", card.setAttribute("role", "listitem");
+    let card2 = document.createElement("a");
+    card2.className = "rovalra-shop-card bg-shift-200", card2.href = item.href || "#", card2.setAttribute("role", "listitem");
     let cardInfo = document.createElement("div");
     cardInfo.className = "rovalra-shop-card-info";
     let thumbSection = document.createElement("div");
@@ -118077,14 +120650,14 @@ Markdown test
     }
     textSection.append(title, description, price), cardInfo.append(thumbSection, textSection);
     let button = document.createElement("span");
-    return button.className = "rovalra-shop-card-button", button.textContent = ts2("privateGames.products.buy"), card.append(cardInfo, button), card;
+    return button.className = "rovalra-shop-card-button", button.textContent = ts2("privateGames.products.buy"), card2.append(cardInfo, button), card2;
   }
   __name(createRobuxShopCard, "createRobuxShopCard");
   function createRobuxShimmerGrid(count = 4) {
     let fragment2 = document.createDocumentFragment();
     for (let i2 = 0; i2 < count; i2++) {
-      let card = document.createElement("div");
-      card.className = "rovalra-shop-card rovalra-shop-shimmer-card";
+      let card2 = document.createElement("div");
+      card2.className = "rovalra-shop-card rovalra-shop-shimmer-card";
       let row = document.createElement("div");
       row.className = "rovalra-shop-card-info";
       let thumb = document.createElement("div");
@@ -118098,7 +120671,7 @@ Markdown test
       let price = document.createElement("div");
       price.className = "thumbnail-2d-container shimmer", price.style.cssText = "width: 45%; height: 12px; margin-top: 8px; border-radius: 4px;";
       let button = document.createElement("div");
-      button.className = "thumbnail-2d-container shimmer", button.style.cssText = "width: 100%; height: 40px; border-radius: 8px;", text3.append(title, description, price), row.append(thumb, text3), card.append(row, button), fragment2.appendChild(card);
+      button.className = "thumbnail-2d-container shimmer", button.style.cssText = "width: 100%; height: 40px; border-radius: 8px;", text3.append(title, description, price), row.append(thumb, text3), card2.append(row, button), fragment2.appendChild(card2);
     }
     return fragment2;
   }
@@ -118142,20 +120715,20 @@ Markdown test
     for (let i2 = 0; i2 < count; i2++) {
       let li = document.createElement("li");
       li.className = "list-item";
-      let card = document.createElement("div");
-      card.className = "store-card";
+      let card2 = document.createElement("div");
+      card2.className = "store-card";
       let thumb = document.createElement("div");
       thumb.className = "thumbnail-2d-container shimmer store-card-image", thumb.style.borderRadius = "8px";
       let name = document.createElement("div");
       name.className = "thumbnail-2d-container shimmer", name.style.cssText = "width: 90%; height: 14px; margin-top: 8px; border-radius: 4px;";
       let price = document.createElement("div");
-      price.className = "thumbnail-2d-container shimmer", price.style.cssText = "width: 55%; height: 14px; margin-top: 8px; border-radius: 4px;", card.append(thumb, name, price), li.appendChild(card), fragment2.appendChild(li);
+      price.className = "thumbnail-2d-container shimmer", price.style.cssText = "width: 55%; height: 14px; margin-top: 8px; border-radius: 4px;", card2.append(thumb, name, price), li.appendChild(card2), fragment2.appendChild(li);
     }
     return fragment2;
   }
   __name(createStoreShimmerGrid, "createStoreShimmerGrid");
   function createAutoBuyGamePassCard(item) {
-    let card = createGamePassCard(item.raw || item), buyButton = card.querySelector("button");
+    let card2 = createGamePassCard(item.raw || item), buyButton = card2.querySelector("button");
     return buyButton && buyButton.addEventListener(
       "click",
       (event) => {
@@ -118165,7 +120738,7 @@ Markdown test
         );
       },
       !0
-    ), card;
+    ), card2;
   }
   __name(createAutoBuyGamePassCard, "createAutoBuyGamePassCard");
   function setSectionVisible(section, visible) {
@@ -118349,16 +120922,16 @@ Markdown test
       if (totalPages <= 1) return;
       let { leftButton, rightButton } = createScrollButtons({
         onLeftClick: /* @__PURE__ */ __name(() => {
-          currentPage > 0 && (currentPage--, renderPage());
+          currentPage > 0 && (currentPage--, renderPage2());
         }, "onLeftClick"),
         onRightClick: /* @__PURE__ */ __name(() => {
-          currentPage < totalPages - 1 && (currentPage++, renderPage());
+          currentPage < totalPages - 1 && (currentPage++, renderPage2());
         }, "onRightClick")
       });
       currentPage === 0 && (leftButton.style.opacity = "0.5", leftButton.style.cursor = "default"), currentPage >= totalPages - 1 && (rightButton.style.opacity = "0.5", rightButton.style.cursor = "default");
       let pageInfo = document.createElement("span");
       pageInfo.textContent = `${currentPage + 1} / ${totalPages}`, pageInfo.className = "text-secondary", pageInfo.style.fontWeight = "500", paginationContainer.appendChild(leftButton), paginationContainer.appendChild(pageInfo), paginationContainer.appendChild(rightButton);
-    }, "updatePaginationControls"), renderPage = /* @__PURE__ */ __name(async () => {
+    }, "updatePaginationControls"), renderPage2 = /* @__PURE__ */ __name(async () => {
       let currentRenderId = ++renderId;
       devProductsList.innerHTML = "";
       let start = currentPage * ITEMS_PER_PAGE2, end = start + ITEMS_PER_PAGE2, pageItems = currentSortedItems.slice(start, end), cardMap = /* @__PURE__ */ new Map();
@@ -118367,14 +120940,14 @@ Markdown test
         hasIcon && globalThumbnailMap.has(product.IconImageAssetId) && (thumbnailData = globalThumbnailMap.get(
           product.IconImageAssetId
         ));
-        let card = createDevProductCard({
+        let card2 = createDevProductCard({
           id: product.ProductId,
           name: product.Name,
           price: product.PriceInRobux,
           thumbnail: thumbnailData,
           universeId
         });
-        devProductsList.appendChild(card), cardMap.set(product.ProductId, card);
+        devProductsList.appendChild(card2), cardMap.set(product.ProductId, card2);
       }), updatePaginationControls();
       let productsToFetch = pageItems.filter(
         (p2) => p2.IconImageAssetId > 0 && !globalThumbnailMap.has(p2.IconImageAssetId)
@@ -118404,7 +120977,7 @@ Markdown test
         }
       });
     }, "renderPage"), renderProducts = /* @__PURE__ */ __name((items) => {
-      currentSortedItems = items, currentPage = 0, renderPage();
+      currentSortedItems = items, currentPage = 0, renderPage2();
     }, "renderProducts");
     gamePassesContainer.appendChild(devProductsList), gamePassesContainer.appendChild(paginationContainer), headerContainer.innerHTML = "";
     let controlsDiv = document.createElement("div");
@@ -118522,7 +121095,7 @@ Markdown test
     updateTabState("passes"), controlsDiv.appendChild(toggle), headerContainer.appendChild(controlsDiv), headerContainer.appendChild(filterWrapper);
   }
   __name(loadAndRenderProducts, "loadAndRenderProducts");
-  async function init82() {
+  async function init86() {
     let [devProductsEnabled, shopWidgetsEnabled] = await Promise.all([
       settings.EnableDevProducts,
       settings.shopWidgetsEnabled
@@ -118542,7 +121115,7 @@ Markdown test
       );
     });
   }
-  __name(init82, "init");
+  __name(init86, "init");
 
   // src/content/features/games/DeveloperProductsSection.js
   init_api();
@@ -118579,7 +121152,7 @@ Markdown test
     return products;
   }
   __name(fetchDeveloperProducts2, "fetchDeveloperProducts");
-  function injectStyles4() {
+  function injectStyles5() {
     if (document.getElementById("rovalra-developer-products-section-style"))
       return;
     let style = document.createElement("style");
@@ -118669,28 +121242,28 @@ Markdown test
         }
     `, document.head.appendChild(style);
   }
-  __name(injectStyles4, "injectStyles");
+  __name(injectStyles5, "injectStyles");
   function createStatus(message, className = "section-content-off") {
     let status = document.createElement("div");
     return status.className = `rovalra-products-section-status ${className}`, status.textContent = message, status;
   }
   __name(createStatus, "createStatus");
   function createAutoBuyProductCard(product, thumbnail, universeId) {
-    let card = createDevProductCard({
+    let card2 = createDevProductCard({
       id: product.ProductId,
       name: product.Name,
       price: product.PriceInRobux,
       thumbnail,
       universeId
-    }), container = card.querySelector(".store-card-container");
-    if (!container) return card;
+    }), container = card2.querySelector(".store-card-container");
+    if (!container) return card2;
     let buyButton = document.createElement("button");
     return buyButton.type = "button", buyButton.className = "rovalra-products-section-buy PurchaseButton btn-buy-md btn-full-width rbx-gear-passes-purchase btn-primary-md btn-min-width", buyButton.dataset.productId = product.ProductId, buyButton.dataset.itemId = product.ProductId, buyButton.dataset.itemName = product.Name || ts2("common.unnamedProduct"), buyButton.dataset.expectedPrice = product.PriceInRobux ?? "", buyButton.dataset.assetType = "Developer Product", buyButton.textContent = ts2("privateGames.products.buy"), buyButton.addEventListener("click", (event) => {
       event.preventDefault(), event.stopPropagation(), window.open(
         `https://www.roblox.com/developer-product/${universeId}/product/${product.ProductId}?RoValra-Auto-Buy`,
         "_blank"
       );
-    }), container.appendChild(buyButton), card;
+    }), container.appendChild(buyButton), card2;
   }
   __name(createAutoBuyProductCard, "createAutoBuyProductCard");
   function sortDeveloperProducts(products, field, order, searchTerm) {
@@ -118719,7 +121292,7 @@ Markdown test
   }
   __name(sortDeveloperProducts, "sortDeveloperProducts");
   async function renderProductsPage(content, placeId) {
-    injectStyles4(), content.innerHTML = "";
+    injectStyles5(), content.innerHTML = "";
     let section = document.createElement("div");
     section.className = "rovalra-products-section";
     let loading2 = createStatus("", "section-content"), spinner = document.createElement("div");
@@ -118808,12 +121381,12 @@ Markdown test
         currentPage * ITEMS_PER_PAGE + ITEMS_PER_PAGE
       ), cardMap = /* @__PURE__ */ new Map();
       pageItems.forEach((product) => {
-        let assetId = Number(product.IconImageAssetId) || 0, thumbnail = assetId > 0 && thumbnailMap.has(assetId) ? thumbnailMap.get(assetId) : { state: assetId > 0 ? "Pending" : "Broken" }, card = createAutoBuyProductCard(
+        let assetId = Number(product.IconImageAssetId) || 0, thumbnail = assetId > 0 && thumbnailMap.has(assetId) ? thumbnailMap.get(assetId) : { state: assetId > 0 ? "Pending" : "Broken" }, card2 = createAutoBuyProductCard(
           product,
           thumbnail,
           universeId
         );
-        list.appendChild(card), cardMap.set(product.ProductId, card);
+        list.appendChild(card2), cardMap.set(product.ProductId, card2);
       }), updatePagination();
       let productsToFetch = pageItems.filter((product) => {
         let assetId = Number(product.IconImageAssetId) || 0;
@@ -118848,7 +121421,7 @@ Markdown test
     }), renderCurrentPage();
   }
   __name(renderProductsPage, "renderProductsPage");
-  function init83() {
+  function init87() {
     let placeId = getProductsSectionPlaceId();
     placeId && (currentPlaceId === placeId && document.querySelector(".rovalra-products-section") || (currentPlaceId = placeId, observeElement(".content#content, #content", (content) => {
       getProductsSectionPlaceId() === placeId && renderProductsPage(content, placeId).catch((error3) => {
@@ -118861,7 +121434,7 @@ Markdown test
       });
     })));
   }
-  __name(init83, "init");
+  __name(init87, "init");
 
   // src/content/features/games/developerProductAutoBuy.js
   init_observer();
@@ -118888,7 +121461,7 @@ Markdown test
     );
   }
   __name(clickWhenReady, "clickWhenReady");
-  function init84() {
+  function init88() {
     if (!window.location.pathname.includes("/developer-product/") || !window.location.search.includes("RoValra-Auto-Buy"))
       return;
     let productId = getDeveloperProductIdFromUrl(), runAutoBuy = /* @__PURE__ */ __name(() => {
@@ -118900,7 +121473,7 @@ Markdown test
     }, "runAutoBuy");
     document.readyState === "complete" ? runAutoBuy() : window.addEventListener("load", runAutoBuy, { once: !0 });
   }
-  __name(init84, "init");
+  __name(init88, "init");
 
   // src/content/features/games/btrDonationWarning.js
   init_confirmationPrompt();
@@ -118924,7 +121497,7 @@ Markdown test
     }));
   }
   __name(showBtrWarning, "showBtrWarning");
-  function init85() {
+  function init89() {
     showBtrWarning();
     let html2 = document.documentElement;
     if (!html2 || observerStarted) return;
@@ -118937,7 +121510,7 @@ Markdown test
       attributeFilter: ["btr-loaded"]
     });
   }
-  __name(init85, "init");
+  __name(init89, "init");
 
   // src/content/features/games/tab/updateHistory.js
   init_observer();
@@ -119181,7 +121754,7 @@ Markdown test
   // src/content/features/games/tab/updateHistory.js
   init_i18n();
   init_games();
-  function init86() {
+  function init90() {
     chrome.storage.local.get({ updateHistoryEnabled: !1 }, (settings2) => {
       settings2.updateHistoryEnabled && observeElement(
         "#horizontal-tabs",
@@ -119219,7 +121792,7 @@ Markdown test
       );
     });
   }
-  __name(init86, "init");
+  __name(init90, "init");
   async function loadAndRenderHeatmap(placeId, parentElement) {
     let container = document.createElement("div");
     container.style.position = "relative", parentElement.appendChild(container);
@@ -119319,7 +121892,7 @@ Markdown test
   init_idExtractor();
   init_i18n();
   var isTotalSpentGamesInitialized = !1;
-  function init87() {
+  function init91() {
     isTotalSpentGamesInitialized || (isTotalSpentGamesInitialized = !0, observeElement(
       "#rbx-game-passes, #roseal-game-passes",
       async (container) => {
@@ -119365,7 +121938,7 @@ Markdown test
       }
     ));
   }
-  __name(init87, "init");
+  __name(init91, "init");
 
   // src/content/features/games/underReviewPill.js
   init_games();
@@ -119453,7 +122026,7 @@ Markdown test
     (await getUniverseEligibility(universeId))?.underReview === !0 ? insertUnderReviewPill(container) : removeExistingPill(container);
   }
   __name(updateUnderReviewPill, "updateUnderReviewPill");
-  function init88() {
+  function init92() {
     let currentContainer = document.querySelector(CAROUSEL_SELECTOR);
     currentContainer && updateUnderReviewPill(currentContainer), !observerInitialized2 && (observerInitialized2 = !0, observeElement(CAROUSEL_SELECTOR, updateUnderReviewPill), observeElement(ACTIONS_SELECTOR, () => {
       let container = document.querySelector(CAROUSEL_SELECTOR);
@@ -119463,7 +122036,7 @@ Markdown test
       container && updateUnderReviewPill(container);
     }));
   }
-  __name(init88, "init");
+  __name(init92, "init");
 
   // src/content/features/transactions/totalspent.js
   init_review();
@@ -119961,7 +122534,7 @@ Markdown test
     ), container.appendChild(totalSpentButton);
   }
   __name(onElementFound, "onElementFound");
-  function init89() {
+  function init93() {
     chrome.storage.local.get("totalspentEnabled", (result) => {
       result.totalspentEnabled && observeElement(
         ".dropdown-container.container-header",
@@ -119969,7 +122542,7 @@ Markdown test
       );
     });
   }
-  __name(init89, "init");
+  __name(init93, "init");
 
   // src/content/features/transactions/spentPerGame.js
   init_observer();
@@ -119991,15 +122564,15 @@ Markdown test
   __name(loadGameSpending, "loadGameSpending");
   async function loadGameDetails(games3) {
     if (games3 = Array.isArray(games3) ? games3 : [], !games3.length) return [];
-    let details = [];
+    let details2 = [];
     for (let index = 0; index < games3.length; index += 50) {
       let batch = games3.slice(index, index + 50), batchDetails = await getUniversesDetails(
         batch.map((game) => game.id)
       );
-      details.push(...Array.isArray(batchDetails) ? batchDetails : []);
+      details2.push(...Array.isArray(batchDetails) ? batchDetails : []);
     }
     let detailsByUniverseId = new Map(
-      details.map((game) => [String(game.id), game])
+      details2.map((game) => [String(game.id), game])
     );
     return games3.flatMap((game) => {
       let gameDetails = detailsByUniverseId.get(String(game.id));
@@ -120037,13 +122610,13 @@ Markdown test
         borderRadius: "6px"
       });
       thumbnail.style.flex = "0 0 42px";
-      let details = document.createElement("div");
-      details.style.display = "grid", details.style.gap = "6px", details.style.minWidth = "0", details.style.flex = "1", details.append(
+      let details2 = document.createElement("div");
+      details2.style.display = "grid", details2.style.gap = "6px", details2.style.minWidth = "0", details2.style.flex = "1", details2.append(
         createShimmerBlock({ width: "65%", height: "14px" }),
         createShimmerBlock({ width: "35%", height: "12px" })
       );
       let amount = createShimmerBlock({ width: "58px", height: "16px" });
-      item.append(thumbnail, details, amount), list.appendChild(item);
+      item.append(thumbnail, details2, amount), list.appendChild(item);
     }
     return list;
   }
@@ -120086,16 +122659,16 @@ Markdown test
           flex: "0 0 42px",
           borderRadius: "6px"
         }
-      ), details = document.createElement("div");
-      details.style.minWidth = "0", details.style.flex = "1";
+      ), details2 = document.createElement("div");
+      details2.style.minWidth = "0", details2.style.flex = "1";
       let name = document.createElement("div");
       name.textContent = game.name, name.style.overflow = "hidden", name.style.textOverflow = "ellipsis", name.style.whiteSpace = "nowrap";
       let count = document.createElement("span");
       count.style.fontSize = "12px", count.style.opacity = "0.7", count.textContent = game.totalTransactions === 1 ? ts2("spentPerGame.singlePurchase") : ts2("spentPerGame.multiplePurchases", {
         count: game.totalTransactions
-      }), details.append(name, count);
+      }), details2.append(name, count);
       let gameLink = document.createElement("a");
-      gameLink.href = `https://www.roblox.com/games/${encodeURIComponent(game.id)}`, gameLink.target = "_blank", gameLink.rel = "noopener noreferrer", gameLink.style.display = "flex", gameLink.style.alignItems = "center", gameLink.style.gap = "10px", gameLink.style.minWidth = "0", gameLink.style.flex = "1", gameLink.style.color = "inherit", gameLink.style.textDecoration = "none", gameLink.append(thumbnail, details), item.append(gameLink, createAmountElement(game.totalSpent)), list.appendChild(item);
+      gameLink.href = `https://www.roblox.com/games/${encodeURIComponent(game.id)}`, gameLink.target = "_blank", gameLink.rel = "noopener noreferrer", gameLink.style.display = "flex", gameLink.style.alignItems = "center", gameLink.style.gap = "10px", gameLink.style.minWidth = "0", gameLink.style.flex = "1", gameLink.style.color = "inherit", gameLink.style.textDecoration = "none", gameLink.append(thumbnail, details2), item.append(gameLink, createAmountElement(game.totalSpent)), list.appendChild(item);
     }
     if (container.replaceChildren(), container.appendChild(list), visibleCount < totalGameCount) {
       let loadMore2 = createProfileHeaderButton({
@@ -120207,10 +122780,10 @@ Markdown test
     table && addSpentPerGameSection(table);
   }
   __name(processSummary, "processSummary");
-  async function init90() {
+  async function init94() {
     await settings.spentPerGameEnabled && observeElement(ROW_SELECTOR2, processSummary, { multiple: !0 });
   }
-  __name(init90, "init");
+  __name(init94, "init");
 
   // src/content/features/transactions/spentPerCreator.js
   init_observer();
@@ -120262,11 +122835,11 @@ Markdown test
       item.style.display = "flex", item.style.alignItems = "center", item.style.gap = "10px", item.style.minHeight = "50px";
       let thumbnail = createShimmerBlock({ width: "42px", height: "42px", borderRadius: "6px" });
       thumbnail.style.flex = "0 0 42px";
-      let details = document.createElement("div");
-      details.style.display = "grid", details.style.gap = "6px", details.style.minWidth = "0", details.style.flex = "1", details.append(
+      let details2 = document.createElement("div");
+      details2.style.display = "grid", details2.style.gap = "6px", details2.style.minWidth = "0", details2.style.flex = "1", details2.append(
         createShimmerBlock({ width: "65%", height: "14px" }),
         createShimmerBlock({ width: "35%", height: "12px" })
-      ), item.append(thumbnail, details, createShimmerBlock({ width: "58px", height: "16px" })), list.appendChild(item);
+      ), item.append(thumbnail, details2, createShimmerBlock({ width: "58px", height: "16px" })), list.appendChild(item);
     }
     return list;
   }
@@ -120297,14 +122870,14 @@ Markdown test
         creator.name,
         "rovalra-spent-creator-thumbnail",
         { width: "42px", height: "42px", flex: "0 0 42px", borderRadius: "6px" }
-      ), details = document.createElement("div");
-      details.style.minWidth = "0", details.style.flex = "1";
+      ), details2 = document.createElement("div");
+      details2.style.minWidth = "0", details2.style.flex = "1";
       let name = document.createElement("div");
       name.textContent = creator.name || ts2("spentPerCreator.unknownCreator"), name.style.overflow = "hidden", name.style.textOverflow = "ellipsis", name.style.whiteSpace = "nowrap";
       let count = document.createElement("span");
-      count.style.fontSize = "12px", count.style.opacity = "0.7", count.textContent = creator.totalTransactions === 1 ? ts2("spentPerCreator.singlePurchase") : ts2("spentPerCreator.multiplePurchases", { count: creator.totalTransactions }), details.append(name, count);
+      count.style.fontSize = "12px", count.style.opacity = "0.7", count.textContent = creator.totalTransactions === 1 ? ts2("spentPerCreator.singlePurchase") : ts2("spentPerCreator.multiplePurchases", { count: creator.totalTransactions }), details2.append(name, count);
       let link = document.createElement("a");
-      link.href = isGroup ? `https://www.roblox.com/groups/${encodeURIComponent(creator.id)}/-` : `https://www.roblox.com/users/${encodeURIComponent(creator.id)}/profile`, link.target = "_blank", link.rel = "noopener noreferrer", link.style.display = "flex", link.style.alignItems = "center", link.style.gap = "10px", link.style.minWidth = "0", link.style.flex = "1", link.style.color = "inherit", link.style.textDecoration = "none", link.append(thumbnail, details);
+      link.href = isGroup ? `https://www.roblox.com/groups/${encodeURIComponent(creator.id)}/-` : `https://www.roblox.com/users/${encodeURIComponent(creator.id)}/profile`, link.target = "_blank", link.rel = "noopener noreferrer", link.style.display = "flex", link.style.alignItems = "center", link.style.gap = "10px", link.style.minWidth = "0", link.style.flex = "1", link.style.color = "inherit", link.style.textDecoration = "none", link.append(thumbnail, details2);
       let item = document.createElement("div");
       item.style.display = "flex", item.style.alignItems = "center", item.style.gap = "10px", item.style.minHeight = "50px", item.append(link, createAmountElement2(creator.totalSpent)), list.appendChild(item);
     }
@@ -120406,10 +122979,10 @@ Markdown test
     table && addSection(table);
   }
   __name(processSummary2, "processSummary");
-  async function init91() {
+  async function init95() {
     await settings.spentPerCreatorEnabled && observeElement(ROW_SELECTOR3, processSummary2, { multiple: !0 });
   }
-  __name(init91, "init");
+  __name(init95, "init");
 
   // src/content/features/transactions/pendingRobuxTrans.js
   init_observer();
@@ -120655,7 +123228,7 @@ Markdown test
     storeResults(state2.userId, finalResults), injectResultElement(rowToInjectInto, finalResults);
   }
   __name(onElementFound2, "onElementFound");
-  function init92() {
+  function init96() {
     chrome.storage.local.get({ pendingrobuxtrans: !0 }, async (settings2) => {
       if (!(!settings2.pendingrobuxtrans || !window.location.pathname.includes("/transactions")))
         try {
@@ -120678,7 +123251,7 @@ Markdown test
         }
     });
   }
-  __name(init92, "init");
+  __name(init96, "init");
 
   // src/content/features/transactions/totalearned.js
   init_observer();
@@ -121011,7 +123584,7 @@ Markdown test
     ), container.appendChild(totalEarnedButton);
   }
   __name(onElementFound3, "onElementFound");
-  function init93() {
+  function init97() {
     chrome.storage.local.get("totalearnedEnabled", (result) => {
       result.totalearnedEnabled && observeElement(
         ".dropdown-container.container-header",
@@ -121019,7 +123592,7 @@ Markdown test
       );
     });
   }
-  __name(init93, "init");
+  __name(init97, "init");
 
   // src/content/features/trading/confirmtrade.js
   init_observer();
@@ -121170,8 +123743,8 @@ Markdown test
   }
   __name(normalizeOffer, "normalizeOffer");
   function createAnalysisFromNormalizedOffers(tradeId, participantA, participantB, options = {}) {
-    let myUserId2 = options.myUserId ? String(options.myUserId) : null, myOffer = participantA, partnerOffer = participantB;
-    myUserId2 && String(participantB.user?.id) === myUserId2 && (myOffer = participantB, partnerOffer = participantA);
+    let myUserId3 = options.myUserId ? String(options.myUserId) : null, myOffer = participantA, partnerOffer = participantB;
+    myUserId3 && String(participantB.user?.id) === myUserId3 && (myOffer = participantB, partnerOffer = participantA);
     let myRap = myOffer.stats.rapWithOfferedRobux, myValue = myOffer.stats.valueWithOfferedRobux, partnerRap = partnerOffer.stats.rapWithReceivedRobux, partnerValue = partnerOffer.stats.valueWithReceivedRobux;
     return {
       tradeId: tradeId ? String(tradeId) : null,
@@ -121304,13 +123877,21 @@ Markdown test
     thumbContainer.classList.remove("shimmer"), thumbContainer.innerHTML = "", thumbContainer.appendChild(thumb);
   }
   __name(applyThumbnail, "applyThumbnail");
+  function isMakeOfferButton(button) {
+    return !button.matches(".foundation-web-button") || button.closest('[role="dialog"], .trade-request-item') ? !1 : !!button.closest(
+      ".trade-request-window-offers-parent, .trade-request-window-offers, .trade-request-window"
+    );
+  }
+  __name(isMakeOfferButton, "isMakeOfferButton");
   function getTradeRequestOffersFromButton(button) {
-    let directOffers = button.closest(".trade-request-window-offers");
-    if (directOffers) return directOffers;
-    let siblingOffers = button.previousElementSibling?.matches(
-      ".trade-request-window-offers"
-    ) ? button.previousElementSibling : null;
-    return siblingOffers || button.closest(".trade-request-window")?.querySelector(".trade-request-window-offers");
+    let element = button.parentElement;
+    for (; element && element !== document.body; ) {
+      let offers2 = element.querySelectorAll(".trade-request-window-offer");
+      if (offers2.length >= 2) return offers2;
+      element = element.parentElement;
+    }
+    let offers = document.querySelectorAll(".trade-request-window-offer");
+    return offers.length >= 2 ? offers : null;
   }
   __name(getTradeRequestOffersFromButton, "getTradeRequestOffersFromButton");
   function getTradeDetailContext(button) {
@@ -121342,6 +123923,7 @@ Markdown test
       }, 5e3);
       return;
     }
+    if (!isMakeOfferButton(button)) return;
     let offers = getTradeRequestOffersFromButton(button);
     offers && (pendingRequestOffers = offers, setTimeout(() => {
       pendingRequestOffers === offers && (pendingRequestOffers = null);
@@ -121354,13 +123936,13 @@ Markdown test
         offer.querySelectorAll(
           ".trade-request-item[data-rovalra-asset-id]"
         )
-      ).map((card) => {
-        let assetId = card.dataset.rovalraAssetId, instanceId = card.dataset.collectibleiteminstanceid, cachedItem = instanceId ? getCachedItemValue(instanceId) : null, rolimonsItem = getCachedRolimonsItem(assetId);
+      ).map((card2) => {
+        let assetId = card2.dataset.rovalraAssetId, instanceId = card2.dataset.collectibleiteminstanceid, cachedItem = instanceId ? getCachedItemValue(instanceId) : null, rolimonsItem = getCachedRolimonsItem(assetId);
         return {
           assetId,
           itemType: "Asset",
           thumbnailKey: `Asset:${assetId}`,
-          name: card.querySelector(".item-name")?.textContent?.trim() || rolimonsItem?.name || "Unknown Item",
+          name: card2.querySelector(".item-name")?.textContent?.trim() || rolimonsItem?.name || "Unknown Item",
           rap: Number(cachedItem?.rap ?? rolimonsItem?.rap ?? 0),
           value: Number(
             rolimonsItem?.default_price ?? rolimonsItem?.rap ?? cachedItem?.rap ?? 0
@@ -121414,12 +123996,12 @@ Markdown test
     });
   }
   __name(hydrateTradePreviewThumbnails, "hydrateTradePreviewThumbnails");
-  function init94() {
+  function init98() {
     chrome.storage.local.get({ confirmTradeEnabled: !0 }, (settings2) => {
       if (!settings2.confirmTradeEnabled) return;
       let path = window.location.pathname;
       if (!(path.startsWith("/trades") || path.startsWith("/trade") || /\/users\/\d+\/trade/.test(path))) {
-        observerRequest && (observerRequest.active = !1, observerRequest = null), prefetchRequests.forEach((req) => req.active = !1), prefetchRequests = [];
+        observerRequest && (observerRequest.disconnect(), observerRequest = null), prefetchRequests.forEach((req) => req.disconnect()), prefetchRequests = [];
         return;
       }
       observerRequest || (startPrefetching(), offerActionListenerAttached || (document.addEventListener("click", handleTradeRequestAction, !0), offerActionListenerAttached = !0), console.log("[RoValra] Initializing confirmtrade feature."), observerRequest = observeElement(
@@ -121437,10 +124019,8 @@ Markdown test
             );
             return;
           }
-          let tradeOffers = pendingRequestOffers?.querySelectorAll(
-            ".trade-request-window-offer"
-          );
-          tradeOffers?.length || (tradeOffers = document.querySelectorAll(
+          let tradeOffers = pendingRequestOffers;
+          (!tradeOffers || tradeOffers.length < 2 || !Array.from(tradeOffers).every((offer) => offer.isConnected)) && (tradeOffers = document.querySelectorAll(
             ".trade-request-window-offer"
           ));
           let isDetailView = !1;
@@ -121470,11 +124050,11 @@ Markdown test
       ));
     });
   }
-  __name(init94, "init");
+  __name(init98, "init");
   function startPrefetching() {
-    prefetchRequests.forEach((req) => req.active = !1), prefetchRequests = [];
-    let handleLink = /* @__PURE__ */ __name((el3) => {
-      let id = getPlaceIdFromUrl(el3.href);
+    prefetchRequests.forEach((req) => req.disconnect()), prefetchRequests = [];
+    let handleLink = /* @__PURE__ */ __name((el4) => {
+      let id = getPlaceIdFromUrl(el4.href);
       id && queueRolimonsFetch(id);
     }, "handleLink");
     prefetchRequests.push(
@@ -121490,7 +124070,7 @@ Markdown test
   __name(startPrefetching, "startPrefetching");
   async function injectTradePreview(modalBody, tradeOffers, isDetailView = !1, isRadixDialog = !1, requestedTradeId = null) {
     console.log("[RoValra] Inside injectTradePreview.");
-    let assets7 = getAssets(), activeTradeId = requestedTradeId || document.querySelector(".trade-row.active[data-trade-id]")?.dataset.tradeId || getLatestTradeDetailsId(), myUserId2 = await getAuthenticatedUserId(), analysis = isDetailView && activeTradeId ? await getTradeAnalysis(activeTradeId, { myUserId: myUserId2 }).catch(
+    let assets7 = getAssets(), activeTradeId = requestedTradeId || document.querySelector(".trade-row.active[data-trade-id]")?.dataset.tradeId || getLatestTradeDetailsId(), myUserId3 = await getAuthenticatedUserId(), analysis = isDetailView && activeTradeId ? await getTradeAnalysis(activeTradeId, { myUserId: myUserId3 }).catch(
       () => null
     ) : isRadixDialog && tradeOffers.length >= 2 ? getTradeRequestWindowAnalysis(tradeOffers[0], tradeOffers[1]) : null;
     if (!analysis || !modalBody.isConnected) return;
@@ -121635,7 +124215,7 @@ Markdown test
     tradeShowTotalDemand: !0,
     tradeShowDiffPills: !0
   }, includeRobuxInCalculation = !0;
-  function init95() {
+  function init99() {
     chrome.storage.local.get(
       {
         tradeValuesEnabled: !0,
@@ -121681,19 +124261,19 @@ Markdown test
           }
         ), cardObserverRequest = observeElement(
           ".item-card-container, .trade-request-item",
-          (card) => {
-            if (card.dataset.rovalraProcessed) return;
-            let assetId, instanceId = card.getAttribute(
+          (card2) => {
+            if (card2.dataset.rovalraProcessed) return;
+            let assetId, instanceId = card2.getAttribute(
               "data-collectibleiteminstanceid"
             ), instanceCached = instanceId ? getCachedItemValue(instanceId) : null;
             instanceCached?.assetId && (assetId = instanceCached.assetId);
-            let link = card.querySelector(
+            let link = card2.querySelector(
               'a[href*="/catalog/"], a[href*="/bundles/"]'
             );
             if (!assetId && link && (assetId = getPlaceIdFromUrl(link.href)), !assetId) return;
-            card.dataset.rovalraProcessed = "true", card.dataset.rovalraAssetId = assetId, card.querySelector(
+            card2.dataset.rovalraProcessed = "true", card2.dataset.rovalraAssetId = assetId, card2.querySelector(
               'a[href*="/catalog/"], a[href*="/bundles/"]'
-            )?.href.includes("/bundles/") && (card.dataset.rovalraItemType = "Bundle", card.dataset.rovalraBundleId = assetId), getCachedRolimonsItem(assetId) ? updateItemCard(card, assetId) : (pendingCards.has(assetId) || pendingCards.set(assetId, /* @__PURE__ */ new Set()), pendingCards.get(assetId).add(card), queueRolimonsFetch(assetId)), !getCachedRisk(assetId) && featureSettings2.tradeRiskEnabled ? queueRiskFetch(assetId) : updateItemCard(card, assetId), queueUpdateTradeSummary();
+            )?.href.includes("/bundles/") && (card2.dataset.rovalraItemType = "Bundle", card2.dataset.rovalraBundleId = assetId), getCachedRolimonsItem(assetId) ? updateItemCard(card2, assetId) : (pendingCards.has(assetId) || pendingCards.set(assetId, /* @__PURE__ */ new Set()), pendingCards.get(assetId).add(card2), queueRolimonsFetch(assetId)), !getCachedRisk(assetId) && featureSettings2.tradeRiskEnabled ? queueRiskFetch(assetId) : updateItemCard(card2, assetId), queueUpdateTradeSummary();
           },
           { multiple: !0, onRemove: /* @__PURE__ */ __name(() => queueUpdateTradeSummary(), "onRemove") }
         ), robuxObserverRequest = observeElement(
@@ -121714,11 +124294,11 @@ Markdown test
       }
     );
   }
-  __name(init95, "init");
+  __name(init99, "init");
   function onRolimonsUpdate(e) {
     let updatedIds = e.detail;
     Array.isArray(updatedIds) && (updatedIds.forEach((id) => {
-      pendingCards.has(id) && (pendingCards.get(id).forEach((card) => updateItemCard(card, id)), pendingCards.delete(id));
+      pendingCards.has(id) && (pendingCards.get(id).forEach((card2) => updateItemCard(card2, id)), pendingCards.delete(id));
     }), queueUpdateTradeSummary());
   }
   __name(onRolimonsUpdate, "onRolimonsUpdate");
@@ -121727,7 +124307,7 @@ Markdown test
     Array.isArray(updatedIds) && updatedIds.forEach((id) => {
       document.querySelectorAll(
         `.item-card-container[data-rovalra-asset-id="${id}"], .trade-request-item[data-rovalra-asset-id="${id}"]`
-      ).forEach((card) => updateItemCard(card, id));
+      ).forEach((card2) => updateItemCard(card2, id));
     });
   }
   __name(onRiskUpdate, "onRiskUpdate");
@@ -121735,20 +124315,30 @@ Markdown test
     event.detail?.tradeId && (latestTradeDetailsId2 = String(event.detail.tradeId)), queueUpdateTradeSummary();
   }
   __name(onTradeDetailsResponse, "onTradeDetailsResponse");
-  function isRolimonsBundle(card, options = {}) {
-    return options.rolimonsItemType === "Bundle" || card.dataset.rovalraItemType === "Bundle" ? !0 : !!card.dataset.rovalraBundleId;
+  function isRolimonsBundle(card2, options = {}) {
+    return options.rolimonsItemType === "Bundle" || card2.dataset.rovalraItemType === "Bundle" ? !0 : !!card2.dataset.rovalraBundleId;
   }
   __name(isRolimonsBundle, "isRolimonsBundle");
-  function getRolimonsUrl2(card, assetId, options = {}) {
-    return isRolimonsBundle(card, options) ? `https://www.rolimons.com/bundle/${options.bundleId || card.dataset.rovalraBundleId || assetId}` : `https://www.rolimons.com/item/${assetId}`;
+  function getRolimonsUrl2(card2, assetId, options = {}) {
+    return isRolimonsBundle(card2, options) ? `https://www.rolimons.com/bundle/${options.bundleId || card2.dataset.rovalraBundleId || assetId}` : `https://www.rolimons.com/item/${assetId}`;
   }
   __name(getRolimonsUrl2, "getRolimonsUrl");
-  function addUserTradeItemCardsBottomPadding(card) {
+  var rolimonsItemLinksListening = !1;
+  function onRolimonsItemLinkClick(event) {
+    let link = event.target.closest?.(".rovalra-rolimons-item-link");
+    link && (event.preventDefault(), event.stopImmediatePropagation(), window.open(link.dataset.rovalraHref, "_blank"));
+  }
+  __name(onRolimonsItemLinkClick, "onRolimonsItemLinkClick");
+  function listenForRolimonsItemLinks() {
+    rolimonsItemLinksListening || (rolimonsItemLinksListening = !0, window.addEventListener("click", onRolimonsItemLinkClick, !0));
+  }
+  __name(listenForRolimonsItemLinks, "listenForRolimonsItemLinks");
+  function addUserTradeItemCardsBottomPadding(card2) {
     if (!featureSettings2.tradeShowItemValues || !/^\/(?:[^/]+\/)?users\/\d+\/trade(?:\/|$)/.test(
       window.location.pathname
-    ) || !card.classList.contains("item-card-container"))
+    ) || !card2.classList.contains("item-card-container"))
       return;
-    card.closest(
+    card2.closest(
       "ul.item-cards.item-cards-stackable"
     )?.style.setProperty("padding-bottom", "20px", "important");
   }
@@ -121776,16 +124366,16 @@ Markdown test
     }[trendValue] || "Unknown";
   }
   __name(getTrendString, "getTrendString");
-  function updateItemCard(card, assetId, options = {}) {
+  function updateItemCard(card2, assetId, options = {}) {
     let data = getCachedRolimonsItem(assetId);
     if (!data) return;
     let assets7 = getAssets(), value2 = data.default_price || data.rap || 0, textColor = options.fontColor || "var(--rovalra-main-text-color)";
     if (featureSettings2.tradeShowItemValues) {
-      let priceDiv = card.querySelector(
+      let priceDiv = card2.querySelector(
         ".item-card-price, .rovalra-item-rap"
       );
-      if (card.classList.contains("trade-request-item")) {
-        let itemValueDiv = card.querySelector(".item-value");
+      if (card2.classList.contains("trade-request-item")) {
+        let itemValueDiv = card2.querySelector(".item-value");
         if (itemValueDiv) {
           if (itemValueDiv.style.display = "flex", itemValueDiv.style.alignItems = "center", itemValueDiv.style.justifyContent = "center", itemValueDiv.style.gap = "6px", !itemValueDiv.querySelector(".rovalra-value-label")) {
             let valDiv = document.createElement("div");
@@ -121794,7 +124384,7 @@ Markdown test
                         <span class="text-robux" style="font-weight: 600;">${value2.toLocaleString()}</span>
                     `, itemValueDiv.appendChild(valDiv);
           }
-        } else if (!card.querySelector(".rovalra-value-label")) {
+        } else if (!card2.querySelector(".rovalra-value-label")) {
           let valDiv = document.createElement("div");
           valDiv.className = "rovalra-value-label", Object.assign(valDiv.style, {
             position: "absolute",
@@ -121810,69 +124400,67 @@ Markdown test
           }), valDiv.innerHTML = `
                     <img src="${assets7.rolimonsIcon}" style="width: 10px; height: 10px; margin-right: 2px; vertical-align: middle;">
                     ${value2.toLocaleString()}
-                `, card.style.position = "relative", card.appendChild(valDiv);
+                `, card2.style.position = "relative", card2.appendChild(valDiv);
         }
-      } else if (priceDiv && !card.querySelector(".rovalra-value-label")) {
+      } else if (priceDiv && !card2.querySelector(".rovalra-value-label")) {
         let valDiv = document.createElement("div");
-        if (valDiv.className = "text-overflow item-card-price rovalra-value-label", valDiv.style.marginTop = "-1px", valDiv.style.display = "flex", valDiv.style.alignItems = "center", valDiv.innerHTML = `
+        valDiv.className = "text-overflow item-card-price rovalra-value-label", valDiv.style.marginTop = "-1px", valDiv.style.display = "flex", valDiv.style.alignItems = "center", valDiv.innerHTML = `
                 <img src="${assets7.rolimonsIcon}" style="width: 16px; height: 16px; margin-right: 0px; margin-left: 1px">
                 <span class="text-robux" style="color: ${textColor};${options.fontSize ? ` font-size: ${options.fontSize};` : ""}">${value2.toLocaleString()}</span>
-            `, !priceDiv.closest("a") || options.forceLink) {
-          let rolimonsLink, rolimonsUrl = getRolimonsUrl2(card, assetId, options), rolimonsTargetType = isRolimonsBundle(card, options) ? "bundle" : "item";
-          options.forceLink ? (rolimonsLink = document.createElement("span"), rolimonsLink.style.cursor = "pointer", rolimonsLink.addEventListener("click", (e) => {
-            e.stopPropagation(), e.preventDefault(), window.open(rolimonsUrl, "_blank");
-          })) : (rolimonsLink = document.createElement("a"), rolimonsLink.href = rolimonsUrl, rolimonsLink.target = "_blank"), rolimonsLink.style.display = "flex", rolimonsLink.style.alignItems = "center", rolimonsLink.style.marginLeft = "4px", rolimonsLink.innerHTML = `<div style="width: 18px; height: 18px; background-color: var(--rovalra-main-text-color); -webkit-mask: url('${assets7.launchIcon}')"></div>`, addTooltip(
-            rolimonsLink,
-            ts2("trading.openOnRolimons", { type: rolimonsTargetType }),
-            {
-              position: "top"
-            }
-          ), valDiv.appendChild(rolimonsLink);
-        }
-        priceDiv.parentNode.insertBefore(valDiv, priceDiv.nextSibling);
+            `;
+        let rolimonsLink, rolimonsUrl = getRolimonsUrl2(card2, assetId, options), rolimonsTargetType = isRolimonsBundle(card2, options) ? "bundle" : "item";
+        priceDiv.closest("a") && !options.forceLink ? (rolimonsLink = document.createElement("span"), rolimonsLink.className = "rovalra-rolimons-item-link", rolimonsLink.dataset.rovalraHref = rolimonsUrl, rolimonsLink.style.cursor = "pointer", listenForRolimonsItemLinks()) : options.forceLink ? (rolimonsLink = document.createElement("span"), rolimonsLink.style.cursor = "pointer", rolimonsLink.addEventListener("click", (e) => {
+          e.stopPropagation(), e.preventDefault(), window.open(rolimonsUrl, "_blank");
+        })) : (rolimonsLink = document.createElement("a"), rolimonsLink.href = rolimonsUrl, rolimonsLink.target = "_blank"), rolimonsLink.style.display = "flex", rolimonsLink.style.alignItems = "center", rolimonsLink.style.marginLeft = "4px", rolimonsLink.innerHTML = `<div style="width: 18px; height: 18px; background-color: var(--rovalra-main-text-color); -webkit-mask: url('${assets7.launchIcon}')"></div>`, addTooltip(
+          rolimonsLink,
+          ts2("trading.openOnRolimons", { type: rolimonsTargetType }),
+          {
+            position: "top"
+          }
+        ), valDiv.appendChild(rolimonsLink), priceDiv.parentNode.insertBefore(valDiv, priceDiv.nextSibling);
       }
-      card.querySelector(".rovalra-value-label") && addUserTradeItemCardsBottomPadding(card);
+      card2.querySelector(".rovalra-value-label") && addUserTradeItemCardsBottomPadding(card2);
     }
-    if (featureSettings2.tradeShowProjectedIndicator && data.is_projected && !card.querySelector(".rovalra-projected-icon")) {
-      let thumbContainer = card.querySelector(
+    if (featureSettings2.tradeShowProjectedIndicator && data.is_projected && !card2.querySelector(".rovalra-projected-icon")) {
+      let thumbContainer = card2.querySelector(
         ".item-card-thumb-container, .rovalra-item-thumb-container"
-      ) || card;
+      ) || card2;
       if (thumbContainer) {
         let projIcon = document.createElement("img");
         projIcon.src = assets7.projectedWarning, projIcon.className = "rovalra-projected-icon";
         let projIconStyle = {
           position: "absolute",
-          bottom: card.classList.contains("trade-request-item") ? "20px" : "4px",
+          bottom: card2.classList.contains("trade-request-item") ? "20px" : "4px",
           width: "20px",
           height: "20px",
           zIndex: "10"
         };
-        card.classList.contains("trade-request-item") ? projIconStyle.left = "4px" : projIconStyle.right = "4px", Object.assign(projIcon.style, projIconStyle), addTooltip(projIcon, ts2("trading.projectedItem"), { position: "top" }), card.classList.contains("trade-request-item") || (thumbContainer.style.position = "relative"), thumbContainer.appendChild(projIcon);
+        card2.classList.contains("trade-request-item") ? projIconStyle.left = "4px" : projIconStyle.right = "4px", Object.assign(projIcon.style, projIconStyle), addTooltip(projIcon, ts2("trading.projectedItem"), { position: "top" }), card2.classList.contains("trade-request-item") || (thumbContainer.style.position = "relative"), thumbContainer.appendChild(projIcon);
       }
     }
-    if (featureSettings2.tradeShowRareIndicator && data.is_rare && !card.querySelector(".rovalra-rare-icon")) {
-      let thumbContainer = card.querySelector(
+    if (featureSettings2.tradeShowRareIndicator && data.is_rare && !card2.querySelector(".rovalra-rare-icon")) {
+      let thumbContainer = card2.querySelector(
         ".item-card-thumb-container, .rovalra-item-thumb-container"
-      ) || card;
+      ) || card2;
       if (thumbContainer) {
         let rareIcon = document.createElement("img");
         rareIcon.src = assets7.rareIcon, rareIcon.className = "rovalra-rare-icon";
         let rareIconStyle = {
           position: "absolute",
-          bottom: card.classList.contains("trade-request-item") ? "20px" : "4px",
+          bottom: card2.classList.contains("trade-request-item") ? "20px" : "4px",
           width: "20px",
           height: "20px",
           zIndex: "10"
         };
-        card.classList.contains("trade-request-item") ? rareIconStyle.left = data.is_projected ? "26px" : "4px" : rareIconStyle.right = data.is_projected ? "26px" : "4px", Object.assign(rareIcon.style, rareIconStyle), addTooltip(rareIcon, ts2("trading.rareItem"), { position: "top" }), card.classList.contains("trade-request-item") || (thumbContainer.style.position = "relative"), thumbContainer.appendChild(rareIcon);
+        card2.classList.contains("trade-request-item") ? rareIconStyle.left = data.is_projected ? "26px" : "4px" : rareIconStyle.right = data.is_projected ? "26px" : "4px", Object.assign(rareIcon.style, rareIconStyle), addTooltip(rareIcon, ts2("trading.rareItem"), { position: "top" }), card2.classList.contains("trade-request-item") || (thumbContainer.style.position = "relative"), thumbContainer.appendChild(rareIcon);
       }
     }
     if (featureSettings2.tradeShowItemInfo) {
-      let thumbContainer = card.querySelector(
+      let thumbContainer = card2.querySelector(
         ".item-card-thumb-container, .rovalra-item-thumb-container"
-      ) || card;
+      ) || card2;
       if (thumbContainer) {
-        let infoIcon = card.querySelector(".rovalra-info-icon");
+        let infoIcon = card2.querySelector(".rovalra-info-icon");
         if (!infoIcon) {
           infoIcon = document.createElement("div"), infoIcon.className = "rovalra-info-icon", Object.assign(infoIcon.style, {
             position: "absolute",
@@ -121892,7 +124480,7 @@ Markdown test
             backgroundColor: "var(--rovalra-main-text-color)",
             webkitMask: `url('${assets7.priceFloorIcon}') center/contain no-repeat`,
             mask: `url('${assets7.priceFloorIcon}') center/contain no-repeat`
-          }), infoIcon.appendChild(innerIcon), card.classList.contains("trade-request-item") || (thumbContainer.style.position = "relative"), thumbContainer.appendChild(infoIcon);
+          }), infoIcon.appendChild(innerIcon), card2.classList.contains("trade-request-item") || (thumbContainer.style.position = "relative"), thumbContainer.appendChild(infoIcon);
         }
         let riskCacheData = getCachedRisk(assetId), riskData = riskCacheData ? riskCacheData.risk : null, tooltipParts = [];
         if (data.trend) {
@@ -121954,8 +124542,8 @@ Markdown test
     if (offers.length < 2 && (offers = document.querySelectorAll(".trade-request-window-offer")), offers.length < 2) return;
     let giveOffer = offers[0], receiveOffer = offers[1], analysis = null, tradeId = getActiveTradeId(giveOffer);
     if (tradeId) {
-      let myUserId2 = await getAuthenticatedUserId();
-      analysis = await getTradeAnalysis(tradeId, { myUserId: myUserId2 }).catch(
+      let myUserId3 = await getAuthenticatedUserId();
+      analysis = await getTradeAnalysis(tradeId, { myUserId: myUserId3 }).catch(
         () => null
       );
     } else giveOffer.closest(".trade-request-window-offers") && (analysis = getTradeRequestWindowAnalysis2(giveOffer, receiveOffer));
@@ -121979,8 +124567,8 @@ Markdown test
           ".trade-request-item[data-rovalra-asset-id]"
         )
       ).reduce(
-        (totals, card) => {
-          let assetId = card.dataset.rovalraAssetId, instanceId = card.dataset.collectibleiteminstanceid, cachedItem = instanceId ? getCachedItemValue(instanceId) : null, rolimonsItem = getCachedRolimonsItem(assetId);
+        (totals, card2) => {
+          let assetId = card2.dataset.rovalraAssetId, instanceId = card2.dataset.collectibleiteminstanceid, cachedItem = instanceId ? getCachedItemValue(instanceId) : null, rolimonsItem = getCachedRolimonsItem(assetId);
           return totals.rap += Number(cachedItem?.rap ?? rolimonsItem?.rap ?? 0), totals.value += Number(
             rolimonsItem?.default_price ?? rolimonsItem?.rap ?? cachedItem?.rap ?? 0
           ), totals.totalDemand += getDemandValue2(rolimonsItem?.demand), totals.itemCount += 1, totals;
@@ -122146,9 +124734,9 @@ Markdown test
   var tradeData = [], observer = null, initialized15 = !1, featureSettings3 = { tradePreviewEnabled: !0 };
   async function fetchAndRenderTradePreview(tradeId, row) {
     if (row.querySelector(".rovalra-trade-summary")) return;
-    let myUserId2 = await getAuthenticatedUserId();
-    if (!myUserId2) return;
-    let analysis = await getTradeAnalysis(tradeId, { myUserId: myUserId2 }).catch(
+    let myUserId3 = await getAuthenticatedUserId();
+    if (!myUserId3) return;
+    let analysis = await getTradeAnalysis(tradeId, { myUserId: myUserId3 }).catch(
       () => null
     );
     if (!analysis || !row.isConnected) return;
@@ -122245,7 +124833,7 @@ Markdown test
     }
   }
   __name(onTradesData, "onTradesData");
-  function init96() {
+  function init100() {
     chrome.storage.local.get(
       { tradePreviewEnabled: !0 },
       async (settings2) => {
@@ -122267,7 +124855,7 @@ Markdown test
       }
     );
   }
-  __name(init96, "init");
+  __name(init100, "init");
 
   // src/content/features/trading/tradefilter.js
   init_input();
@@ -122280,7 +124868,7 @@ Markdown test
   document.addEventListener("rovalra-rolimons-data-update", () => {
     currentQuery && filterTrades(currentQuery);
   });
-  async function init97() {
+  async function init101() {
     !(await chrome.storage.local.get({
       tradeFilterEnabled: !0
     })).tradeFilterEnabled || !window.location.pathname.startsWith("/trades") || (myUserId = await getAuthenticatedUserId(), observeElement(".trade-row-list", (list) => {
@@ -122304,7 +124892,7 @@ Markdown test
       noResults.id = "rovalra-trade-filter-no-results", noResults.innerText = ts2("trading.noResults"), noResults.className = "text-secondary", noResults.style.display = "none", noResults.style.textAlign = "center", noResults.style.marginTop = "8px", wrapper.appendChild(noResults), list.insertBefore(wrapper, scrollContainer);
     }));
   }
-  __name(init97, "init");
+  __name(init101, "init");
   async function getTradeDetails(tradeId) {
     let cached = await get("trade_history", tradeId, "local");
     if (Array.isArray(cached))
@@ -122354,11 +124942,11 @@ Markdown test
     let processRow = /* @__PURE__ */ __name(async (row) => {
       let tradeId = row.dataset.tradeId;
       if (!tradeId) return;
-      let details = await getTradeDetails(tradeId);
-      if (!details)
+      let details2 = await getTradeDetails(tradeId);
+      if (!details2)
         return;
       let isMatch = !1, idsToFetch = [], isProjectedSearch = query === "projected", isRareSearch = query === "rares" || query === "rare";
-      for (let assetId of details.items) {
+      for (let assetId of details2.items) {
         let rolimons = getCachedRolimonsItem(assetId);
         if (!rolimons) {
           idsToFetch.push(assetId);
@@ -122413,7 +125001,7 @@ Markdown test
     return String(value2 || "").trim().toLowerCase();
   }
   __name(normalizeSearchValue, "normalizeSearchValue");
-  function init98() {
+  function init102() {
     chrome.storage.local.get({ tradeSearchEnabled: !0 }, (settings2) => {
       if (!settings2.tradeSearchEnabled) return;
       let path = window.location.pathname;
@@ -122428,7 +125016,7 @@ Markdown test
       );
     });
   }
-  __name(init98, "init");
+  __name(init102, "init");
   function injectSearchInput(dropdown) {
     let { container, input } = createStyledInput({
       id: `rovalra-trade-search-${Math.random().toString(36).substr(2, 9)}`,
@@ -122488,8 +125076,8 @@ Markdown test
     let items = Array.from(panel.querySelectorAll(".item-card")), list = panel.querySelector(".item-cards"), continueSearchButton = searchButtons.get(panel);
     if (!list || items.length === 0) return;
     if (!query) {
-      continueSearchButton && (continueSearchButton.style.display = "none"), panel.querySelectorAll(".item-card-thumb-container").forEach((el3) => {
-        el3.style.boxShadow = "", el3.style.border = "";
+      continueSearchButton && (continueSearchButton.style.display = "none"), panel.querySelectorAll(".item-card-thumb-container").forEach((el4) => {
+        el4.style.boxShadow = "", el4.style.border = "";
       });
       return;
     }
@@ -122534,7 +125122,7 @@ Markdown test
   init_observer();
   init_user();
   init_i18n();
-  function init99() {
+  function init103() {
     chrome.storage.local.get({ tradeProofEnabled: !0 }, (settings2) => {
       !settings2.tradeProofEnabled || !window.location.pathname.startsWith("/trades") || observeElement(".trades-list-detail", (container) => {
         if (container.querySelector(".rovalra-copy-proof-btn")) return;
@@ -122550,10 +125138,10 @@ Markdown test
       });
     });
   }
-  __name(init99, "init");
+  __name(init103, "init");
   async function copyTradeProof(container, btn) {
     if (container.querySelectorAll(".trade-list-detail-offer").length < 2) return;
-    let activeRow = document.querySelector(".trade-row.active"), tradeId = activeRow?.dataset.tradeId || getLatestTradeDetailsId(), myUserId2 = await getAuthenticatedUserId(), analysis = tradeId ? await getTradeAnalysis(tradeId, { myUserId: myUserId2 }).catch(() => null) : null;
+    let activeRow = document.querySelector(".trade-row.active"), tradeId = activeRow?.dataset.tradeId || getLatestTradeDetailsId(), myUserId3 = await getAuthenticatedUserId(), analysis = tradeId ? await getTradeAnalysis(tradeId, { myUserId: myUserId3 }).catch(() => null) : null;
     if (!analysis) return;
     let formatOffer = /* @__PURE__ */ __name((offer, isReceiving) => {
       let itemNames = offer.items.map(
@@ -122660,7 +125248,7 @@ D:${formattedDate}`;
     }));
   }
   __name(addBlockButton, "addBlockButton");
-  async function init100() {
+  async function init104() {
     if (!await settings.blockUserEnabled) return;
     if (!window.location.pathname.startsWith("/trades")) {
       observerRequest2 && (observerRequest2.active = !1, observerRequest2 = null);
@@ -122670,7 +125258,7 @@ D:${formattedDate}`;
       multiple: !0
     }));
   }
-  __name(init100, "init");
+  __name(init104, "init");
 
   // src/content/features/trading/sendTrade.js
   init_observer();
@@ -122693,7 +125281,7 @@ D:${formattedDate}`;
     }), container.appendChild(button);
   }
   __name(addSendTradeButton, "addSendTradeButton");
-  async function init101() {
+  async function init105() {
     if (!await settings.sendTradeEnabled) return;
     if (!window.location.pathname.startsWith("/trades")) {
       observerRequest3 && (observerRequest3.active = !1, observerRequest3 = null);
@@ -122703,7 +125291,369 @@ D:${formattedDate}`;
       multiple: !0
     }));
   }
-  __name(init101, "init");
+  __name(init105, "init");
+
+  // src/content/features/trading/recentTradeItems.js
+  init_observer();
+  init_user();
+  init_idExtractor();
+  init_thumbnails();
+  init_tooltip();
+  init_i18n();
+  init_getSettings();
+  var STORAGE_KEY9 = "rovalra_trade_recent_items", MAX_ITEMS2 = 12, SIDES = ["offer", "request"], SELECT_CONFIRM_DELAY = 400, SEARCH_TIMEOUT = 4e3, initialized16 = !1;
+  async function loadHistory2() {
+    let userId = await getAuthenticatedUserId();
+    if (!userId) return { userId: null, history: { offer: [], request: [] } };
+    let saved = (await chrome.storage.local.get(STORAGE_KEY9))[STORAGE_KEY9]?.[userId] || {};
+    return {
+      userId,
+      history: { offer: saved.offer || [], request: saved.request || [] }
+    };
+  }
+  __name(loadHistory2, "loadHistory");
+  async function saveHistory2(userId, history2) {
+    let all = (await chrome.storage.local.get(STORAGE_KEY9))[STORAGE_KEY9] || {};
+    all[userId] = history2, await chrome.storage.local.set({ [STORAGE_KEY9]: all });
+  }
+  __name(saveHistory2, "saveHistory");
+  function getPanelSide(panel) {
+    let panels = [...document.querySelectorAll(".trade-inventory-panel")];
+    return SIDES[panels.indexOf(panel)] || null;
+  }
+  __name(getPanelSide, "getPanelSide");
+  function readCard(card2) {
+    let link = card2.querySelector(
+      'a[href*="/catalog/"], a[href*="/bundles/"]'
+    ), id = card2.querySelector("[data-rovalra-asset-id]")?.dataset.rovalraAssetId || (link ? getPlaceIdFromUrl(link.href) : null), name = card2.querySelector(".item-card-name")?.textContent.trim();
+    return !id || !name ? null : {
+      id: String(id),
+      name,
+      itemType: link?.href.includes("/bundles/") ? "Bundle" : "Asset"
+    };
+  }
+  __name(readCard, "readCard");
+  var historyQueue = Promise.resolve();
+  function updateHistory(update2) {
+    return historyQueue = historyQueue.then(async () => {
+      let { userId, history: history2 } = await loadHistory2();
+      userId && (update2(history2), await saveHistory2(userId, history2), renderAll(history2));
+    }).catch(() => {
+    }), historyQueue;
+  }
+  __name(updateHistory, "updateHistory");
+  function rememberItem(side, item) {
+    return updateHistory((history2) => {
+      history2[side] = [
+        { ...item, usedAt: Date.now() },
+        ...history2[side].filter((entry) => entry.id !== item.id)
+      ].slice(0, MAX_ITEMS2);
+    });
+  }
+  __name(rememberItem, "rememberItem");
+  function forgetSide(side) {
+    return updateHistory((history2) => {
+      history2[side] = [];
+    });
+  }
+  __name(forgetSide, "forgetSide");
+  function onInventoryClick(event) {
+    let card2 = event.target.closest?.(".trade-inventory-card");
+    if (!card2 || card2.classList.contains("is-unavailable")) return;
+    let side = getPanelSide(card2.closest(".trade-inventory-panel")), item = readCard(card2);
+    !side || !item || setTimeout(() => {
+      card2.classList.contains("is-unavailable") && rememberItem(side, item);
+    }, SELECT_CONFIRM_DELAY);
+  }
+  __name(onInventoryClick, "onInventoryClick");
+  function findCard(panel, id) {
+    return [
+      ...panel.querySelectorAll(".trade-inventory-card:not(.is-unavailable)")
+    ].find((card2) => readCard(card2)?.id === id);
+  }
+  __name(findCard, "findCard");
+  function waitFor(check, timeout) {
+    return new Promise((resolve) => {
+      let start = Date.now(), poll = /* @__PURE__ */ __name(() => {
+        let result = check();
+        if (result || Date.now() - start >= timeout) {
+          resolve(result || null);
+          return;
+        }
+        setTimeout(poll, 100);
+      }, "poll");
+      poll();
+    });
+  }
+  __name(waitFor, "waitFor");
+  function setInputValue(input, value2) {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    ).set.call(input, value2), input.dispatchEvent(new Event("input", { bubbles: !0 }));
+  }
+  __name(setInputValue, "setInputValue");
+  async function openSearch(panel) {
+    let existing = panel.querySelector(".inventory-search input");
+    return existing || (panel.querySelector(".inventory-search button")?.click(), waitFor(() => panel.querySelector(".inventory-search input"), 1e3));
+  }
+  __name(openSearch, "openSearch");
+  async function selectItem(panel, item, chip) {
+    if (chip.classList.contains("loading")) return;
+    chip.classList.add("loading"), chip.classList.remove("missing");
+    let card2 = findCard(panel, item.id), searchInput = null;
+    card2 || (searchInput = await openSearch(panel), searchInput && (setInputValue(searchInput, item.name), card2 = await waitFor(
+      () => findCard(panel, item.id),
+      SEARCH_TIMEOUT
+    ))), card2 ? card2.querySelector(".item-card-thumb-container")?.click() : chip.classList.add("missing"), searchInput && card2 && setTimeout(() => setInputValue(searchInput, ""), SELECT_CONFIRM_DELAY), chip.classList.remove("loading");
+  }
+  __name(selectItem, "selectItem");
+  function createChip(panel, item) {
+    let chip = document.createElement("button");
+    chip.type = "button", chip.className = "rovalra-trade-recent-chip";
+    let thumb = document.createElement("img");
+    thumb.alt = "", chip.appendChild(thumb);
+    let name = document.createElement("span");
+    return name.className = "text-caption-medium", name.textContent = item.name, chip.appendChild(name), getQueuedThumbnail(
+      item.id,
+      item.itemType === "Bundle" ? "BundleThumbnail" : "Asset",
+      "150x150"
+    ).then((data) => {
+      data?.imageUrl && (thumb.src = data.imageUrl);
+    }), addTooltip(chip, item.name, { position: "top" }), chip.addEventListener("click", () => selectItem(panel, item, chip)), chip;
+  }
+  __name(createChip, "createChip");
+  function renderBar(panel, items) {
+    let side = getPanelSide(panel);
+    if (!side) return;
+    let bar = panel.querySelector(".rovalra-trade-recent");
+    if (!items.length) {
+      bar?.remove();
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement("div"), bar.className = "rovalra-trade-recent";
+      let header = document.createElement("div");
+      header.className = "rovalra-trade-recent-header";
+      let title = document.createElement("span");
+      title.className = "text-label-medium", title.textContent = ts2(`tradeRecentItems.${side}`), header.appendChild(title);
+      let clear = document.createElement("button");
+      clear.type = "button", clear.className = "rovalra-trade-recent-clear text-caption-medium", clear.textContent = ts2("tradeRecentItems.clear"), clear.addEventListener("click", () => forgetSide(side)), header.appendChild(clear);
+      let list2 = document.createElement("div");
+      list2.className = "rovalra-trade-recent-list", bar.append(header, list2);
+      let filterRow = panel.querySelector(".inventory-filter-row");
+      filterRow ? panel.insertBefore(bar, filterRow.nextSibling) : panel.appendChild(bar);
+    }
+    bar.querySelector(".rovalra-trade-recent-list").replaceChildren(...items.map((item) => createChip(panel, item)));
+  }
+  __name(renderBar, "renderBar");
+  function renderAll(history2) {
+    document.querySelectorAll(".trade-inventory-panel").forEach((panel) => {
+      let side = getPanelSide(panel);
+      side && renderBar(panel, history2[side]);
+    });
+  }
+  __name(renderAll, "renderAll");
+  async function init106() {
+    initialized16 || !await settings.tradeRecentItemsEnabled || (initialized16 = !0, document.addEventListener("click", onInventoryClick, !0), observeElement(
+      ".trade-inventory-panel",
+      async () => {
+        let { history: history2 } = await loadHistory2();
+        renderAll(history2);
+      },
+      { multiple: !0 }
+    ));
+  }
+  __name(init106, "init");
+
+  // src/content/features/trading/tradeQuickActions.js
+  init_observer();
+  init_api();
+  init_user();
+  init_input();
+  init_buttons();
+  init_confirmationPrompt();
+  init_i18n();
+  init_getSettings();
+  var MAX_PAGES2 = 10, CONCURRENCY = 3, DECLINE_DELAY = 750, FILTER_DEBOUNCE = 300, filters = { minValue: 0, hideLosses: !1 }, myUserId2 = null, filterTimer = null, running = !1, initialized17 = !1;
+  async function analyze(tradeId) {
+    return getTradeAnalysis(tradeId, { myUserId: myUserId2 }).catch(() => null);
+  }
+  __name(analyze, "analyze");
+  async function runLimited(items, worker, onProgress) {
+    let results = new Array(items.length), next = 0, done = 0, lane = /* @__PURE__ */ __name(async () => {
+      for (; next < items.length; ) {
+        let index = next++;
+        results[index] = await worker(items[index]), onProgress?.(++done, items.length);
+      }
+    }, "lane");
+    return await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, items.length) }, lane)
+    ), results;
+  }
+  __name(runLimited, "runLimited");
+  function isFiltering() {
+    return filters.minValue > 0 || filters.hideLosses;
+  }
+  __name(isFiltering, "isFiltering");
+  function matchesFilters(analysis) {
+    let { valueDiff, partnerValue } = analysis.comparison;
+    return !(filters.hideLosses && valueDiff < 0 || partnerValue < filters.minValue);
+  }
+  __name(matchesFilters, "matchesFilters");
+  async function applyFilters() {
+    let rows = [...document.querySelectorAll(".trade-row")];
+    if (!isFiltering()) {
+      rows.forEach((row) => delete row.dataset.rovalraQuickHidden);
+      return;
+    }
+    await runLimited(rows, async (row) => {
+      let tradeId = row.dataset.tradeId;
+      if (!tradeId) return;
+      let analysis = await analyze(tradeId);
+      !analysis || !row.isConnected || (!isFiltering() || matchesFilters(analysis) ? delete row.dataset.rovalraQuickHidden : row.dataset.rovalraQuickHidden = "true");
+    });
+  }
+  __name(applyFilters, "applyFilters");
+  function scheduleFilters() {
+    clearTimeout(filterTimer), filterTimer = setTimeout(applyFilters, FILTER_DEBOUNCE);
+  }
+  __name(scheduleFilters, "scheduleFilters");
+  async function fetchInboundTradeIds() {
+    let ids = [], cursor = "", pages = 0;
+    do {
+      let response = await callRobloxApi({
+        subdomain: "trades",
+        endpoint: `/v1/trades/Inbound?limit=100&sortOrder=Desc${cursor ? `&cursor=${cursor}` : ""}`
+      });
+      if (!response.ok) break;
+      let json = await response.json();
+      (json?.data || []).forEach((trade) => ids.push(String(trade.id))), cursor = json?.nextPageCursor || "", pages += 1;
+    } while (cursor && pages < MAX_PAGES2);
+    return ids;
+  }
+  __name(fetchInboundTradeIds, "fetchInboundTradeIds");
+  async function declineTrade(tradeId) {
+    return !!(await callRobloxApi({
+      subdomain: "trades",
+      endpoint: `/v1/trades/${tradeId}/decline`,
+      method: "POST"
+    }).catch(() => null))?.ok;
+  }
+  __name(declineTrade, "declineTrade");
+  function markDeclined(tradeIds) {
+    let declined = new Set(tradeIds);
+    document.querySelectorAll(".trade-row").forEach((row) => {
+      declined.has(row.dataset.tradeId) && (row.dataset.rovalraDeclined = "true");
+    });
+  }
+  __name(markDeclined, "markDeclined");
+  async function declineLosses(button, status) {
+    if (!running) {
+      running = !0, button.disabled = !0;
+      try {
+        status.textContent = ts2("tradeQuickActions.loadingTrades");
+        let tradeIds = await fetchInboundTradeIds(), losses = (await runLimited(tradeIds, analyze, (done, total) => {
+          status.textContent = ts2("tradeQuickActions.checking", {
+            done,
+            total
+          });
+        })).filter(
+          (analysis) => analysis && analysis.comparison.valueDiff < 0
+        );
+        if (!losses.length) {
+          status.textContent = ts2("tradeQuickActions.noLosses");
+          return;
+        }
+        let totalLoss = losses.reduce(
+          (sum, analysis) => sum + Math.abs(analysis.comparison.valueDiff),
+          0
+        );
+        if (status.textContent = "", !await new Promise((resolve) => {
+          showConfirmationPrompt({
+            title: ts2("tradeQuickActions.confirmTitle"),
+            message: ts2("tradeQuickActions.confirmMessage", {
+              count: losses.length,
+              total: tradeIds.length,
+              value: totalLoss.toLocaleString()
+            }),
+            confirmText: ts2("tradeQuickActions.declineConfirm"),
+            confirmType: "alert",
+            onConfirm: /* @__PURE__ */ __name(() => resolve(!0), "onConfirm"),
+            onCancel: /* @__PURE__ */ __name(() => resolve(!1), "onCancel")
+          });
+        })) {
+          status.textContent = ts2("tradeQuickActions.bulkHint");
+          return;
+        }
+        let declined = [];
+        for (let [index, analysis] of losses.entries())
+          status.textContent = ts2("tradeQuickActions.declining", {
+            done: index + 1,
+            total: losses.length
+          }), await declineTrade(analysis.tradeId) && (declined.push(analysis.tradeId), markDeclined([analysis.tradeId])), index < losses.length - 1 && await new Promise((r) => setTimeout(r, DECLINE_DELAY));
+        let failed = losses.length - declined.length;
+        status.textContent = failed ? ts2("tradeQuickActions.declinedWithFailures", {
+          count: declined.length,
+          failed
+        }) : ts2("tradeQuickActions.declined", { count: declined.length });
+      } finally {
+        running = !1, button.disabled = !1;
+      }
+    }
+  }
+  __name(declineLosses, "declineLosses");
+  function createPanel() {
+    let panel = document.createElement("div");
+    panel.className = "rovalra-trade-quick-actions";
+    let controls2 = document.createElement("div");
+    controls2.className = "rovalra-trade-quick-controls";
+    let { container: minValueContainer, input: minValueInput } = createStyledInput({
+      id: "rovalra-trade-min-value",
+      label: ts2("tradeQuickActions.minValue")
+    });
+    minValueInput.inputMode = "numeric", minValueInput.addEventListener("input", () => {
+      let digits = minValueInput.value.replace(/[^\d]/g, "");
+      digits !== minValueInput.value && (minValueInput.value = digits), filters.minValue = Number(digits) || 0, scheduleFilters();
+    }), controls2.appendChild(minValueContainer);
+    let hideLossesLabel = document.createElement("label");
+    hideLossesLabel.className = "text-label-medium rovalra-trade-quick-switch", hideLossesLabel.htmlFor = "rovalra-trade-hide-losses", hideLossesLabel.textContent = ts2("tradeQuickActions.hideLosses");
+    let hideLosses = createToggle({
+      id: "rovalra-trade-hide-losses",
+      checked: filters.hideLosses,
+      onChange: /* @__PURE__ */ __name((checked) => {
+        filters.hideLosses = checked, scheduleFilters();
+      }, "onChange")
+    });
+    hideLosses.setAttribute("role", "switch"), hideLossesLabel.appendChild(hideLosses), controls2.appendChild(hideLossesLabel), panel.appendChild(controls2);
+    let bulk = document.createElement("div");
+    bulk.className = "rovalra-trade-quick-bulk";
+    let bulkText = document.createElement("div");
+    bulkText.className = "rovalra-trade-quick-bulk-text";
+    let bulkTitle = document.createElement("span");
+    bulkTitle.className = "text-label-medium", bulkTitle.textContent = ts2("tradeQuickActions.bulkTitle");
+    let status = document.createElement("span");
+    status.className = "text-caption-medium rovalra-trade-quick-status", status.textContent = ts2("tradeQuickActions.bulkHint"), bulkText.append(bulkTitle, status);
+    let declineButton = createButton(
+      ts2("tradeQuickActions.declineLosses"),
+      "alert"
+    );
+    return declineButton.classList.add("rovalra-trade-quick-decline"), declineButton.addEventListener(
+      "click",
+      () => declineLosses(declineButton, status)
+    ), bulk.append(bulkText, declineButton), panel.appendChild(bulk), panel;
+  }
+  __name(createPanel, "createPanel");
+  async function init107() {
+    initialized17 || !await settings.tradeQuickActionsEnabled || window.location.pathname.startsWith("/trades") && (initialized17 = !0, myUserId2 = await getAuthenticatedUserId(), myUserId2 && (observeElement(".trade-row-list", (list) => {
+      if (list.querySelector(".rovalra-trade-quick-actions")) return;
+      let scrollContainer = list.querySelector(
+        "#trade-row-scroll-container"
+      );
+      scrollContainer && list.insertBefore(createPanel(), scrollContainer);
+    }), observeElement(".trade-row", scheduleFilters, { multiple: !0 }), document.addEventListener("rovalra-trades-list-response", scheduleFilters)));
+  }
+  __name(init107, "init");
 
   // src/content/features/groups/hiddenGroupGames.js
   init_observer();
@@ -122718,7 +125668,7 @@ D:${formattedDate}`;
   init_gameCard();
   init_idExtractor();
   init_getSettings();
-  var PAGE_SIZE3 = 50, ACCESS_FILTER = { ALL: 1, PUBLIC: 2 }, el = /* @__PURE__ */ __name((tag, className, props = {}, children = []) => {
+  var PAGE_SIZE3 = 50, ACCESS_FILTER = { ALL: 1, PUBLIC: 2 }, el2 = /* @__PURE__ */ __name((tag, className, props = {}, children = []) => {
     let element = document.createElement(tag);
     return className && (element.className = className), Object.assign(element, props), Object.assign(element.style, props.style || {}), children.forEach((child) => child && element.append(child)), element;
   }, "el"), sleep6 = /* @__PURE__ */ __name((ms) => new Promise((r) => setTimeout(r, ms)), "sleep"), groupListCache = /* @__PURE__ */ new Map(), sharedStatsCache = {
@@ -122857,7 +125807,7 @@ D:${formattedDate}`;
         }, "onChange")
       });
       showAllToggle.style.transform = "scale(1.3)", showAllToggle.style.transformOrigin = "left center";
-      let showAllToggleWrapper = el(
+      let showAllToggleWrapper = el2(
         "div",
         "",
         {
@@ -122868,7 +125818,7 @@ D:${formattedDate}`;
           }
         },
         [showAllToggle]
-      ), createFilterGroup = /* @__PURE__ */ __name((label, input) => el(
+      ), createFilterGroup = /* @__PURE__ */ __name((label, input) => el2(
         "div",
         "",
         {
@@ -122879,7 +125829,7 @@ D:${formattedDate}`;
           }
         },
         [
-          el("label", "", {
+          el2("label", "", {
             textContent: label,
             style: {
               fontSize: "12px",
@@ -122889,12 +125839,12 @@ D:${formattedDate}`;
           }),
           input
         ]
-      ), "createFilterGroup"), body = el(
+      ), "createFilterGroup"), body = el2(
         "div",
         "",
         { style: { display: "flex", flexDirection: "column" } },
         [
-          el(
+          el2(
             "div",
             "rovalra-filters-container",
             {
@@ -122922,7 +125872,7 @@ D:${formattedDate}`;
               )
             ]
           ),
-          el("div", "rovalra-hidden-games-list", {
+          el2("div", "rovalra-hidden-games-list", {
             style: {
               display: "grid",
               gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
@@ -122930,7 +125880,7 @@ D:${formattedDate}`;
               padding: "24px"
             }
           }),
-          el(
+          el2(
             "div",
             "rovalra-load-more-container rovalra-hidden-games-list",
             {
@@ -123043,9 +125993,9 @@ D:${formattedDate}`;
       }
     }
   };
-  async function init102() {
-    if (init102._run || await settings.groupGamesEnabled !== !0) return;
-    init102._run = !0;
+  async function init108() {
+    if (init108._run || await settings.groupGamesEnabled !== !0) return;
+    init108._run = !0;
     let isInserting = !1, ensureSingleButton = /* @__PURE__ */ __name(() => {
       let all = document.querySelectorAll(
         ".rovalra-hidden-games-container"
@@ -123063,7 +126013,7 @@ D:${formattedDate}`;
         let groupId = getGroupIdFromUrl();
         groupId && new HiddenGamesManager(groupId);
       });
-      let container = el(
+      let container = el2(
         "div",
         "rovalra-hidden-games-container",
         {
@@ -123092,12 +126042,12 @@ D:${formattedDate}`;
       let currentUrl = window.location.href;
       if (currentUrl !== lastUrl5) {
         if (lastUrl5 = currentUrl, !getGroupIdFromUrl()) return;
-        document.querySelectorAll(".rovalra-hidden-games-container").forEach((el3) => el3.remove()), isInserting = !1, tryInsert();
+        document.querySelectorAll(".rovalra-hidden-games-container").forEach((el4) => el4.remove()), isInserting = !1, tryInsert();
       }
     }, "checkForUrlChange");
     setInterval(checkForUrlChange, 500), window.addEventListener("popstate", checkForUrlChange), getGroupIdFromUrl() && tryInsert();
   }
-  __name(init102, "init");
+  __name(init108, "init");
 
   // src/content/features/groups/Antibots.js
   init_review();
@@ -123466,8 +126416,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       let shouldSelect = btn.textContent === await t2("antiBots.selectAll");
       container.querySelectorAll('button[role="checkbox"]').forEach((radio) => {
         radio.setChecked(shouldSelect);
-        let card = radio.closest(".quick-ban-card");
-        card && card.classList.toggle("selected", shouldSelect);
+        let card2 = radio.closest(".quick-ban-card");
+        card2 && card2.classList.toggle("selected", shouldSelect);
       }), updateActionCount();
     }
     __name(toggleSelectAll, "toggleSelectAll"), quickBanSelectAllButton && (quickBanSelectAllButton.onclick = () => toggleSelectAll(quickBanListContainer, quickBanSelectAllButton)), antiBotSelectAllButton && (antiBotSelectAllButton.onclick = () => toggleSelectAll(botMemberListContainer, antiBotSelectAllButton));
@@ -123527,8 +126477,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           newMembers.forEach((member) => {
             let thumb = thumbnails.find(
               (t3) => t3 && t3.targetId === member.user.userId
-            ), card = createMemberCard(member, thumb);
-            quickBanListContainer.appendChild(card);
+            ), card2 = createMemberCard(member, thumb);
+            quickBanListContainer.appendChild(card2);
           }), equalizeCardHeights2(quickBanListContainer), membersTitleElement && (membersTitleElement.textContent = await t2(
             "antiBots.selectMembersForAction",
             { count: quickActionState.members.length }
@@ -123545,15 +126495,15 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     __name(loadNextQuickBanPage, "loadNextQuickBanPage");
     function renderNextBotBatch() {
       if (!botMemberListContainer) return;
-      let BATCH_SIZE3 = 50, totalBots = antiBotState.likelyBotsCache.length;
+      let BATCH_SIZE4 = 50, totalBots = antiBotState.likelyBotsCache.length;
       if (antiBotState.renderCursor >= totalBots) return;
       let nextBatch = antiBotState.likelyBotsCache.slice(
         antiBotState.renderCursor,
-        antiBotState.renderCursor + BATCH_SIZE3
+        antiBotState.renderCursor + BATCH_SIZE4
       ), fragment2 = document.createDocumentFragment();
       nextBatch.forEach((member) => {
-        let thumb = antiBotState.thumbnailCache[member.user.userId], card = createMemberCard(member, thumb, !0);
-        fragment2.appendChild(card);
+        let thumb = antiBotState.thumbnailCache[member.user.userId], card2 = createMemberCard(member, thumb, !0);
+        fragment2.appendChild(card2);
       }), botMemberListContainer.appendChild(fragment2), antiBotState.renderCursor += nextBatch.length, equalizeCardHeights2(botMemberListContainer);
     }
     __name(renderNextBotBatch, "renderNextBotBatch"), antiBotsButton && (antiBotsButton.onclick = async function() {
@@ -123831,15 +126781,15 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ) && (settings2.antibotsEnabled || settings2.QuickActionsEnabled);
     active2 && !isAntiBotScriptActive ? (isAntiBotScriptActive = !0, observeElement(
       ".input-group.search-container",
-      (el3) => addFeatureButtons(el3),
+      (el4) => addFeatureButtons(el4),
       { onRemove: handleContainerRemoval }
     )) : !active2 && isAntiBotScriptActive && antiBotsFullCleanup();
   }
   __name(checkUrlAndManageState, "checkUrlAndManageState");
-  function init103() {
+  function init109() {
     isInitialized9 || (isInitialized9 = !0, window.rovalra || (window.rovalra = {}), window.rovalra.ui || (window.rovalra.ui = {}), window.addEventListener("hashchange", checkUrlAndManageState), checkUrlAndManageState());
   }
-  __name(init103, "init");
+  __name(init109, "init");
 
   // src/content/features/groups/pendingRobux.js
   init_observer();
@@ -124033,16 +126983,16 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     storeResults2(state3.groupId, finalResults), await injectResultElement2(targetElement, finalResults);
   }
   __name(onElementFound4, "onElementFound");
-  function init104() {
+  function init110() {
     chrome.storage.local.get({ pendingRobuxEnabled: !0 }, (settings2) => {
       settings2.pendingRobuxEnabled && window.location.pathname.includes("communities/configure") && observeElement(TARGET_ELEMENT_SELECTOR2, onElementFound4);
     });
   }
-  __name(init104, "init");
+  __name(init110, "init");
 
   // src/content/features/groups/draggableGroups.js
   init_observer();
-  var STORAGE_KEY9 = "rovalra_groups_order", HOLD_THRESHOLD2 = 200, MOVE_THRESHOLD2 = 5, dragState = {
+  var STORAGE_KEY10 = "rovalra_groups_order", HOLD_THRESHOLD2 = 200, MOVE_THRESHOLD2 = 5, dragState = {
     active: !1,
     element: null,
     clone: null,
@@ -124053,14 +127003,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     holdTimer: null,
     preventClick: !1
   }, dropIndicator = null, isEnabled2 = !1;
-  function init105() {
+  function init111() {
     chrome.storage.local.get(["draggableGroupsEnabled"], (result) => {
       isEnabled2 = result.draggableGroupsEnabled !== !1, isEnabled2 && (startObserving(), initializeDragSystem());
     }), chrome.storage.onChanged.addListener((changes) => {
       changes.draggableGroupsEnabled && (isEnabled2 = changes.draggableGroupsEnabled.newValue !== !1, isEnabled2 ? initializeDragSystem() : destroyDragSystem());
     });
   }
-  __name(init105, "init");
+  __name(init111, "init");
   function initializeDragSystem() {
     observeElement("a.groups-list-item", (link) => {
       if (link.closest(".pending-join-requests"))
@@ -124168,12 +127118,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     links.forEach((link, idx) => {
       let match = link.getAttribute("href")?.match(/\/communities\/(\d+)/);
       match && order.push({ groupId: match[1], position: idx });
-    }), chrome.storage.local.set({ [STORAGE_KEY9]: order });
+    }), chrome.storage.local.set({ [STORAGE_KEY10]: order });
   }
   __name(persistOrder, "persistOrder");
   function restoreSavedOrder(container) {
-    chrome.storage.local.get([STORAGE_KEY9], (result) => {
-      let savedOrder4 = result[STORAGE_KEY9];
+    chrome.storage.local.get([STORAGE_KEY10], (result) => {
+      let savedOrder4 = result[STORAGE_KEY10];
       if (!savedOrder4 || !savedOrder4.length) return;
       let orderMap = new Map(savedOrder4.map((o) => [o.groupId, o.position]));
       container.querySelectorAll("div.padding-bottom-small").forEach((section) => {
@@ -124215,7 +127165,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(isPendingGroupsElement, "isPendingGroupsElement");
   function getGroupCards() {
     return Array.from(document.querySelectorAll(GROUP_CARD_SELECTOR)).filter(
-      (card) => !isPendingGroupsElement(card) && getGroupIdFromCard(card)
+      (card2) => !isPendingGroupsElement(card2) && getGroupIdFromCard(card2)
     );
   }
   __name(getGroupCards, "getGroupCards");
@@ -124223,14 +127173,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return isPendingGroupsElement(container) || container.querySelector(".pending-groups-list") || container.closest(".groups-list-new")?.querySelector(".groups-list-heading")?.textContent?.trim()?.toLowerCase()?.includes("pending") ? !1 : container.classList.contains("groups-list-items-container");
   }
   __name(isJoinedGroupsContainer, "isJoinedGroupsContainer");
-  function getGroupIdFromCard(card) {
-    let href = card.getAttribute("href");
+  function getGroupIdFromCard(card2) {
+    let href = card2.getAttribute("href");
     return href ? getGroupIdFromUrl(href) : null;
   }
   __name(getGroupIdFromCard, "getGroupIdFromCard");
   function findCardByGroupId(groupId) {
     return getGroupCards().find(
-      (card) => getGroupIdFromCard(card) === groupId
+      (card2) => getGroupIdFromCard(card2) === groupId
     );
   }
   __name(findCardByGroupId, "findCardByGroupId");
@@ -124238,27 +127188,27 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return !!groupId && ownedGroupIds.has(parseInt(groupId, 10));
   }
   __name(isOwnedGroup, "isOwnedGroup");
-  function getGroupName(groupId, card = null) {
+  function getGroupName(groupId, card2 = null) {
     let apiName = groupInfoMap.get(parseInt(groupId, 10))?.name;
     if (apiName) return apiName;
-    let img = card?.querySelector("img");
+    let img = card2?.querySelector("img");
     if (img?.alt?.trim()) return img.alt.trim();
-    let title = card?.getAttribute("title")?.trim();
+    let title = card2?.getAttribute("title")?.trim();
     if (title) return title;
-    let visibleName = card?.querySelector(".text-title-medium")?.textContent?.trim();
+    let visibleName = card2?.querySelector(".text-title-medium")?.textContent?.trim();
     return visibleName || `Community ${groupId}`;
   }
   __name(getGroupName, "getGroupName");
-  function getGroupIconFromCard(card) {
-    return card.querySelector("img")?.src || "";
+  function getGroupIconFromCard(card2) {
+    return card2.querySelector("img")?.src || "";
   }
   __name(getGroupIconFromCard, "getGroupIconFromCard");
-  function applySelectionStyle(card, selected) {
-    selected ? (card.style.outline = "3px solid var(--rovalra-playbutton-color, #00a2ff)", card.style.outlineOffset = "-3px") : (card.style.outline = "", card.style.outlineOffset = "");
+  function applySelectionStyle(card2, selected) {
+    selected ? (card2.style.outline = "3px solid var(--rovalra-playbutton-color, #00a2ff)", card2.style.outlineOffset = "-3px") : (card2.style.outline = "", card2.style.outlineOffset = "");
   }
   __name(applySelectionStyle, "applySelectionStyle");
-  function addSelectionDot(card) {
-    if (card.querySelector(".rovalra-leave-dot")) return;
+  function addSelectionDot(card2) {
+    if (card2.querySelector(".rovalra-leave-dot")) return;
     let dot2 = document.createElement("span");
     dot2.classList.add("rovalra-leave-dot"), Object.assign(dot2.style, {
       position: "absolute",
@@ -124269,18 +127219,18 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       lineHeight: "1",
       zIndex: "10",
       pointerEvents: "none"
-    }), card.style.position = "relative", card.appendChild(dot2), updateSelectionDot(card);
+    }), card2.style.position = "relative", card2.appendChild(dot2), updateSelectionDot(card2);
   }
   __name(addSelectionDot, "addSelectionDot");
-  function updateSelectionDot(card) {
-    let dot2 = card.querySelector(".rovalra-leave-dot");
+  function updateSelectionDot(card2) {
+    let dot2 = card2.querySelector(".rovalra-leave-dot");
     if (!dot2) return;
-    let groupId = getGroupIdFromCard(card), selected = !!groupId && selectedGroups.has(groupId);
+    let groupId = getGroupIdFromCard(card2), selected = !!groupId && selectedGroups.has(groupId);
     dot2.className = selected ? "rovalra-leave-dot icon-radio-check-circle-filled" : "rovalra-leave-dot icon-radio-check-circle";
   }
   __name(updateSelectionDot, "updateSelectionDot");
-  function removeSelectionDot(card) {
-    card.querySelector(".rovalra-leave-dot")?.remove();
+  function removeSelectionDot(card2) {
+    card2.querySelector(".rovalra-leave-dot")?.remove();
   }
   __name(removeSelectionDot, "removeSelectionDot");
   async function fetchUserGroups() {
@@ -124302,8 +127252,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       if (enableBulkLeave) {
         for (let groupId of Array.from(selectedGroups.keys()))
           isOwnedGroup(groupId) && selectedGroups.delete(groupId);
-        updateLeaveButton(), getGroupCards().forEach((card) => {
-          setCardInteractivity(card, !0);
+        updateLeaveButton(), getGroupCards().forEach((card2) => {
+          setCardInteractivity(card2, !0);
         });
       }
     } catch (error3) {
@@ -124358,8 +127308,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       let removeButton2 = document.createElement("button");
       removeButton2.textContent = "\u2715", removeButton2.style.position = "absolute", removeButton2.style.top = "8px", removeButton2.style.right = "8px", removeButton2.style.opacity = "0.6", removeButton2.style.background = "none", removeButton2.style.border = "none", removeButton2.style.padding = "4px", removeButton2.style.cursor = "pointer", removeButton2.style.color = "var(--rovalra-main-text-color)", removeButton2.style.fontSize = "16px", removeButton2.style.zIndex = "10", removeButton2.style.transition = "opacity 0.15s", removeButton2.addEventListener("click", (e) => {
         e.stopPropagation(), selectedGroups.delete(groupId);
-        let card = findCardByGroupId(groupId);
-        card && (applySelectionStyle(card, !1), updateSelectionDot(card)), groupItem.style.opacity = "0.3", groupItem.style.pointerEvents = "none", setTimeout(() => {
+        let card2 = findCardByGroupId(groupId);
+        card2 && (applySelectionStyle(card2, !1), updateSelectionDot(card2)), groupItem.style.opacity = "0.3", groupItem.style.pointerEvents = "none", setTimeout(() => {
           groupItem.remove(), updateLeaveButton();
           let count = selectedGroups.size;
           confirmButton.disabled = count === 0, confirmButton.textContent = count === 0 ? ts2("leaveGroups.leave") : count === 1 ? ts2("leaveGroups.leaveCountAction", { count }) : ts2("leaveGroups.leaveCountActionPlural", { count }), description.textContent = count === 1 ? ts2("leaveGroups.descriptionSingle") : ts2("leaveGroups.descriptionPlural", { count });
@@ -124397,8 +127347,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         let groupId = groupsToLeave[i2];
         if (await leaveGroup(groupId)) {
           successCount++;
-          let card = findCardByGroupId(groupId);
-          card && (card.style.opacity = "0.3", card.style.pointerEvents = "none");
+          let card2 = findCardByGroupId(groupId);
+          card2 && (card2.style.opacity = "0.3", card2.style.pointerEvents = "none");
         }
         progressLabel.textContent = `${ts2("leaveGroups.leaving")} ${i2 + 1}/${groupsToLeave.length}`;
       }
@@ -124406,32 +127356,32 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     });
   }
   __name(showConfirmationOverlay, "showConfirmationOverlay");
-  function toggleCardSelection(card) {
-    let groupId = getGroupIdFromCard(card);
-    groupId && (isOwnedGroup(groupId) || (selectedGroups.has(groupId) ? (selectedGroups.delete(groupId), applySelectionStyle(card, !1)) : (selectedGroups.set(groupId, {
-      name: getGroupName(groupId, card),
-      iconUrl: getGroupIconFromCard(card)
-    }), applySelectionStyle(card, !0)), updateSelectionDot(card), updateLeaveButton()));
+  function toggleCardSelection(card2) {
+    let groupId = getGroupIdFromCard(card2);
+    groupId && (isOwnedGroup(groupId) || (selectedGroups.has(groupId) ? (selectedGroups.delete(groupId), applySelectionStyle(card2, !1)) : (selectedGroups.set(groupId, {
+      name: getGroupName(groupId, card2),
+      iconUrl: getGroupIconFromCard(card2)
+    }), applySelectionStyle(card2, !0)), updateSelectionDot(card2), updateLeaveButton()));
   }
   __name(toggleCardSelection, "toggleCardSelection");
   function onDocumentClickCapture(e) {
     if (!enableBulkLeave) return;
-    let card = e.target.closest("a.groups-list-item");
-    !card || isPendingGroupsElement(card) || (e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), toggleCardSelection(card));
+    let card2 = e.target.closest("a.groups-list-item");
+    !card2 || isPendingGroupsElement(card2) || (e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), toggleCardSelection(card2));
   }
   __name(onDocumentClickCapture, "onDocumentClickCapture");
-  function setCardInteractivity(card, active2) {
+  function setCardInteractivity(card2, active2) {
     if (active2) {
-      card.style.userSelect = "none", card.setAttribute("draggable", "false");
-      let groupId = getGroupIdFromCard(card);
-      isOwnedGroup(groupId) ? (card.style.cursor = "not-allowed", card.style.opacity = "0.5", applySelectionStyle(card, !1), removeSelectionDot(card)) : (card.style.cursor = "pointer", card.style.opacity = "", applySelectionStyle(card, !!groupId && selectedGroups.has(groupId)), addSelectionDot(card));
+      card2.style.userSelect = "none", card2.setAttribute("draggable", "false");
+      let groupId = getGroupIdFromCard(card2);
+      isOwnedGroup(groupId) ? (card2.style.cursor = "not-allowed", card2.style.opacity = "0.5", applySelectionStyle(card2, !1), removeSelectionDot(card2)) : (card2.style.cursor = "pointer", card2.style.opacity = "", applySelectionStyle(card2, !!groupId && selectedGroups.has(groupId)), addSelectionDot(card2));
     } else
-      card.style.cursor = "", card.style.userSelect = "", card.style.opacity = "", applySelectionStyle(card, !1), removeSelectionDot(card);
+      card2.style.cursor = "", card2.style.userSelect = "", card2.style.opacity = "", applySelectionStyle(card2, !1), removeSelectionDot(card2);
   }
   __name(setCardInteractivity, "setCardInteractivity");
   function setBulkMode(active2) {
-    enableBulkLeave = active2, active2 || selectedGroups.clear(), getGroupCards().forEach((card) => {
-      setCardInteractivity(card, active2);
+    enableBulkLeave = active2, active2 || selectedGroups.clear(), getGroupCards().forEach((card2) => {
+      setCardInteractivity(card2, active2);
     }), updateLeaveButton(), bulkToggleButton && (bulkToggleButton.textContent = active2 ? ts2("leaveGroups.exitBulkMode") : ts2("leaveGroups.bulkLeave"));
   }
   __name(setBulkMode, "setBulkMode");
@@ -124444,8 +127394,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(injectToolbar, "injectToolbar");
   function cleanup2() {
-    enableBulkLeave = !1, selectedGroups.clear(), getGroupCards().forEach((card) => {
-      setCardInteractivity(card, !1), card.style.opacity = "";
+    enableBulkLeave = !1, selectedGroups.clear(), getGroupCards().forEach((card2) => {
+      setCardInteractivity(card2, !1), card2.style.opacity = "";
     }), toolbar && (toolbar.remove(), toolbar = null), leaveButton = null, bulkToggleButton = null, toolbarContainer = null;
   }
   __name(cleanup2, "cleanup");
@@ -124462,8 +127412,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }, 500));
   }
   __name(showSuccessAlertIfNeeded, "showSuccessAlertIfNeeded");
-  async function init106() {
-    (await chrome.storage.local.get("bulkLeaveGroupsEnabled")).bulkLeaveGroupsEnabled !== !1 && (init106._run || (init106._run = !0, showSuccessAlertIfNeeded(), fetchUserGroups(), document.addEventListener("click", onDocumentClickCapture, !0), observeElement(
+  async function init112() {
+    (await chrome.storage.local.get("bulkLeaveGroupsEnabled")).bulkLeaveGroupsEnabled !== !1 && (init112._run || (init112._run = !0, showSuccessAlertIfNeeded(), fetchUserGroups(), document.addEventListener("click", onDocumentClickCapture, !0), observeElement(
       ".groups-list-items-container",
       (container) => {
         injectToolbar(container);
@@ -124476,20 +127426,20 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     ), observeElement(
       "a.groups-list-item",
-      (card) => {
-        if (isPendingGroupsElement(card)) return;
-        let container = card.closest(".groups-list-items-container");
-        container && injectToolbar(container), enableBulkLeave && setCardInteractivity(card, !0);
+      (card2) => {
+        if (isPendingGroupsElement(card2)) return;
+        let container = card2.closest(".groups-list-items-container");
+        container && injectToolbar(container), enableBulkLeave && setCardInteractivity(card2, !0);
       },
       {
         multiple: !0,
-        onRemove: /* @__PURE__ */ __name((card) => {
-          removeSelectionDot(card);
+        onRemove: /* @__PURE__ */ __name((card2) => {
+          removeSelectionDot(card2);
         }, "onRemove")
       }
     )));
   }
-  __name(init106, "init");
+  __name(init112, "init");
 
   // src/content/features/groups/placevisits.js
   init_api();
@@ -124516,7 +127466,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
   }
   __name(fetchTotalVisits, "fetchTotalVisits");
-  function init107() {
+  function init113() {
     chrome.storage.local.get({ groupPlaceVisitsEnabled: !0 }, (settings2) => {
       settings2.groupPlaceVisitsEnabled && observeElement(
         ".profile-insights-container.flex.gap-small",
@@ -124543,7 +127493,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       );
     });
   }
-  __name(init107, "init");
+  __name(init113, "init");
 
   // src/content/features/groups/createDate.js
   init_observer();
@@ -124578,7 +127528,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
 
   // src/content/features/groups/createDate.js
   init_i18n();
-  function init108() {
+  function init114() {
     chrome.storage.local.get({ groupCreateDateEnabled: !0 }, (settings2) => {
       settings2.groupCreateDateEnabled && (observeElement(
         ".roseal-group-stats .group-created-date",
@@ -124623,7 +127573,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       ));
     });
   }
-  __name(init108, "init");
+  __name(init114, "init");
 
   // src/content/features/groups/groupPendingFunds.js
   init_observer();
@@ -124681,7 +127631,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     amount.className = "content-default", amount.textContent = pendingRobux.toLocaleString(), pendingRow.appendChild(amount), content.appendChild(pendingRow);
   }
   __name(injectPendingFunds, "injectPendingFunds");
-  function init109() {
+  function init115() {
     chrome.storage.local.get(
       { groupPendingFundsEnabled: !0 },
       (settings2) => {
@@ -124696,7 +127646,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init109, "init");
+  __name(init115, "init");
 
   // src/content/features/plus/stats.js
   init_i18n();
@@ -124862,7 +127812,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         </div>`, parent.appendChild(containerDiv), !0;
   }
   __name(makeHtml, "makeHtml");
-  function init110() {
+  function init116() {
     chrome.storage.local.get(
       {
         plusStatsEnabled: !0
@@ -124875,7 +127825,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init110, "init");
+  __name(init116, "init");
 
   // src/content/features/plus/transferLimits.js
   init_observer();
@@ -124886,39 +127836,11 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   // src/content/core/utils/trackers/robuxTransfers.js
   init_api();
   init_user();
-  var ROBUX_TRANSFER_DATA_KEY = "rovalra_robux_transfer_limits_v1", ROBUX_TRANSFER_CHANGED_EVENT = "rovalra:robux-transfer-limits-changed", ROBUX_TRANSFER_REFRESH_MS = 300 * 1e3, SUBSCRIPTION_CACHE_TTL_MS = 3600 * 1e3, DAY_MS = 1440 * 60 * 1e3, activeUpdatePromise = null, trackingInitialized = !1, refreshIntervalId = null;
+  var ROBUX_TRANSFER_DATA_KEY = "rovalra_robux_transfer_limits_v1", ROBUX_TRANSFER_CHANGED_EVENT = "rovalra:robux-transfer-limits-changed", ROBUX_TRANSFER_REFRESH_MS = 300 * 1e3, DAY_MS = 1440 * 60 * 1e3, MONTH_PERIOD_MS = 30 * DAY_MS, activeUpdatePromise = null, trackingInitialized = !1, refreshIntervalId = null;
   function clampRemaining(limit, sent) {
     return Math.max(0, limit - Math.max(0, sent));
   }
   __name(clampRemaining, "clampRemaining");
-  function addMonths(timestamp, months) {
-    let date = new Date(timestamp), day = date.getUTCDate();
-    date.setUTCDate(1), date.setUTCMonth(date.getUTCMonth() + months);
-    let daysInTargetMonth = new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)
-    ).getUTCDate();
-    return date.setUTCDate(Math.min(day, daysInTargetMonth)), date.getTime();
-  }
-  __name(addMonths, "addMonths");
-  function subtractSubscriptionPeriod(timestamp, subscription) {
-    let periodCount = Number(subscription?.productInfo?.periodCount) || 1, periodType = subscription?.periodType || subscription?.productInfo?.periodType;
-    return periodType === "Year" ? addMonths(timestamp, -12 * periodCount) : periodType === "Week" ? timestamp - 7 * DAY_MS * periodCount : addMonths(timestamp, -periodCount);
-  }
-  __name(subtractSubscriptionPeriod, "subtractSubscriptionPeriod");
-  function getSubscriptionWindow(subscription, now = Date.now()) {
-    if (!subscription) return null;
-    let activation = Number(subscription.activationTimestampMs), expiration = Number(subscription.expirationTimestampMs), renewal = Number(subscription.nextRenewalTimestampMs), end = Number.isFinite(renewal) && renewal > now ? renewal : Number.isFinite(expiration) && expiration > now ? expiration : null;
-    if (!end) return null;
-    let start = subtractSubscriptionPeriod(end, subscription);
-    return Number.isFinite(activation) && start < activation && (start = activation), {
-      start,
-      end,
-      activation: Number.isFinite(activation) ? activation : null,
-      expiration: Number.isFinite(expiration) ? expiration : null,
-      nextRenewal: Number.isFinite(renewal) ? renewal : null
-    };
-  }
-  __name(getSubscriptionWindow, "getSubscriptionWindow");
   async function readAllTransferData() {
     try {
       return (await chrome.storage.local.get(ROBUX_TRANSFER_DATA_KEY))[ROBUX_TRANSFER_DATA_KEY] || {};
@@ -124946,24 +127868,21 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(emitTransferDataChange, "emitTransferDataChange");
-  async function fetchRobloxPlusSubscription() {
-    let response = await callRobloxApiJson({
-      subdomain: "apis",
-      endpoint: `/subscriptions/v2/user/subscriptions?ProductType=Blackbird&ExpirationTimestampMsStart=${Date.now()}&ResultsPerPage=100`,
-      method: "GET",
-      noCache: !0
-    });
-    return Array.isArray(response?.subscriptions) && response.subscriptions[0] || null;
-  }
-  __name(fetchRobloxPlusSubscription, "fetchRobloxPlusSubscription");
-  async function fetchCurrencyTransfers(userId) {
-    let response = await callRobloxApiJson({
-      subdomain: "apis",
-      endpoint: `/transaction-records/v1/users/${userId}/transactions?cursor=&limit=100&transactionType=CurrencyTransfer&itemPricingType=PaidAndLimited`,
-      method: "GET",
-      noCache: !0
-    });
-    return Array.isArray(response?.data) ? response.data : [];
+  async function fetchCurrencyTransfers(userId, now = Date.now()) {
+    let cutoff = now - MONTH_PERIOD_MS, transactions = [], cursor = "";
+    do {
+      let response = await callRobloxApiJson({
+        subdomain: "apis",
+        endpoint: `/transaction-records/v1/users/${userId}/transactions?cursor=${encodeURIComponent(cursor)}&limit=100&transactionType=CurrencyTransfer&itemPricingType=PaidAndLimited`,
+        method: "GET",
+        noCache: !0
+      }), page = Array.isArray(response?.data) ? response.data : [];
+      transactions.push(...page);
+      let oldestCreatedMs = Date.parse(page[page.length - 1]?.created);
+      if (Number.isFinite(oldestCreatedMs) && oldestCreatedMs < cutoff) break;
+      cursor = response?.nextPageCursor || "";
+    } while (cursor);
+    return transactions;
   }
   __name(fetchCurrencyTransfers, "fetchCurrencyTransfers");
   async function fetchRobloxTransferLimits() {
@@ -124981,8 +127900,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(fetchRobloxTransferLimits, "fetchRobloxTransferLimits");
   function transactionBelongsToSender(transaction, userId) {
-    let details = transaction?.details || {};
-    return String(details.senderTargetId) === String(userId) && (details.transferRole === "Sender" || details.transferRole === "SenderRefund");
+    let details2 = transaction?.details || {};
+    return String(details2.senderTargetId) === String(userId) && (details2.transferRole === "Sender" || details2.transferRole === "SenderRefund");
   }
   __name(transactionBelongsToSender, "transactionBelongsToSender");
   function buildNetSentTransfers(transactions, userId) {
@@ -125027,28 +127946,29 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     };
   }
   __name(calculateDailyStats, "calculateDailyStats");
-  function calculateMonthlyStats(transfers, monthlyLimit, subscriptionWindow) {
-    let start = subscriptionWindow?.start, end = subscriptionWindow?.end, sent = (Number.isFinite(start) && Number.isFinite(end) ? transfers.filter(
-      (transfer) => transfer.createdMs >= start && transfer.createdMs < end
-    ) : []).reduce(
+  function calculateMonthlyStats(transfers, monthlyLimit, now = Date.now()) {
+    let windowStart = now - MONTH_PERIOD_MS, monthlyTransfers = transfers.filter(
+      (transfer) => transfer.createdMs > windowStart
+    ), sent = monthlyTransfers.reduce(
       (total, transfer) => total + transfer.amount,
       0
-    );
+    ), releases = monthlyTransfers.map((transfer) => ({
+      timestampMs: transfer.createdMs + MONTH_PERIOD_MS,
+      amount: transfer.amount
+    })).sort((a, b3) => a.timestampMs - b3.timestampMs);
     return {
       sent,
       remaining: clampRemaining(monthlyLimit, sent),
       limit: monthlyLimit,
-      windowStartTimestampMs: start || null,
-      windowEndTimestampMs: end || null
+      resetTimestampMs: releases[0]?.timestampMs || null,
+      releases,
+      windowStartTimestampMs: windowStart,
+      windowEndTimestampMs: now
     };
   }
   __name(calculateMonthlyStats, "calculateMonthlyStats");
-  function buildTransferData(userId, transactions, subscription, limits, now = Date.now()) {
-    let subscriptionWindow = getSubscriptionWindow(subscription, now), transfers = buildNetSentTransfers(transactions, userId), daily = calculateDailyStats(transfers, limits.dailyLimit, now), monthly = calculateMonthlyStats(
-      transfers,
-      limits.monthlyLimit,
-      subscriptionWindow
-    );
+  function buildTransferData(userId, transactions, limits, now = Date.now()) {
+    let transfers = buildNetSentTransfers(transactions, userId), daily = calculateDailyStats(transfers, limits.dailyLimit, now), monthly = calculateMonthlyStats(transfers, limits.monthlyLimit, now);
     return {
       userId: String(userId),
       daily,
@@ -125059,11 +127979,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       remainingThisMonth: monthly.remaining,
       dailyLimit: limits.dailyLimit,
       monthlyLimit: limits.monthlyLimit,
-      subscription: subscriptionWindow,
       source: {
         transactionCount: Array.isArray(transactions) ? transactions.length : 0,
         transferCount: transfers.length,
-        hasMoreTransactionsThanFetched: transactions.length >= 100,
         fetchedAt: now
       },
       updatedAt: now
@@ -125081,10 +127999,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     let cachedData2 = (await readAllTransferData())[userId];
     return !forceRefresh && cachedData2 && Date.now() - (cachedData2.updatedAt || 0) < ROBUX_TRANSFER_REFRESH_MS ? cachedData2 : activeUpdatePromise || (activeUpdatePromise = (async () => {
       try {
-        let shouldRefreshSubscription = forceRefresh || !cachedData2?.subscription || Date.now() - (cachedData2.subscriptionFetchedAt || 0) > SUBSCRIPTION_CACHE_TTL_MS, subscription = shouldRefreshSubscription ? await fetchRobloxPlusSubscription().catch((error3) => (console.warn(
-          "RoValra: Failed to fetch Roblox Plus subscription for transfer tracker",
-          error3
-        ), cachedData2?.subscriptionRaw || null)) : cachedData2.subscriptionRaw || null, limits = await fetchRobloxTransferLimits().catch((error3) => {
+        let limits = await fetchRobloxTransferLimits().catch((error3) => {
           console.warn(
             "RoValra: Failed to fetch Roblox Robux transfer limits",
             error3
@@ -125096,11 +128011,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         }), transactions = await fetchCurrencyTransfers(userId), transferData = buildTransferData(
           userId,
           transactions,
-          subscription,
           limits
-        );
-        transferData.subscriptionRaw = subscription, transferData.subscriptionFetchedAt = shouldRefreshSubscription ? Date.now() : cachedData2.subscriptionFetchedAt;
-        let latestTransferData = await readAllTransferData();
+        ), latestTransferData = await readAllTransferData();
         return latestTransferData[userId] = transferData, await writeAllTransferData(latestTransferData), emitTransferDataChange(userId, transferData), transferData;
       } catch (error3) {
         return console.warn(
@@ -125122,7 +128034,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(initRobuxTransferTracking, "initRobuxTransferTracking");
 
   // src/content/features/plus/transferLimits.js
-  var legacyParentElementQuerySelector = "#roblox-subscription-container > .clip-x > .flex > .width-full.flex.flex-col.self-stretch", containerClasses = "gap-y-small flex flex-col rovalra-plus-transfer-limits", containerObserver2 = null, changeListenerAttached = !1, renderPromise = null, upsertPromise = Promise.resolve(), initialized16 = !1, hasRenderedRealData = !1;
+  var legacyParentElementQuerySelector = "#roblox-subscription-container > .clip-x > .flex > .width-full.flex.flex-col.self-stretch", containerClasses = "gap-y-small flex flex-col rovalra-plus-transfer-limits", containerObserver2 = null, changeListenerAttached = !1, renderPromise = null, upsertPromise = Promise.resolve(), initialized18 = !1, hasRenderedRealData = !1, refillsExpanded = !1;
   function removeTransferLimits() {
     document.querySelectorAll(".rovalra-plus-transfer-limits").forEach((element) => element.remove());
   }
@@ -125168,6 +128080,88 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         </div>`;
   }
   __name(createStatCard, "createStatCard");
+  function getUpcomingRefills(data, now = Date.now()) {
+    let monthlyLimit = Number(data?.monthlyLimit), releases = Array.isArray(data?.monthly?.releases) ? data.monthly.releases.filter((release) => release.timestampMs > now).sort((a, b3) => a.timestampMs - b3.timestampMs) : [];
+    if (!Number.isFinite(monthlyLimit) || releases.length === 0) return [];
+    let pending3 = releases.reduce(
+      (total, release) => total + release.amount,
+      0
+    );
+    return releases.map((release) => (pending3 -= release.amount, {
+      ...release,
+      remainingAfter: Math.max(0, monthlyLimit - pending3)
+    }));
+  }
+  __name(getUpcomingRefills, "getUpcomingRefills");
+  async function createRefillSection(refills) {
+    if (refills.length === 0) return "";
+    let [nextRefillLabel, noteText, ...leftLabels] = await Promise.all([
+      t2("plus.transferLimits.nextRefill"),
+      t2("plus.transferLimits.refillNote"),
+      ...refills.map(
+        (refill) => t2("plus.transferLimits.leftAfter", {
+          amount: formatRobux(refill.remainingAfter)
+        })
+      )
+    ]), next = refills[0], rows = refills.map(
+      (refill, index) => safeHtml`
+                <div class="gap-x-small flex items-center justify-between">
+                    <span
+                        class="rovalra-transfer-refill-time text-body-medium content-default"
+                        data-timestamp="${refill.timestampMs}">
+                    </span>
+                    <span class="gap-x-medium flex items-center">
+                        <span class="text-body-medium content-emphasis">+${formatRobux(refill.amount)}</span>
+                        <span class="text-body-medium content-muted">${leftLabels[index]}</span>
+                    </span>
+                </div>`
+    ).join("");
+    return `
+        <div class="radius-medium bg-shift-200 clip flex flex-col">
+            ${safeHtml`
+                <button
+                    type="button"
+                    class="rovalra-transfer-refills-trigger relative clip group/interactable focus-visible:outline-focus gap-small cursor-pointer content-default bg-none stroke-none width-full padding-large flex items-center justify-between"
+                    aria-expanded="false">
+                    <div
+                        role="presentation"
+                        class="absolute inset-[0] transition-colors group-hover/interactable:bg-[var(--color-state-hover)] group-active/interactable:bg-[var(--color-state-press)]">
+                    </div>
+                    <span class="gap-y-small min-width-0 grow-1 flex flex-col items-start">
+                        <span class="text-title-medium content-default">${nextRefillLabel}</span>
+                        <span class="gap-x-small flex items-center">
+                            <span class="text-heading-small content-emphasis gap-x-xsmall flex items-center">
+                                <span
+                                    role="presentation"
+                                    class="grow-0 shrink-0 basis-auto icon icon-regular-robux size-[var(--icon-size-small)]">
+                                </span>
+                                +${formatRobux(next.amount)}
+                            </span>
+                            <span
+                                class="rovalra-transfer-refill-time text-body-medium content-muted"
+                                data-timestamp="${next.timestampMs}">
+                            </span>
+                        </span>
+                    </span>
+                    <span class="rovalra-transfer-refills-chevron shrink-0 size-500 icon icon-regular-chevron-large-down motion-safe:transition-transform duration-200"></span>
+                </button>`}
+            <div
+                class="rovalra-transfer-refills-list padding-x-large padding-bottom-large gap-y-small flex flex-col">
+                ${rows}
+                ${safeHtml`<span class="text-caption-medium content-muted">${noteText}</span>`}
+            </div>
+        </div>`;
+  }
+  __name(createRefillSection, "createRefillSection");
+  function applyRefillsExpanded(container) {
+    let trigger = container.querySelector(
+      ".rovalra-transfer-refills-trigger"
+    ), list = container.querySelector(".rovalra-transfer-refills-list"), chevron = container.querySelector(
+      ".rovalra-transfer-refills-chevron"
+    );
+    !trigger || !list || (trigger.setAttribute("aria-expanded", String(refillsExpanded)), list.style.display = refillsExpanded ? "flex" : "none", chevron && (chevron.style.transform = refillsExpanded ? "rotate(180deg)" : "rotate(0deg)"));
+  }
+  __name(applyRefillsExpanded, "applyRefillsExpanded");
   function findNativeStatsSection() {
     return Array.from(
       document.querySelectorAll(".gap-y-small.flex.flex-col")
@@ -125205,7 +128199,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       monthlyLimitLabel,
       sentTodayLabel,
       sentThisMonthLabel,
-      captionText
+      captionText,
+      refillSection
     ] = await Promise.all([
       t2("plus.transferLimits.dailyLimitLeft"),
       t2("plus.transferLimits.monthlyLimitLeft"),
@@ -125214,7 +128209,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       t2("plus.transferLimits.caption", {
         dailyLimit: formatRobux(dailyLimit),
         monthlyLimit: formatRobux(monthlyLimit)
-      })
+      }),
+      createRefillSection(getUpcomingRefills(data))
     ]), caption = safeHtml`
         <span class="text-caption-medium content-muted">
             ${captionText}
@@ -125228,7 +128224,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             ${createStatCard(sentTodayLabel, data?.sentToday)}
             ${createStatCard(sentThisMonthLabel, data?.sentThisMonth)}
         </div>
-        ${caption}`, data && (hasRenderedRealData = !0), insertionPoint.after?.parentElement === insertionPoint.parent ? insertionPoint.after.insertAdjacentElement("afterend", container) : insertionPoint.parent.appendChild(container), !0;
+        ${refillSection}
+        ${caption}`, container.querySelectorAll(".rovalra-transfer-refill-time").forEach((element) => {
+      element.appendChild(
+        createInteractiveTimestamp(Number(element.dataset.timestamp))
+      );
+    }), container.querySelector(".rovalra-transfer-refills-trigger")?.addEventListener("click", () => {
+      refillsExpanded = !refillsExpanded, applyRefillsExpanded(container);
+    }), applyRefillsExpanded(container), data && (hasRenderedRealData = !0), insertionPoint.after?.parentElement === insertionPoint.parent ? insertionPoint.after.insertAdjacentElement("afterend", container) : insertionPoint.parent.appendChild(container), !0;
   }
   __name(upsertTransferLimitsNow, "upsertTransferLimitsNow");
   function upsertTransferLimits(data = null) {
@@ -125271,20 +128274,20 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }));
   }
   __name(attachTransferLimitListener, "attachTransferLimitListener");
-  async function init111() {
+  async function init117() {
     if (!await isFeatureEnabled()) {
       removeTransferLimits();
       return;
     }
-    if (initialized16) {
+    if (initialized18) {
       renderTransferLimits();
       return;
     }
-    initialized16 = !0, initRobuxTransferTracking(), attachTransferLimitListener(), renderTransferLimits(), containerObserver2 = observeElement("body", renderTransferLimits), observeElement(".gap-y-large.flex.flex-col", renderTransferLimits, {
+    initialized18 = !0, initRobuxTransferTracking(), attachTransferLimitListener(), renderTransferLimits(), containerObserver2 = observeElement("body", renderTransferLimits), observeElement(".gap-y-large.flex.flex-col", renderTransferLimits, {
       multiple: !0
     });
   }
-  __name(init111, "init");
+  __name(init117, "init");
 
   // src/content/features/plus/referral.js
   init_observer();
@@ -125302,14 +128305,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     if (subscribeButton.dataset.rovalraReferralEnhanced === "true") return;
     let buttonRow = subscribeButton.parentElement, subscriptionSection = buttonRow?.parentElement;
     if (!buttonRow || !subscriptionSection || subscriptionSection.hasAttribute(REFERRAL_CONTAINER_ATTRIBUTE)) return;
-    let [reward, details, buttonLabel] = await Promise.all([
+    let [reward, details2, buttonLabel] = await Promise.all([
       t2("plus.referral.reward"),
       t2("plus.referral.details"),
       t2("plus.referral.button")
     ]), referralContainer = document.createElement("div");
     referralContainer.setAttribute(REFERRAL_CONTAINER_ATTRIBUTE, "true"), referralContainer.className = "gap-y-small flex flex-col width-full", referralContainer.innerHTML = safeHtml`
         <span class="text-heading-small content-emphasis">${reward}</span>
-        <span class="text-caption-medium content-muted">${details}</span>
+        <span class="text-caption-medium content-muted">${details2}</span>
         <div class="width-full gap-x-small flex shrink-0 flex-row items-start justify-center">
             <button
                 type="button"
@@ -125325,12 +128328,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }), buttonRow.after(referralContainer), subscribeButton.dataset.rovalraReferralEnhanced = "true";
   }
   __name(addReferralOffer, "addReferralOffer");
-  async function init112() {
+  async function init118() {
     await settings.plusReferralEnabled !== !1 && observeElement(SUBSCRIBE_BUTTON_SELECTOR, addReferralOffer, {
       multiple: !0
     });
   }
-  __name(init112, "init");
+  __name(init118, "init");
 
   // src/content/features/profile/header/donationlink.js
   init_observer();
@@ -125478,9 +128481,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }), Array.from(groupedItems.values());
   }
   __name(groupCollectibleItems, "groupCollectibleItems");
-  function addQuantityBadge(card, quantity) {
+  function addQuantityBadge(card2, quantity) {
     if (quantity <= 1) return;
-    let thumbnailContainer = card.querySelector(
+    let thumbnailContainer = card2.querySelector(
       ".rovalra-item-thumb-container"
     );
     if (!thumbnailContainer) return;
@@ -125528,7 +128531,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           currentLoadController.signal
         ), currentLoadController.signal.aborted) return;
         itemsToLoad.forEach((item) => {
-          let normalizedItem = normalizeCollectibleItem(item), bundleId = getCollectibleBundleId(normalizedItem), card = createItemCard(
+          let normalizedItem = normalizeCollectibleItem(item), bundleId = getCollectibleBundleId(normalizedItem), card2 = createItemCard(
             normalizedItem,
             itemThumbnailCache,
             {
@@ -125536,13 +128539,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
               hideSerial
             }
           );
-          addQuantityBadge(card, normalizedItem.quantity), updateItemCard(card, normalizedItem.assetId, {
+          addQuantityBadge(card2, normalizedItem.quantity), updateItemCard(card2, normalizedItem.assetId, {
             fontSize: "12px",
             fontColor: "var(--rovalra-secondary-text-color)",
             forceLink: !0,
             rolimonsItemType: bundleId ? "Bundle" : "Asset",
             bundleId
-          }), itemListContainer.appendChild(card);
+          }), itemListContainer.appendChild(card2);
         });
       } catch (error3) {
         error3.name !== "AbortError" && console.error(
@@ -125667,7 +128670,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
   }
   __name(addUserRapDisplay, "addUserRapDisplay");
-  function init113() {
+  function init119() {
     chrome.storage.local.get({ userRapEnabled: !0 }, function(data) {
       data.userRapEnabled && observeElement(
         ".flex-nowrap.gap-small.flex, .profile-header-names",
@@ -125676,7 +128679,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       );
     });
   }
-  __name(init113, "init");
+  __name(init119, "init");
 
   // src/content/features/profile/header/donationlink.js
   init_purify_es();
@@ -125834,7 +128837,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         displayedCount + CONFIG2.DONATION_PAGE_SIZE
       );
       nextBatch.forEach((gamePass) => {
-        let card = createGamePassCard(gamePass), buyBtn = card.querySelector("button");
+        let card2 = createGamePassCard(gamePass), buyBtn = card2.querySelector("button");
         buyBtn && buyBtn.addEventListener(
           "click",
           (e) => {
@@ -125844,7 +128847,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             );
           },
           !0
-        ), gamePassListContainer.appendChild(card);
+        ), gamePassListContainer.appendChild(card2);
       }), displayedCount += nextBatch.length, loadMoreBtn.style.display = displayedCount < allGamePasses.length ? "block" : "none";
     }, "renderNextBatch");
     loadMoreBtn.onclick = () => renderNextBatch();
@@ -125883,9 +128886,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       return;
     }
     try {
-      let userGames = await fetchUserGames(userId), results = [], BATCH_SIZE3 = 10;
-      for (let i2 = 0; i2 < userGames.length; i2 += BATCH_SIZE3) {
-        let batch = userGames.slice(i2, i2 + BATCH_SIZE3), batchStartTime = Date.now(), batchResults = await Promise.all(
+      let userGames = await fetchUserGames(userId), results = [], BATCH_SIZE4 = 10;
+      for (let i2 = 0; i2 < userGames.length; i2 += BATCH_SIZE4) {
+        let batch = userGames.slice(i2, i2 + BATCH_SIZE4), batchStartTime = Date.now(), batchResults = await Promise.all(
           batch.map(async (game) => {
             let forSalePasses = (await fetchGamePassesForUniverse(game.id)).filter(
               (pass) => pass && pass.isForSale
@@ -125895,7 +128898,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             ) ? forSalePasses : [];
           })
         );
-        if (results.push(...batchResults), i2 + BATCH_SIZE3 < userGames.length) {
+        if (results.push(...batchResults), i2 + BATCH_SIZE4 < userGames.length) {
           let elapsedTime = Date.now() - batchStartTime, waitTime = Math.max(0, 1e3 - elapsedTime);
           waitTime > 0 && await new Promise((r) => setTimeout(r, waitTime));
         }
@@ -125934,7 +128937,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     targetContainer.appendChild(donationButton);
   }
   __name(addDonationButton, "addDonationButton");
-  function init114() {
+  function init120() {
     if (window.location.pathname.includes("/game-pass") && window.location.search.includes("RoValra-Auto-Buy")) {
       let runAutoBuy = /* @__PURE__ */ __name(() => {
         observeElement('button[data-button-action="buy"]', (btn) => {
@@ -125960,7 +128963,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       );
     });
   }
-  __name(init114, "init");
+  __name(init120, "init");
 
   // src/content/features/profile/header/instantjoiner.js
   init_observer();
@@ -126197,7 +129200,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_purify_es();
   init_idExtractor();
   init_i18n();
-  function init115() {
+  function init121() {
     chrome.storage.local.get(
       { userSniperEnabled: !1, deeplinkEnabled: !0 },
       function(settings2) {
@@ -126416,7 +129419,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init115, "init");
+  __name(init121, "init");
 
   // src/content/features/profile/outfits.js
   init_review();
@@ -126429,7 +129432,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_dompurify();
   init_overlay();
   init_i18n();
-  function init116() {
+  function init122() {
     chrome.storage.local.get("useroutfitsEnabled", function(data) {
       if (data.useroutfitsEnabled !== !0)
         return;
@@ -126676,8 +129679,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
               catalogDetailsMap
             } = outfitData, totalOutfitPrice = 0, processedBundleIds2 = /* @__PURE__ */ new Set();
             assets7 && catalogDetailsMap && assets7.forEach((asset) => {
-              let details = catalogDetailsMap[asset.id];
-              details && details.isPurchasable && details.priceInRobux > 0 && (details.itemType === "Bundle" ? processedBundleIds2.has(details.id) || (totalOutfitPrice += details.priceInRobux, processedBundleIds2.add(details.id)) : totalOutfitPrice += details.priceInRobux);
+              let details2 = catalogDetailsMap[asset.id];
+              details2 && details2.isPurchasable && details2.priceInRobux > 0 && (details2.itemType === "Bundle" ? processedBundleIds2.has(details2.id) || (totalOutfitPrice += details2.priceInRobux, processedBundleIds2.add(details2.id)) : totalOutfitPrice += details2.priceInRobux);
             });
             let totalPriceDisplay2 = document.getElementById(
               "rovalra-outfit-total-price"
@@ -126762,12 +129765,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
                   itemRestrictions,
                   price,
                   bundleId
-                }, card = createItemCard(
+                }, card2 = createItemCard(
                   itemData,
                   thumbnailMap,
                   { showSerial: !1 }
                 );
-                itemsContainer.appendChild(card);
+                itemsContainer.appendChild(card2);
               });
             }, "renderItemsPage"), updatePaginationControls = /* @__PURE__ */ __name(() => {
               if (paginationContainer.innerHTML = "", totalPages <= 1) {
@@ -126821,12 +129824,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
                     );
                   })()
                 );
-                let BATCH_SIZE3 = 50;
-                for (let i2 = 0; i2 < assetIds.length; i2 += BATCH_SIZE3) {
+                let BATCH_SIZE4 = 50;
+                for (let i2 = 0; i2 < assetIds.length; i2 += BATCH_SIZE4) {
                   let payload = {
                     assets: assetIds.slice(
                       i2,
-                      i2 + BATCH_SIZE3
+                      i2 + BATCH_SIZE4
                     ).map((id) => ({ id }))
                   };
                   fetchPromises.push(
@@ -127027,7 +130030,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       });
     });
   }
-  __name(init116, "init");
+  __name(init122, "init");
 
   // src/content/features/profile/privateserver.js
   init_observer();
@@ -127358,7 +130361,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }), selectAllButton.addEventListener("click", handleSelectAll), mainButtonInactive.addEventListener("click", () => handleBulkAction(!1)), mainButtonActive.addEventListener("click", () => handleBulkAction(!0)), updateButtonStates();
   }
   __name(handlePageUpdate, "handlePageUpdate");
-  function init117() {
+  function init123() {
     chrome.storage.local.get({ PrivateServerBulkEnabled: !0 }, (data) => {
       if (data.PrivateServerBulkEnabled === !0) {
         let wrapHistory = /* @__PURE__ */ __name((type) => {
@@ -127372,7 +130375,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     });
   }
-  __name(init117, "init");
+  __name(init123, "init");
 
   // src/content/features/profile/header/RoValraBadges.js
   init_observer();
@@ -127983,7 +130986,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
   }
   __name(addProfileBadgeButtons, "addProfileBadgeButtons");
-  function init118() {
+  function init124() {
     settings.robloxGroupFeaturesEnabled.then((enabled10) => {
       document.dispatchEvent(
         new CustomEvent("rovalra:settingsState", {
@@ -128029,7 +131032,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       );
     });
   }
-  __name(init118, "init");
+  __name(init124, "init");
 
   // src/content/features/profile/hiddengames.js
   init_observer();
@@ -128129,9 +131132,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     async resolveGameInfo(universeIds, itemByUniverse) {
       let gameById = /* @__PURE__ */ new Map();
       for (let i2 = 0; i2 < universeIds.length; i2 += 50) {
-        let chunk = universeIds.slice(i2, i2 + 50), res = await this.fetchWithRetry({
+        let chunk2 = universeIds.slice(i2, i2 + 50), res = await this.fetchWithRetry({
           subdomain: "games",
-          endpoint: ENDPOINTS.GAMES_V1(chunk.join(","))
+          endpoint: ENDPOINTS.GAMES_V1(chunk2.join(","))
         });
         (res ? await res.json().catch(() => null) : null)?.data?.forEach((g2) => gameById.set(g2.id, g2));
       }
@@ -128380,7 +131383,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     }
   }, isInitialized10 = !1;
-  async function init119() {
+  async function init125() {
     if (isInitialized10 || await settings.userGamesEnabled !== !0) return;
     isInitialized10 = !0;
     let handleButtonClick = /* @__PURE__ */ __name(() => {
@@ -128418,7 +131421,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     );
   }
-  __name(init119, "init");
+  __name(init125, "init");
 
   // src/content/features/profile/grouprole.js
   init_api();
@@ -128496,7 +131499,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return joinDatePromises.delete(groupId), result;
   }
   __name(getJoinDate, "getJoinDate");
-  function init120() {
+  function init126() {
     let userId = getUserIdFromUrl();
     userId && chrome.storage.local.get({ groupFiltersEnabled: !0 }, (settings2) => {
       settings2.groupFiltersEnabled && observeElement(
@@ -128619,7 +131622,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       );
     });
   }
-  __name(init120, "init");
+  __name(init126, "init");
 
   // src/content/features/profile/grouprole.js
   init_i18n();
@@ -128640,7 +131643,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     })()), rolesPromise;
   }
   __name(getGroupRoles, "getGroupRoles");
-  function init121() {
+  function init127() {
     let userId = getUserIdFromUrl();
     userId && chrome.storage.local.get(
       { groupRoleEnabled: !0, groupJoinedDateEnabled: !0 },
@@ -128733,13 +131736,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init121, "init");
+  __name(init127, "init");
 
   // src/content/features/games/hidePrivateServers.js
   init_observer();
   init_i18n();
   init_getSettings();
-  var STORAGE_KEY10 = "hiddenFriendPrivateServers", PRIVATE_SERVER_ROW_SELECTOR = ".flex.items-center.justify-between.padding-y-medium.width-full", HIDE_BUTTON_SELECTOR = "[data-rovalra-hide-private-server]", hiddenPrivateServerIds = /* @__PURE__ */ new Set(), storageListenerRegistered = !1, enabled4 = !1;
+  var STORAGE_KEY11 = "hiddenFriendPrivateServers", PRIVATE_SERVER_ROW_SELECTOR = ".flex.items-center.justify-between.padding-y-medium.width-full", HIDE_BUTTON_SELECTOR = "[data-rovalra-hide-private-server]", hiddenPrivateServerIds = /* @__PURE__ */ new Set(), storageListenerRegistered = !1, enabled4 = !1;
   function isHideablePrivateServer(row) {
     return row.closest('[data-rovalra-section-type="private"]') && row.getAttribute("data-rovalra-is-owner") === "false" && row.getAttribute("data-private-server-id");
   }
@@ -128754,7 +131757,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     hiddenPrivateServerIds.add(privateServerId);
     try {
       await chrome.storage.local.set({
-        [STORAGE_KEY10]: [...hiddenPrivateServerIds]
+        [STORAGE_KEY11]: [...hiddenPrivateServerIds]
       }), row.remove();
     } catch {
       hiddenPrivateServerIds.delete(privateServerId);
@@ -128800,7 +131803,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(applyToRow, "applyToRow");
   function registerStorageListener() {
     storageListenerRegistered || (storageListenerRegistered = !0, chrome.storage.onChanged.addListener((changes, areaName) => {
-      areaName === "local" && (changes.HidePrivateServersEnabled && (enabled4 = changes.HidePrivateServersEnabled.newValue !== !1), changes[STORAGE_KEY10] && (hiddenPrivateServerIds = new Set(changes[STORAGE_KEY10].newValue || [])), document.querySelectorAll(PRIVATE_SERVER_ROW_SELECTOR).forEach(applyToRow));
+      areaName === "local" && (changes.HidePrivateServersEnabled && (enabled4 = changes.HidePrivateServersEnabled.newValue !== !1), changes[STORAGE_KEY11] && (hiddenPrivateServerIds = new Set(changes[STORAGE_KEY11].newValue || [])), document.querySelectorAll(PRIVATE_SERVER_ROW_SELECTOR).forEach(applyToRow));
     }));
   }
   __name(registerStorageListener, "registerStorageListener");
@@ -128821,17 +131824,17 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(observePrivateServerRows, "observePrivateServerRows");
-  async function init122() {
-    let stored = await chrome.storage.local.get(STORAGE_KEY10);
-    hiddenPrivateServerIds = new Set(stored[STORAGE_KEY10] || []), enabled4 = await settings.HidePrivateServersEnabled !== !1, registerStorageListener(), observePrivateServerRows();
+  async function init128() {
+    let stored = await chrome.storage.local.get(STORAGE_KEY11);
+    hiddenPrivateServerIds = new Set(stored[STORAGE_KEY11] || []), enabled4 = await settings.HidePrivateServersEnabled !== !1, registerStorageListener(), observePrivateServerRows();
   }
-  __name(init122, "init");
+  __name(init128, "init");
 
   // src/content/features/games/pinPrivateServers.js
   init_observer();
   init_getSettings();
   init_i18n();
-  var SETTING_NAME5 = "PinPrivateServersEnabled", MASTER_SETTING_NAME = "ServerlistmodificationsEnabled", STORAGE_KEY11 = "rovalra_pinned_private_servers", PRIVATE_SERVER_ROW_SELECTOR2 = [
+  var SETTING_NAME5 = "PinPrivateServersEnabled", MASTER_SETTING_NAME = "ServerlistmodificationsEnabled", STORAGE_KEY12 = "rovalra_pinned_private_servers", PRIVATE_SERVER_ROW_SELECTOR2 = [
     ".rbx-private-game-server-item",
     ".flex.items-center.justify-between.padding-y-medium.width-full"
   ].join(","), PIN_BUTTON_SELECTOR = "[data-rovalra-pin-private-server]", PIN_WRAPPER_CLASS = "rovalra-pin-private-server-wrapper", PINNED_CLASS = "rovalra-private-server-pinned", CONTAINER_CLASS = "rovalra-private-server-pin-container", CREATE_ROW_CLASS = "rovalra-private-server-create-row", pinnedServerIds = /* @__PURE__ */ new Set(), featureEnabled = !1, masterEnabled = !0, enabled5 = !1, observersRegistered = !1, storageListenerRegistered2 = !1, settingListenerRegistered = !1, extractionListenerRegistered = !1;
@@ -128839,10 +131842,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return new Promise((resolve) => {
       chrome.storage.local.get(
         {
-          [STORAGE_KEY11]: []
+          [STORAGE_KEY12]: []
         },
         (data) => {
-          let stored = data?.[STORAGE_KEY11];
+          let stored = data?.[STORAGE_KEY12];
           resolve(
             new Set(
               Array.isArray(stored) ? stored.map(String) : []
@@ -128857,7 +131860,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return new Promise((resolve) => {
       chrome.storage.local.set(
         {
-          [STORAGE_KEY11]: [
+          [STORAGE_KEY12]: [
             ...pinnedServerIds
           ]
         },
@@ -129175,8 +132178,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     storageListenerRegistered2 || (storageListenerRegistered2 = !0, chrome.storage.onChanged.addListener(
       (changes, areaName) => {
         if (areaName === "local") {
-          if (changes[STORAGE_KEY11]) {
-            let stored = changes[STORAGE_KEY11].newValue;
+          if (changes[STORAGE_KEY12]) {
+            let stored = changes[STORAGE_KEY12].newValue;
             pinnedServerIds = new Set(
               Array.isArray(stored) ? stored.map(String) : []
             ), enabled5 && applyAllRows();
@@ -129187,10 +132190,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ));
   }
   __name(registerStorageListener2, "registerStorageListener");
-  async function init123() {
+  async function init129() {
     registerObservers(), registerExtractionListener(), registerSettingListener(), registerStorageListener2(), pinnedServerIds = await loadPinnedServers(), featureEnabled = await settings[SETTING_NAME5] === !0, masterEnabled = await settings[MASTER_SETTING_NAME] !== !1, refreshEnabledState();
   }
-  __name(init123, "init");
+  __name(init129, "init");
 
   // src/content/features/games/plusPrivateServerTooltip.js
   init_observer();
@@ -129201,7 +132204,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_assets();
   init_i18n();
   init_games();
-  async function init124() {
+  async function init130() {
     chrome.storage.local.get(
       { PlusPrivateServerTooltipEnabled: !0 },
       async (settings2) => {
@@ -129267,10 +132270,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             if (!container) return;
             let textEl = await new Promise((resolve) => {
               let check = /* @__PURE__ */ __name(() => {
-                let el3 = container.querySelector(
+                let el4 = container.querySelector(
                   "span.text-body-medium.content-muted"
                 );
-                el3 ? resolve(el3) : setTimeout(check, 10);
+                el4 ? resolve(el4) : setTimeout(check, 10);
               }, "check");
               check();
             });
@@ -129288,7 +132291,35 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init124, "init");
+  __name(init130, "init");
+
+  // src/content/features/games/autoFriendsAllowed.js
+  init_api();
+  init_getSettings();
+  var listening = !1;
+  async function allowFriends(event) {
+    let { vipServerId, FailureReason } = event.detail || {};
+    if (!(!vipServerId || FailureReason !== void 0) && await settings.autoFriendsAllowedEnabled)
+      try {
+        let response = await callRobloxApi({
+          subdomain: "games",
+          endpoint: `/v1/vip-servers/${vipServerId}/permissions`,
+          method: "PATCH",
+          body: { friendsAllowed: !0 }
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      } catch (error3) {
+        console.error(
+          "RoValra: Failed to allow friends on private server",
+          error3
+        );
+      }
+  }
+  __name(allowFriends, "allowFriends");
+  function init131() {
+    listening || (listening = !0, document.addEventListener("rovalra-private-server-created", allowFriends));
+  }
+  __name(init131, "init");
 
   // src/content/features/sitewide/PreviousPrice.js
   init_observer();
@@ -129317,21 +132348,21 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return isOffSale && hasValidPreviousPrice(price) && price !== 1 && (!deadline || isValidOffSaleDeadline(deadline));
   }
   __name(shouldShowPreviousPrice, "shouldShowPreviousPrice");
-  function addPriceIconToCard(card, assetId) {
+  function addPriceIconToCard(card2, assetId) {
     let price = itemPrices.get(assetId), isOffSale = itemIsOffSale.get(assetId), deadline = itemOffSaleDeadlines.get(assetId);
     if (!shouldShowPreviousPrice(price, deadline, isOffSale)) {
-      (price === 1 || deadline && !isValidOffSaleDeadline(deadline)) && card.querySelectorAll(
+      (price === 1 || deadline && !isValidOffSaleDeadline(deadline)) && card2.querySelectorAll(
         ".rovalra-offsale-price-icon, .rovalra-previous-price-text"
       ).forEach((element) => element.remove());
       return;
     }
-    if (card.matches(".price-container-text")) {
-      addTextPrice(card, price, deadline);
+    if (card2.matches(".price-container-text")) {
+      addTextPrice(card2, price, deadline);
       return;
     }
     let container;
-    if (container = card.querySelector(".text-overflow.item-card-price, .rovalra-item-rap"), !container) {
-      let caption = card.querySelector(".item-card-caption");
+    if (container = card2.querySelector(".text-overflow.item-card-price, .rovalra-item-rap"), !container) {
+      let caption = card2.querySelector(".item-card-caption");
       if (caption) {
         let newContainer = document.createElement("div");
         newContainer.className = "text-overflow item-card-price font-header-2 text-subheader margin-top-none";
@@ -129342,12 +132373,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     container && !container.querySelector(".rovalra-offsale-price-icon") && addIcon(container, price, deadline);
   }
   __name(addPriceIconToCard, "addPriceIconToCard");
-  function init125() {
+  function init132() {
     chrome.storage.local.get("PreviousPriceEnabled", (result) => {
       result.PreviousPriceEnabled === !0 && (listenersAttached || (listenersAttached = !0, observeElement(
         "#offsale-since-date",
-        (el3) => {
-          el3.style.display = "none";
+        (el4) => {
+          el4.style.display = "none";
         },
         { multiple: !0 }
       ), window.addEventListener("rovalra-catalog-details", async (e) => {
@@ -129423,26 +132454,26 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           } catch {
           }
         updatedAssetIds.forEach((assetId) => {
-          pendingCards2.has(assetId) && (pendingCards2.get(assetId).forEach((card) => {
-            addPriceIconToCard(card, assetId);
+          pendingCards2.has(assetId) && (pendingCards2.get(assetId).forEach((card2) => {
+            addPriceIconToCard(card2, assetId);
           }), pendingCards2.delete(assetId));
         });
       }), observeElement(
         "#collection-carousel-item .item-card",
-        (card) => {
-          handleItemCard(card);
+        (card2) => {
+          handleItemCard(card2);
         },
         { multiple: !0 }
       ), observeElement(
         ".roseal-currently-wearing .item-card",
-        (card) => {
-          handleItemCard(card);
+        (card2) => {
+          handleItemCard(card2);
         },
         { multiple: !0 }
       ), observeElement(
         ".rovalra-item-card",
-        (card) => {
-          handleItemCard(card);
+        (card2) => {
+          handleItemCard(card2);
         },
         { multiple: !0 }
       ), observeElement(
@@ -129454,21 +132485,21 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       )));
     });
   }
-  __name(init125, "init");
-  function handleItemCard(card) {
-    if (!card.isConnected) return;
-    let link = card.querySelector(".item-card-link") || card.querySelector(".rovalra-item-card-link");
+  __name(init132, "init");
+  function handleItemCard(card2) {
+    if (!card2.isConnected) return;
+    let link = card2.querySelector(".item-card-link") || card2.querySelector(".rovalra-item-card-link");
     if (!link) return;
     let match = link.getAttribute("href").match(/\/catalog\/(\d+)\//);
     if (!match) return;
-    let assetId = parseInt(match[1]), priceLabelContainer = card.querySelector(".text-overflow.item-card-price, .rovalra-item-rap"), shouldProcess = !1;
+    let assetId = parseInt(match[1]), priceLabelContainer = card2.querySelector(".text-overflow.item-card-price, .rovalra-item-rap"), shouldProcess = !1;
     if (!priceLabelContainer)
       shouldProcess = !0;
     else {
       let textContent = priceLabelContainer.textContent.trim().toLowerCase();
       (!priceLabelContainer.querySelector(".icon-robux-tile") || textContent.includes("off sale") || textContent.includes("offsale")) && (shouldProcess = !0);
     }
-    shouldProcess && (itemPrices.has(assetId) && addPriceIconToCard(card, assetId), card.querySelector(".rovalra-offsale-price-icon") || (pendingCards2.has(assetId) || pendingCards2.set(assetId, []), pendingCards2.get(assetId).includes(card) || pendingCards2.get(assetId).push(card)));
+    shouldProcess && (itemPrices.has(assetId) && addPriceIconToCard(card2, assetId), card2.querySelector(".rovalra-offsale-price-icon") || (pendingCards2.has(assetId) || pendingCards2.set(assetId, []), pendingCards2.get(assetId).includes(card2) || pendingCards2.get(assetId).push(card2)));
   }
   __name(handleItemCard, "handleItemCard");
   async function handleOffsalePriceContainer(container) {
@@ -129481,13 +132512,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
     if (!hasPrice || !hasDeadline)
       try {
-        let details = await getItemDetails(numericAssetId, itemType);
-        if (details) {
-          let previousPrice = details.price ?? details.lowestPrice;
-          previousPrice != null && itemPrices.set(numericAssetId, previousPrice), details.offSaleDeadline && itemOffSaleDeadlines.set(
+        let details2 = await getItemDetails(numericAssetId, itemType);
+        if (details2) {
+          let previousPrice = details2.price ?? details2.lowestPrice;
+          previousPrice != null && itemPrices.set(numericAssetId, previousPrice), details2.offSaleDeadline && itemOffSaleDeadlines.set(
             numericAssetId,
-            details.offSaleDeadline
-          ), itemIsOffSale.set(numericAssetId, isOffSaleItem(details));
+            details2.offSaleDeadline
+          ), itemIsOffSale.set(numericAssetId, isOffSaleItem(details2));
         }
       } catch (e) {
         console.warn(
@@ -129647,19 +132678,19 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   function recalculateTotalPrice() {
     totalPrice = 0, processedBundleIds.clear(), document.querySelectorAll(
       ".rovalra-category-grid .rovalra-item-card"
-    ).forEach((card) => {
-      if (card.classList.contains("shimmer")) return;
-      let link = card.querySelector("a.rovalra-item-card-link");
+    ).forEach((card2) => {
+      if (card2.classList.contains("shimmer")) return;
+      let link = card2.querySelector("a.rovalra-item-card-link");
       if (!link) return;
       let match = link.href.match(/\/(catalog|bundles)\/(\d+)\//);
       if (!match) return;
       let assetId = parseInt(match[2]), info = assetInfoCache.get(assetId);
       if (!info || !info.assetType || !info.assetType.id || ASSET_TYPE_IDS.EMOTES.has(info.assetType.id))
         return;
-      let price = parseFloat(card.dataset.rovalraPrice);
+      let price = parseFloat(card2.dataset.rovalraPrice);
       if (isNaN(price) || price === 0)
         return;
-      let bundleId = card.dataset.rovalraBundleId;
+      let bundleId = card2.dataset.rovalraBundleId;
       bundleId ? processedBundleIds.has(bundleId) || (totalPrice += price, processedBundleIds.add(bundleId)) : totalPrice += price;
     }), updateTotalDisplay();
   }
@@ -129970,11 +133001,11 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       (child) => child.dataset.rovalraPendingId == assetId || child.querySelector(`a[href*="/${assetId}/"]`)
     )) {
       itemEl && (itemEl.dataset.rovalraCategorized = "true");
-      let thumbnailData = getOriginalThumbnailData(itemEl, assetId), card = createItemCard(assetId, {
+      let thumbnailData = getOriginalThumbnailData(itemEl, assetId), card2 = createItemCard(assetId, {
         thumbnailData,
         itemType: info?.itemType || "Asset"
       });
-      card.dataset.rovalraPendingId = assetId, targetGrid.appendChild(card), syncDiscoveredCategories(), refreshPillToggle();
+      card2.dataset.rovalraPendingId = assetId, targetGrid.appendChild(card2), syncDiscoveredCategories(), refreshPillToggle();
       let container = targetGrid.parentElement;
       updateScrollButtonStates2(
         container,
@@ -130003,13 +133034,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       bodyParts: bodyPartsGrid
     }[category];
     if (!targetGrid) return;
-    let card = grids.flatMap((grid) => Array.from(grid.children)).find(
+    let card2 = grids.flatMap((grid) => Array.from(grid.children)).find(
       (candidate) => candidate.dataset.rovalraPendingId == assetId || candidate.querySelector(`a[href*="/${assetId}/"]`)
     );
-    !card || card.parentElement === targetGrid || (targetGrid.appendChild(card), syncDiscoveredCategories(), refreshPillToggle());
+    !card2 || card2.parentElement === targetGrid || (targetGrid.appendChild(card2), syncDiscoveredCategories(), refreshPillToggle());
   }
   __name(moveAssetCardToCategory, "moveAssetCardToCategory");
-  async function init126() {
+  async function init133() {
     let result = await new Promise(
       (resolve) => chrome.storage.local.get(
         [
@@ -130051,7 +133082,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         }), moveAssetCardToCategory(item.id), pendingItems.has(item.id))) {
           let elements = pendingItems.get(item.id);
           elements.length === 0 ? addItemToCategoryView(null, item.id) : elements.forEach(
-            (el3) => addItemToCategoryView(el3, item.id)
+            (el4) => addItemToCategoryView(el4, item.id)
           ), pendingItems.delete(item.id);
         }
       });
@@ -130099,7 +133130,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       content && loadCurrentlyWearing(content);
     });
   }
-  __name(init126, "init");
+  __name(init133, "init");
 
   // src/content/features/profile/bannedusers.js
   init_api();
@@ -130206,7 +133237,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
 
   // src/content/features/profile/bannedusers.js
   init_i18n();
-  function init127() {
+  function init134() {
     chrome.storage.local.get(
       {
         bannedUserViewerEnabled: !1,
@@ -130348,7 +133379,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init127, "init");
+  __name(init134, "init");
   async function renderBannedUserProfile(user, settings2) {
     let content = document.getElementById("content");
     if (!content) return;
@@ -130452,13 +133483,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       "#rovalra-banned-avatar-wrapper"
     ), updateAvatarUI = /* @__PURE__ */ __name((data, style) => {
       avatarWrapper.innerHTML = "";
-      let el3 = createThumbnailElement(
+      let el4 = createThumbnailElement(
         data,
         user.displayName,
         "no-background-thumbnail",
         style
       );
-      return avatarWrapper.appendChild(el3), el3;
+      return avatarWrapper.appendChild(el4), el4;
     }, "updateAvatarUI"), handleRenderFallback = /* @__PURE__ */ __name(() => {
       let renderThumb = renderAvatarThumbnail ? renderAvatarThumbnail(user.id) : null;
       if (!renderThumb) return;
@@ -130572,8 +133603,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       if (document.querySelector(".profile-platform-container")?.dataset.profileId !== String(userId))
         return;
       let updateCount = /* @__PURE__ */ __name((id, count) => {
-        let el3 = document.getElementById(id);
-        el3 && (el3.textContent = count.toLocaleString(), el3.classList.remove("shimmer", "rovalra-stat-placeholder"));
+        let el4 = document.getElementById(id);
+        el4 && (el4.textContent = count.toLocaleString(), el4.classList.remove("shimmer", "rovalra-stat-placeholder"));
       }, "updateCount");
       updateCount("rovalra-banned-friends-count", friendsRes?.count || 0), updateCount("rovalra-banned-followers-count", followersRes?.count || 0), updateCount(
         "rovalra-banned-following-count",
@@ -130664,7 +133695,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       if (document.querySelector(".profile-platform-container")?.dataset.profileId !== String(userId))
         return;
       allItems2.forEach((item) => {
-        let card = createItemCard(
+        let card2 = createItemCard(
           {
             assetId: item.id,
             name: item.name,
@@ -130678,7 +133709,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           thumbMap,
           { showSerial: !1 }
         ), wrapper = document.createElement("div");
-        wrapper.style.width = "150px", wrapper.style.flexShrink = "0", wrapper.appendChild(card), storeList.appendChild(wrapper);
+        wrapper.style.width = "150px", wrapper.style.flexShrink = "0", wrapper.appendChild(card2), storeList.appendChild(wrapper);
       });
     } catch {
     }
@@ -130718,11 +133749,11 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       favoritesList.innerHTML = "", favoriteGames.slice(0, 6).forEach((game) => {
         let itemWrapper = document.createElement("div");
         itemWrapper.id = "collection-carousel-item", itemWrapper.className = "css-1anzfxy-carouselItem", itemWrapper.style.flexShrink = "0", itemWrapper.style.width = "150px";
-        let card = createGameCard({
+        let card2 = createGameCard({
           gameId: game.id,
           placeId: game.rootPlace?.id
         });
-        itemWrapper.appendChild(card), favoritesList.appendChild(itemWrapper);
+        itemWrapper.appendChild(card2), favoritesList.appendChild(itemWrapper);
       });
     } catch {
     }
@@ -131151,7 +134182,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
   }
   __name(addTrustedFriendButton, "addTrustedFriendButton");
-  function init128() {
+  function init135() {
     chrome.storage.local.get(
       { trustedConnectionsEnabledv3: !0 },
       async (settings2) => {
@@ -131162,7 +134193,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init128, "init");
+  __name(init135, "init");
 
   // src/content/features/profile/header/ProfileRender.js
   init_observer();
@@ -131474,7 +134505,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
   }
   __name(watchHolders, "watchHolders");
-  async function init129() {
+  async function init136() {
     try {
       let profileUserId = getUserIdFromUrl();
       if (!profileUserId) return;
@@ -131495,7 +134526,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       console.error("RoValra: Profile frame init failed", error3);
     }
   }
-  __name(init129, "init");
+  __name(init136, "init");
 
   // src/content/features/profile/header/ProfileRender.js
   FLAGS.ONLINE_ASSETS = !0;
@@ -132791,7 +135822,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ), profileRenderFrameSettingListener = null), document.querySelectorAll(".thumbnail-holder-position .thumbnail-3d-container").forEach((container) => applyFrameToHolder(container, null)), document.querySelectorAll(".thumbnail-holder-position").forEach((holder) => setFrameRenderMode(holder, !1)), restoreProfileFrameBleed(), removeRoblox3dObserver = null, renderContainerObserver = null, autoSwitchObserver = null, profileRenderObserversSetup = !1, removeStylesheet("rovalra-thumbnail-holder-css"));
   }
   __name(teardownProfileRenderObservers, "teardownProfileRenderObservers");
-  function init130() {
+  function init137() {
     FLAGS.ENABLE_API_MESH_CACHE = !1, FLAGS.ENABLE_API_RBX_CACHE = !1, migrateLegacyEnvironment();
     let userId = getUserIdFromUrl();
     if (!userId) {
@@ -132814,7 +135845,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init130, "init");
+  __name(init137, "init");
 
   // src/content/features/profile/testTab.js
   init_observer();
@@ -132880,10 +135911,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     contentPane.textContent = "test";
   }
   __name(addTestTab, "addTestTab");
-  async function init131() {
+  async function init138() {
     await settings.profileTestTabEnabled && observeElement(".profile-tabs", addTestTab, { multiple: !0 });
   }
-  __name(init131, "init");
+  __name(init138, "init");
 
   // src/content/features/profile/showcase.js
   init_observer();
@@ -132901,7 +135932,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_user();
   init_assets();
   init_toast();
-  var initialized17 = "rovalraShowcaseInitialized";
+  var initialized19 = "rovalraShowcaseInitialized";
   function createMoreIcon() {
     let icon = document.createElement("span");
     icon.className = "rovalra-showcase-more-icon", icon.setAttribute("aria-hidden", "true");
@@ -132942,16 +135973,16 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   async function getGroup(groupId, fallback = {}) {
     let id = Number(groupId);
     if (!id) return null;
-    let details = await callRobloxApiJson({
+    let details2 = await callRobloxApiJson({
       subdomain: "groups",
       endpoint: `/v1/groups/${id}`
     }).catch(() => null) || {}, thumbnails = await fetchThumbnails([{ id }], "GroupIcon", "150x150");
     return {
       id,
-      name: fallback.name || details.name || ts2("showcase.unknownCommunity"),
-      memberCount: fallback.memberCount ?? details.memberCount ?? 0,
-      hasVerifiedBadge: fallback.hasVerifiedBadge ?? details.hasVerifiedBadge ?? !1,
-      owner: fallback.owner || details.owner || null,
+      name: fallback.name || details2.name || ts2("showcase.unknownCommunity"),
+      memberCount: fallback.memberCount ?? details2.memberCount ?? 0,
+      hasVerifiedBadge: fallback.hasVerifiedBadge ?? details2.hasVerifiedBadge ?? !1,
+      owner: fallback.owner || details2.owner || null,
       thumbnail: thumbnails.get(id)
     };
   }
@@ -132959,8 +135990,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   async function getGame(universeId, fallback = {}) {
     let id = Number(universeId);
     if (!id) return null;
-    let details = (await getUniversesDetails([id]))[0] || {}, rootPlaceId = Number(
-      fallback.rootPlaceId || fallback.root_place_id || details.rootPlaceId
+    let details2 = (await getUniversesDetails([id]))[0] || {}, rootPlaceId = Number(
+      fallback.rootPlaceId || fallback.root_place_id || details2.rootPlaceId
     ), thumbnail = (await fetchPromotionalThumbnails(id))?.[0] || null;
     !thumbnail && rootPlaceId && (thumbnail = (await fetchThumbnails(
       [{ id: rootPlaceId }],
@@ -132979,9 +136010,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return {
       universeId: id,
       rootPlaceId,
-      name: fallback.name || details.name || ts2("showcase.unknownExperience"),
+      name: fallback.name || details2.name || ts2("showcase.unknownExperience"),
       thumbnail,
-      creator: fallback.creator || details.creator || null,
+      creator: fallback.creator || details2.creator || null,
       maturity: typeof maturity == "string" ? maturity : maturity?.displayName || maturity?.contentMaturity || ts2("showcase.maturityUnavailable")
     };
   }
@@ -133013,8 +136044,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(getDecal, "getDecal");
   function renderDecalCard(container, decal, canEdit) {
     container.replaceChildren();
-    let card = document.createElement("article");
-    if (card.className = `rovalra-showcase-game rovalra-showcase-decal-card${decal ? "" : " rovalra-showcase-empty"}`, decal) {
+    let card2 = document.createElement("article");
+    if (card2.className = `rovalra-showcase-game rovalra-showcase-decal-card${decal ? "" : " rovalra-showcase-empty"}`, decal) {
       let imageFrame = document.createElement("div");
       imageFrame.className = "rovalra-showcase-decal-image-frame";
       let image = createThumbnailElement(
@@ -133023,18 +136054,18 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         "rovalra-showcase-decal-thumbnail",
         { width: "100%", height: "100%", objectFit: "contain" }
       );
-      imageFrame.appendChild(image), card.appendChild(imageFrame);
-      let details = document.createElement("div");
-      details.className = "rovalra-showcase-game-details";
+      imageFrame.appendChild(image), card2.appendChild(imageFrame);
+      let details2 = document.createElement("div");
+      details2.className = "rovalra-showcase-game-details";
       let title = document.createElement("h3");
       title.className = "text-heading-medium", title.textContent = decal.name;
       let titleRow = document.createElement("div");
-      titleRow.className = "rovalra-showcase-decal-title-row", titleRow.append(title, createDecalActionMenu(decal)), details.appendChild(titleRow), card.appendChild(details);
+      titleRow.className = "rovalra-showcase-decal-title-row", titleRow.append(title, createDecalActionMenu(decal)), details2.appendChild(titleRow), card2.appendChild(details2);
     } else {
       let empty = document.createElement("p");
-      empty.className = "text-body", empty.textContent = canEdit ? ts2("showcase.chooseDecal") : ts2("showcase.noFeaturedDecal"), card.appendChild(empty);
+      empty.className = "text-body", empty.textContent = canEdit ? ts2("showcase.chooseDecal") : ts2("showcase.noFeaturedDecal"), card2.appendChild(empty);
     }
-    container.appendChild(card);
+    container.appendChild(card2);
   }
   __name(renderDecalCard, "renderDecalCard");
   function createDecalInput(onSubmit) {
@@ -133097,8 +136128,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       empty.className = "text-body", empty.textContent = canEdit ? ts2("showcase.chooseGame") : ts2("showcase.noFeaturedGame"), emptyCard.appendChild(empty), container.appendChild(emptyCard);
       return;
     }
-    let card = document.createElement("article");
-    card.className = "rovalra-showcase-game";
+    let card2 = document.createElement("article");
+    card2.className = "rovalra-showcase-game";
     let thumbnailLink = document.createElement("a");
     thumbnailLink.href = getGameUrl(game), thumbnailLink.className = "rovalra-showcase-thumbnail-link";
     let thumb = createThumbnailElement(
@@ -133107,9 +136138,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       "rovalra-showcase-game-thumbnail",
       { width: "220px", height: "124px" }
     );
-    thumbnailLink.appendChild(thumb), card.appendChild(thumbnailLink);
-    let details = document.createElement("div");
-    details.className = "rovalra-showcase-game-details";
+    thumbnailLink.appendChild(thumb), card2.appendChild(thumbnailLink);
+    let details2 = document.createElement("div");
+    details2.className = "rovalra-showcase-game-details";
     let title = document.createElement("h3");
     title.className = "text-heading-medium";
     let titleLink = document.createElement("a");
@@ -133148,7 +136179,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         );
       } else
         launchGame(game.rootPlaceId);
-    }), details.append(title, creator, maturity, join), card.appendChild(details), container.appendChild(card);
+    }), details2.append(title, creator, maturity, join), card2.appendChild(details2), container.appendChild(card2);
   }
   __name(renderGameCard, "renderGameCard");
   function renderGroupCard(container, group, canEdit) {
@@ -133159,8 +136190,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       empty.className = "text-body", empty.textContent = canEdit ? ts2("showcase.chooseGroup") : ts2("showcase.noFeaturedGroup"), emptyCard.appendChild(empty), container.appendChild(emptyCard);
       return;
     }
-    let card = document.createElement("article");
-    card.className = "rovalra-showcase-game rovalra-showcase-group-card";
+    let card2 = document.createElement("article");
+    card2.className = "rovalra-showcase-game rovalra-showcase-group-card";
     let icon = createThumbnailElement(
       group.thumbnail,
       `${group.name} icon`,
@@ -133168,8 +136199,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { width: "96px", height: "96px", objectFit: "cover" }
     ), groupLink = `https://www.roblox.com/communities/${group.id}`, iconLink = document.createElement("a");
     iconLink.className = "rovalra-showcase-group-icon-link", iconLink.href = groupLink, iconLink.appendChild(icon);
-    let details = document.createElement("div");
-    details.className = "rovalra-showcase-game-details";
+    let details2 = document.createElement("div");
+    details2.className = "rovalra-showcase-game-details";
     let title = document.createElement("h3");
     title.className = "text-heading-medium";
     let titleLink = document.createElement("a");
@@ -133177,7 +136208,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       let badge = document.createElement("img");
       badge.className = "verified-badge-icon-experience-creator", badge.src = getAssets().verifiedBadgeMono, badge.alt = ts2("showcase.verifiedBadge"), badge.title = ts2("showcase.verifiedBadge"), title.appendChild(badge);
     }
-    if (details.appendChild(title), group.owner?.userId && group.owner?.username) {
+    if (details2.appendChild(title), group.owner?.userId && group.owner?.username) {
       let owner = document.createElement("div");
       owner.className = "rovalra-showcase-owner game-creator";
       let by = document.createElement("span");
@@ -133187,41 +136218,41 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         let badge = document.createElement("img");
         badge.className = "verified-badge-icon-experience-creator", badge.src = getAssets().verifiedBadgeMono, badge.alt = ts2("showcase.verifiedBadge"), badge.title = ts2("showcase.verifiedBadge"), owner.appendChild(badge);
       }
-      details.appendChild(owner);
+      details2.appendChild(owner);
     }
     let members = document.createElement("p");
     members.className = "text-body rovalra-showcase-maturity", members.textContent = ts2("showcase.members", {
       count: Number(group.memberCount || 0).toLocaleString()
-    }), details.appendChild(members), card.append(iconLink, details), container.appendChild(card);
+    }), details2.appendChild(members), card2.append(iconLink, details2), container.appendChild(card2);
   }
   __name(renderGroupCard, "renderGroupCard");
   function renderShowcaseLoading(container, type = "card") {
     container.replaceChildren();
-    let card = document.createElement("article");
-    if (card.className = `rovalra-showcase-game rovalra-showcase-loading-card${type === "decal" ? " rovalra-showcase-decal-card" : ""}`, type === "decal") {
+    let card2 = document.createElement("article");
+    if (card2.className = `rovalra-showcase-game rovalra-showcase-loading-card${type === "decal" ? " rovalra-showcase-decal-card" : ""}`, type === "decal") {
       let image = document.createElement("div");
-      image.className = "rovalra-showcase-loading-image shimmer", card.appendChild(image);
+      image.className = "rovalra-showcase-loading-image shimmer", card2.appendChild(image);
     } else {
       let image = document.createElement("div");
       image.className = `rovalra-showcase-loading-thumbnail shimmer${type === "group" ? " rovalra-showcase-loading-group" : ""}`;
-      let details = document.createElement("div");
-      details.className = "rovalra-showcase-loading-details";
+      let details2 = document.createElement("div");
+      details2.className = "rovalra-showcase-loading-details";
       for (let width of ["75%", "45%", "60%"]) {
         let line = document.createElement("div");
-        line.className = "rovalra-showcase-loading-line shimmer", line.style.width = width, details.appendChild(line);
+        line.className = "rovalra-showcase-loading-line shimmer", line.style.width = width, details2.appendChild(line);
       }
-      card.append(image, details);
+      card2.append(image, details2);
     }
-    container.appendChild(card);
+    container.appendChild(card2);
   }
   __name(renderShowcaseLoading, "renderShowcaseLoading");
   async function addShowcaseTab(tabContainer) {
-    if (tabContainer.dataset[initialized17] === "true") return;
+    if (tabContainer.dataset[initialized19] === "true") return;
     let profileContainer = tabContainer.parentElement, contentContainer = profileContainer?.querySelector(".profile-tab-content-wrapper") || profileContainer?.parentElement?.querySelector(
       ".profile-tab-content-wrapper"
     ) || document.querySelector(".profile-tab-content-wrapper") || profileContainer, userId = Number(getUserIdFromUrl());
     if (!contentContainer || !userId) return;
-    tabContainer.dataset[initialized17] = "true";
+    tabContainer.dataset[initialized19] = "true";
     let authenticatedUserId = await getAuthenticatedUserId(), ownProfile = authenticatedUserId && String(authenticatedUserId) === String(userId), { contentPane } = createTab2({
       id: "showcase",
       label: ts2("showcase.tab"),
@@ -133431,7 +136462,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }), closeGroupDropdown = /* @__PURE__ */ __name(() => groupDropdown.toggleVisibility(!1), "closeGroupDropdown");
   }
   __name(addShowcaseTab, "addShowcaseTab");
-  async function init132() {
+  async function init139() {
     await settings.profileShowcaseEnabled && observeElement(
       ".profile-tabs",
       (tabs) => addShowcaseTab(tabs).catch((error3) => {
@@ -133443,7 +136474,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     );
   }
-  __name(init132, "init");
+  __name(init139, "init");
 
   // src/content/features/profile/header/status.js
   init_observer();
@@ -133672,8 +136703,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
   }
   __name(addStatusBubble, "addStatusBubble");
-  async function addHomeStatusHover(tile, card) {
-    let userId = card?.userId, avatarContainer = card?.statusAvatar || tile.querySelector(
+  async function addHomeStatusHover(tile, card2) {
+    let userId = card2?.userId, avatarContainer = card2?.statusAvatar || tile.querySelector(
       ".avatar-card-fullbody, .avatar-card-image-container"
     );
     if (!userId || !avatarContainer || tile.dataset.rovalraStatusObserved === String(userId)) return;
@@ -133764,9 +136795,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(addHomeStatusHover, "addHomeStatusHover");
-  async function init133() {
+  async function init140() {
     if (!await settings.statusBubbleEnabled) return;
-    migrateLegacyStatus(), startObserving(), injectStylesheet("css/thinkingbubble.css", "rovalra-profile-status-css"), observeElement(".user-profile-header-details-avatar-container:not(.rovalra-sendrobux-avatar):not(.rovalra-user-card-avatar)", (el3) => addStatusBubble(el3), {
+    migrateLegacyStatus(), startObserving(), injectStylesheet("css/thinkingbubble.css", "rovalra-profile-status-css"), observeElement(".user-profile-header-details-avatar-container:not(.rovalra-sendrobux-avatar):not(.rovalra-user-card-avatar)", (el4) => addStatusBubble(el4), {
       multiple: !0
     }), await settings.statusBubbleHomePage && (observeUserCardElements(), onUserCardElement(addHomeStatusHover, {
       exclude: [
@@ -133776,7 +136807,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       ]
     }));
   }
-  __name(init133, "init");
+  __name(init140, "init");
 
   // src/content/features/profile/header/lastplayed.js
   init_friendslist();
@@ -133883,14 +136914,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(initLastPlayed, "initLastPlayed");
-  function init134() {
+  function init141() {
     chrome.storage.local.get({ lastOnlineEnabled: !0 }, (data) => {
       data.lastOnlineEnabled && initLastOnline();
     }), chrome.storage.local.get({ lastPlayedTogetherEnabled: !0 }, (data) => {
       data.lastPlayedTogetherEnabled && initLastPlayed();
     });
   }
-  __name(init134, "init");
+  __name(init141, "init");
 
   // src/content/features/profile/header/profileViews.js
   init_idExtractor();
@@ -133974,10 +137005,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(initProfileViews, "initProfileViews");
-  function init135() {
+  function init142() {
     initProfileViews();
   }
-  __name(init135, "init");
+  __name(init142, "init");
 
   // src/content/features/profile/header/creatorStats.js
   init_api();
@@ -134289,7 +137320,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ));
   }
   __name(attachHeader, "attachHeader");
-  async function init136() {
+  async function init143() {
     cleanup3();
     let token = ++runId;
     if (!await settings.creatorStatsEnabled)
@@ -134319,7 +137350,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     ));
   }
-  __name(init136, "init");
+  __name(init143, "init");
 
   // src/content/features/profile/header/pronouns.js
   init_idExtractor();
@@ -134413,10 +137444,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
   }
   __name(initProfilePronouns, "initProfilePronouns");
-  function init137() {
+  function init144() {
     initProfilePronouns();
   }
-  __name(init137, "init");
+  __name(init144, "init");
 
   // src/content/features/profile/header/profileNotes.js
   init_idExtractor();
@@ -134453,7 +137484,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }), normalizedNote;
   }
   __name(saveStoredNote, "saveStoredNote");
-  function createProfileNoteLayoutController(card, host) {
+  function createProfileNoteLayoutController(card2, host) {
     let observedElements2 = /* @__PURE__ */ new Set(), animationFrame = null, overlay = host.closest(".profile-header-overlay") || document.querySelector(".profile-header-overlay");
     function scheduleLayout() {
       animationFrame === null && (animationFrame = requestAnimationFrame(updateLayout));
@@ -134465,12 +137496,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
     __name(observeForResize, "observeForResize");
     function updateLayout() {
-      if (animationFrame = null, !card.isConnected || !host.isConnected) return;
-      let hostRect = host.getBoundingClientRect(), cardRect = card.getBoundingClientRect(), candidateRoot = overlay?.isConnected ? overlay : document, requiredOffset = 14;
+      if (animationFrame = null, !card2.isConnected || !host.isConnected) return;
+      let hostRect = host.getBoundingClientRect(), cardRect = card2.getBoundingClientRect(), candidateRoot = overlay?.isConnected ? overlay : document, requiredOffset = 14;
       candidateRoot.querySelectorAll(
         ".content-action-utility, .rovalra-last-online-pill, .rovalra-last-played-pill"
       ).forEach((candidate) => {
-        if (candidate === card || host.contains(candidate) || card.contains(candidate) || candidate.contains(host))
+        if (candidate === card2 || host.contains(candidate) || card2.contains(candidate) || candidate.contains(host))
           return;
         observeForResize(candidate);
         let candidateRect = candidate.getBoundingClientRect();
@@ -134480,12 +137511,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             candidateRect.bottom - hostRect.bottom + 10
           )
         ));
-      }), card.style.setProperty(
+      }), card2.style.setProperty(
         "--rovalra-profile-note-offset",
         `${requiredOffset}px`
       );
     }
-    __name(updateLayout, "updateLayout"), observeForResize(host), observeForResize(card);
+    __name(updateLayout, "updateLayout"), observeForResize(host), observeForResize(card2);
     let mutationObserver = overlay ? new MutationObserver(scheduleLayout) : null;
     return mutationObserver?.observe(overlay, {
       childList: !0,
@@ -134498,13 +137529,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(createProfileNoteLayoutController, "createProfileNoteLayoutController");
   function createProfileNoteController(host, userId, initialNote) {
-    let card = document.createElement("section");
-    card.className = "rovalra-profile-note-card", card.dataset.profileUserId = String(userId), card.setAttribute("aria-label", ts2("profileNotes.ariaLabel"));
+    let card2 = document.createElement("section");
+    card2.className = "rovalra-profile-note-card", card2.dataset.profileUserId = String(userId), card2.setAttribute("aria-label", ts2("profileNotes.ariaLabel"));
     let heading = document.createElement("div");
     heading.className = "rovalra-profile-note-heading", heading.textContent = ts2("profileNotes.heading"), heading.title = ts2("profileNotes.headingTooltip");
     let editorHost = document.createElement("div");
-    editorHost.className = "rovalra-profile-note-editor-host", card.append(heading, editorHost), host.classList.add("rovalra-profile-note-host"), host.appendChild(card);
-    let layoutController = createProfileNoteLayoutController(card, host), currentNote = normalizeNote(initialNote), editing = !1, renderDisplay = /* @__PURE__ */ __name(() => {
+    editorHost.className = "rovalra-profile-note-editor-host", card2.append(heading, editorHost), host.classList.add("rovalra-profile-note-host"), host.appendChild(card2);
+    let layoutController = createProfileNoteLayoutController(card2, host), currentNote = normalizeNote(initialNote), editing = !1, renderDisplay = /* @__PURE__ */ __name(() => {
       editorHost.replaceChildren();
       let display = document.createElement("button");
       display.type = "button", display.className = "rovalra-profile-note-display", display.classList.toggle(
@@ -134516,7 +137547,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       ), display.title = ts2("profileNotes.displayTooltip"), display.addEventListener("click", startEditing), editorHost.appendChild(display);
     }, "renderDisplay"), finishEditing = /* @__PURE__ */ __name(async (textarea, shouldSave) => {
       if (!editing) return;
-      editing = !1, card.classList.remove("rovalra-profile-note-editing");
+      editing = !1, card2.classList.remove("rovalra-profile-note-editing");
       let previousNote = currentNote, nextNote = normalizeNote(textarea.value);
       if (!shouldSave || nextNote === previousNote) {
         renderDisplay();
@@ -134524,17 +137555,17 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
       currentNote = nextNote, renderDisplay();
       try {
-        currentNote = await saveStoredNote(userId, nextNote), card.isConnected && renderDisplay();
+        currentNote = await saveStoredNote(userId, nextNote), card2.isConnected && renderDisplay();
       } catch (error3) {
-        currentNote = previousNote, card.isConnected && renderDisplay(), console.warn(
+        currentNote = previousNote, card2.isConnected && renderDisplay(), console.warn(
           "RoValra: Failed to save the private profile note.",
           error3
         );
       }
     }, "finishEditing");
     function startEditing() {
-      if (editing || !card.isConnected) return;
-      editing = !0, card.classList.add("rovalra-profile-note-editing");
+      if (editing || !card2.isConnected) return;
+      editing = !0, card2.classList.add("rovalra-profile-note-editing");
       let { container: inputContainer, input: textarea } = createStyledInput({
         id: `rovalra-profile-note-${userId}`,
         label: ts2("profileNotes.ariaLabel"),
@@ -134562,18 +137593,18 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       });
     }
     return __name(startEditing, "startEditing"), renderDisplay(), {
-      card,
+      card: card2,
       setNote(note) {
-        currentNote = normalizeNote(note), !editing && card.isConnected && renderDisplay();
+        currentNote = normalizeNote(note), !editing && card2.isConnected && renderDisplay();
       },
       destroy() {
-        layoutController.destroy(), card.remove(), host.querySelector(":scope > .rovalra-profile-note-card") || host.classList.remove("rovalra-profile-note-host");
+        layoutController.destroy(), card2.remove(), host.querySelector(":scope > .rovalra-profile-note-card") || host.classList.remove("rovalra-profile-note-host");
       }
     };
   }
   __name(createProfileNoteController, "createProfileNoteController");
   function removeActiveNote() {
-    activeController?.destroy(), activeController = null, document.querySelectorAll(".rovalra-profile-note-card").forEach((card) => card.remove()), document.querySelectorAll(".rovalra-profile-note-host").forEach((host) => host.classList.remove("rovalra-profile-note-host"));
+    activeController?.destroy(), activeController = null, document.querySelectorAll(".rovalra-profile-note-card").forEach((card2) => card2.remove()), document.querySelectorAll(".rovalra-profile-note-host").forEach((host) => host.classList.remove("rovalra-profile-note-host"));
   }
   __name(removeActiveNote, "removeActiveNote");
   async function mountProfileNote(actionButton2, userId, generation3) {
@@ -134621,10 +137652,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }));
   }
   __name(startStorageListener, "startStorageListener");
-  function init138() {
+  function init145() {
     startStorageListener(), initProfileNotes();
   }
-  __name(init138, "init");
+  __name(init145, "init");
 
   // src/content/features/profile/header/currentlyPlayingSubplace.js
   init_idExtractor();
@@ -135093,24 +138124,24 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return directPresence?.userPresenceType === 2 && directPresence.placeId && presenceMatchesPopover(root, directPresence) ? directPresence : null;
   }
   __name(resolveHomePopoverPresence, "resolveHomePopoverPresence");
-  function insertHomeSubplaceCard(root, card) {
-    root.classList.add("rovalra-home-subplace-host"), card.classList.add("rovalra-home-subplace-card"), card.removeAttribute("style");
+  function insertHomeSubplaceCard(root, card2) {
+    root.classList.add("rovalra-home-subplace-host"), card2.classList.add("rovalra-home-subplace-card"), card2.removeAttribute("style");
     let viewProfile = findActionElement(root, "View Profile"), viewProfileBlock = getActionBlock(viewProfile);
     if (viewProfileBlock?.parentElement && root.contains(viewProfileBlock.parentElement)) {
-      viewProfileBlock.after(card);
+      viewProfileBlock.after(card2);
       return;
     }
     let chat = findActionElement(root, "Chat"), chatBlock = getActionBlock(chat);
     if (chatBlock?.parentElement && root.contains(chatBlock.parentElement)) {
-      chatBlock.after(card);
+      chatBlock.after(card2);
       return;
     }
     let join = findActionElement(root, "Join"), joinBlock = getActionBlock(join);
     if (joinBlock?.parentElement && root.contains(joinBlock.parentElement)) {
-      joinBlock.after(card);
+      joinBlock.after(card2);
       return;
     }
-    root.appendChild(card);
+    root.appendChild(card2);
   }
   __name(insertHomeSubplaceCard, "insertHomeSubplaceCard");
   function clearHomeBuildRetry(root) {
@@ -135146,12 +138177,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
     let key = getHomePresenceKey(presence);
     if (existing?.dataset.rovalraPresenceKey === key) return;
-    let card = await createSubplaceDetailsCard(presence);
-    if (!card || !document.body.contains(root) || !isHomeUserPopover(root)) {
+    let card2 = await createSubplaceDetailsCard(presence);
+    if (!card2 || !document.body.contains(root) || !isHomeUserPopover(root)) {
       existing?.remove(), scheduleHomeBuildRetry(root);
       return;
     }
-    clearHomeBuildRetry(root), existing?.remove(), card.dataset.rovalraPresenceKey = key, insertHomeSubplaceCard(root, card);
+    clearHomeBuildRetry(root), existing?.remove(), card2.dataset.rovalraPresenceKey = key, insertHomeSubplaceCard(root, card2);
   }
   __name(addHomeSubplaceCard, "addHomeSubplaceCard");
   function processHomePopoverCandidate(candidate) {
@@ -135161,9 +138192,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(processHomePopoverCandidate, "processHomePopoverCandidate");
   function cleanupHomeSubplaceCards() {
-    document.querySelectorAll(".rovalra-home-subplace-card").forEach((card) => {
-      let host = card.closest(".rovalra-home-subplace-host");
-      (!host || !document.body.contains(host)) && (card.remove(), host && (clearHomeBuildRetry(host), host.classList.remove("rovalra-home-subplace-host")));
+    document.querySelectorAll(".rovalra-home-subplace-card").forEach((card2) => {
+      let host = card2.closest(".rovalra-home-subplace-host");
+      (!host || !document.body.contains(host)) && (card2.remove(), host && (clearHomeBuildRetry(host), host.classList.remove("rovalra-home-subplace-host")));
     });
   }
   __name(cleanupHomeSubplaceCards, "cleanupHomeSubplaceCards");
@@ -135497,9 +138528,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return !!(chip?.classList?.contains(LEGACY_READY_CLASS) && isLegacyChipAfterAnchor(chip, anchor) && isLegacyChipPlacedUnderAnchor(chip, anchor));
   }
   __name(shouldKeepLegacyChipVisible, "shouldKeepLegacyChipVisible");
-  function setLegacyChipPendingInlineState(chip, pending2) {
+  function setLegacyChipPendingInlineState(chip, pending3) {
     if (chip) {
-      if (pending2) {
+      if (pending3) {
         chip.style.visibility = "hidden", chip.style.opacity = "0", chip.style.pointerEvents = "none";
         return;
       }
@@ -135507,10 +138538,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
   }
   __name(setLegacyChipPendingInlineState, "setLegacyChipPendingInlineState");
-  function setLegacyRowPendingState(chip, pending2) {
+  function setLegacyRowPendingState(chip, pending3) {
     let row = chip?.closest?.(`.${LEGACY_ROW_CLASS}`);
     if (row) {
-      if (row.classList.toggle(LEGACY_ROW_PENDING_CLASS, pending2), row.classList.toggle(LEGACY_ROW_READY_CLASS, !pending2), setLegacyChipPendingInlineState(chip, pending2), pending2) {
+      if (row.classList.toggle(LEGACY_ROW_PENDING_CLASS, pending3), row.classList.toggle(LEGACY_ROW_READY_CLASS, !pending3), setLegacyChipPendingInlineState(chip, pending3), pending3) {
         row.style.height = "0px", row.style.minHeight = "0px", row.style.maxHeight = "0px", row.style.margin = "0px", row.style.padding = "0px", row.style.overflow = "hidden", row.style.visibility = "hidden", row.style.opacity = "0", row.style.pointerEvents = "none";
         return;
       }
@@ -135649,7 +138680,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ), scheduleProfileScans());
   }
   __name(registerProfileFallbackSubplaces, "registerProfileFallbackSubplaces");
-  async function init139() {
+  async function init146() {
     if (!await settings.currentlyPlayingSubplaceEnabled) {
       cleanupHomeSubplaceCards(), cleanupProfileSubplaceCards();
       return;
@@ -135667,7 +138698,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       multiple: !0
     }), await scheduleProfileScans();
   }
-  __name(init139, "init");
+  __name(init146, "init");
 
   // src/content/features/profile/header/idVerificationBadge.js
   init_api();
@@ -135773,7 +138804,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     userId && initProfileAboutDialogObserver(userId);
   }
   __name(run, "run");
-  function init140() {
+  function init147() {
     if (watcherSet) return;
     watcherSet = !0;
     let handlePageChange = /* @__PURE__ */ __name(() => {
@@ -135781,7 +138812,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }, "handlePageChange");
     window.addEventListener("popstate", handlePageChange), observeElement("body", handlePageChange, { multiple: !1 }), run();
   }
-  __name(init140, "init");
+  __name(init147, "init");
 
   // src/content/features/profile/header/ageVerificationBadge.js
   init_api();
@@ -135891,7 +138922,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     userId && initProfileAboutDialogObserver2(userId);
   }
   __name(run2, "run");
-  function init141() {
+  function init148() {
     if (watcherSet2) return;
     watcherSet2 = !0;
     let handlePageChange = /* @__PURE__ */ __name(() => {
@@ -135899,7 +138930,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }, "handlePageChange");
     window.addEventListener("popstate", handlePageChange), observeElement("body", handlePageChange, { multiple: !1 }), run2();
   }
-  __name(init141, "init");
+  __name(init148, "init");
 
   // src/content/features/profile/friends/friendsSince.js
   init_idExtractor();
@@ -135932,8 +138963,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ), cardsObserver && cardsObserver.disconnect(), cardsObserver = observeElement(
       ".avatar-card-caption a.avatar-name",
       (profileLink) => {
-        let card = profileLink.closest(".avatar-card-caption"), cardItem = profileLink.closest(".avatar-card"), cardContainer = profileLink.closest(".avatar-card-container");
-        if (!card || !cardItem || !cardContainer) return;
+        let card2 = profileLink.closest(".avatar-card-caption"), cardItem = profileLink.closest(".avatar-card"), cardContainer = profileLink.closest(".avatar-card-container");
+        if (!card2 || !cardItem || !cardContainer) return;
         cardItem.style.display = "inline-flex", cardItem.style.height = "auto", Object.assign(cardContainer.style, {
           flex: "1",
           display: "flex",
@@ -135944,19 +138975,19 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         );
         cardContent && (cardContent.style.flex = "1", cardContent.style.display = "flex", cardContent.style.flexDirection = "row", cardContent.style.alignItems = "stretch");
         let updateLabel = /* @__PURE__ */ __name(async () => {
-          let friendId = getUserIdFromUrl(profileLink.href), label = card.querySelector(".rovalra-friends-since-label"), friendData = friendId ? friendsMap2.get(parseInt(friendId, 10)) : null;
+          let friendId = getUserIdFromUrl(profileLink.href), label = card2.querySelector(".rovalra-friends-since-label"), friendData = friendId ? friendsMap2.get(parseInt(friendId, 10)) : null;
           if (!friendData || !friendData.friendsSince) {
             label && label.remove();
             return;
           }
-          let friendedText = await t2("friendsSince.friended"), existingFriendsLabel = card.querySelector(
+          let friendedText = await t2("friendsSince.friended"), existingFriendsLabel = card2.querySelector(
             ".rovalra-friends-since-label"
           );
           existingFriendsLabel && existingFriendsLabel.remove();
-          let existingDetailsLabel = card.querySelector(
+          let existingDetailsLabel = card2.querySelector(
             ".rovalra-friends-details-label"
           );
-          existingDetailsLabel && existingDetailsLabel.remove(), Object.assign(card.style, {
+          existingDetailsLabel && existingDetailsLabel.remove(), Object.assign(card2.style, {
             display: "flex",
             flexDirection: "column",
             flex: "1"
@@ -135966,13 +138997,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           }), label.appendChild(document.createTextNode(`${friendedText} `)), label.appendChild(
             createInteractiveTimestamp(friendData.friendsSince)
           );
-          let statusContainer = card.querySelector(
+          let statusContainer = card2.querySelector(
             ".avatar-status-container"
           );
           statusContainer && statusContainer.parentNode ? statusContainer.parentNode.insertBefore(
             label,
             statusContainer
-          ) : (card.querySelector("span") || card).appendChild(label);
+          ) : (card2.querySelector("span") || card2).appendChild(label);
           let detailsLabel = document.createElement("div");
           detailsLabel.className = "avatar-card-label text-overflow rovalra-friends-details-label", Object.assign(detailsLabel.style, {
             display: "flex",
@@ -135999,7 +139030,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           detailsLabel.hasChildNodes() && (statusContainer && statusContainer.parentNode ? statusContainer.parentNode.insertBefore(
             detailsLabel,
             statusContainer
-          ) : (card.querySelector("span") || card).appendChild(detailsLabel));
+          ) : (card2.querySelector("span") || card2).appendChild(detailsLabel));
         }, "updateLabel");
         updateLabel();
         let observer2 = observeAttributes(
@@ -136030,7 +139061,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       if (parent.querySelector(".rovalra-friends-since-dialog")) return;
       parent.querySelectorAll(
         ".rovalra-friends-since-dialog, .rovalra-friends-age-row, .rovalra-friends-origin-row"
-      ).forEach((el3) => el3.remove());
+      ).forEach((el4) => el4.remove());
       let row = document.createElement("div");
       row.className = "items-center gap-xsmall flex rovalra-friends-since-dialog", row.id = "rovalra-friends-since-container";
       let sibling = parent.querySelector(".items-center.gap-xsmall.flex");
@@ -136111,7 +139142,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
   }
   __name(run3, "run");
-  async function init142() {
+  async function init149() {
     if (watcherSet3) return;
     watcherSet3 = !0;
     let handlePageChange = /* @__PURE__ */ __name(() => {
@@ -136119,7 +139150,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }, "handlePageChange");
     window.addEventListener("popstate", handlePageChange), observeElement("body", handlePageChange, { multiple: !1 }), run3();
   }
-  __name(init142, "init");
+  __name(init149, "init");
 
   // src/content/features/profile/friends/mutualFriends.js
   init_idExtractor();
@@ -136131,7 +139162,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_pill();
   init_userCard();
   init_i18n();
-  var PILL_CLASS = "rovalra-mutual-friends-pill", MAX_PREVIEW_AVATARS = 3, MUTUALS_HASH = "#!/mutuals", DEFAULT_TAB_HASH = "#!/friends", TAB_ACTIVE_CLASS = "rovalra-mutuals-tab-active", HEADING_CLASS = "rovalra-mutuals-heading", PANE_CLASS = "rovalra-mutuals-pane", initialHash = window.location.hash;
+  var PILL_CLASS = "rovalra-mutual-friends-pill", MAX_PREVIEW_AVATARS2 = 3, MUTUALS_HASH = "#!/mutuals", DEFAULT_TAB_HASH = "#!/friends", TAB_ACTIVE_CLASS = "rovalra-mutuals-tab-active", HEADING_CLASS = "rovalra-mutuals-heading", PANE_CLASS = "rovalra-mutuals-pane", initialHash = window.location.hash;
   function isFriendsPage() {
     return /^(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/users\/\d+\/friends/i.test(
       window.location.pathname
@@ -136160,7 +139191,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     if (ids.length === 0) return;
     let [thumbnails, label, tooltip] = await Promise.all([
       getBatchThumbnails(
-        ids.slice(0, MAX_PREVIEW_AVATARS),
+        ids.slice(0, MAX_PREVIEW_AVATARS2),
         "AvatarHeadshot",
         "48x48"
       ),
@@ -136210,8 +139241,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     3: "studio icon-studio"
   };
   function createMutualCard(userId, names, thumb, presence) {
-    let profileUrl = `/users/${userId}/profile`, card = document.createElement("li");
-    card.className = "list-item avatar-card";
+    let profileUrl = `/users/${userId}/profile`, card2 = document.createElement("li");
+    card2.className = "list-item avatar-card";
     let container = document.createElement("div");
     container.className = "avatar-card-container";
     let content = document.createElement("div");
@@ -136243,7 +139274,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     let usernameLabel = document.createElement("div");
     usernameLabel.className = "avatar-card-label", usernameLabel.textContent = names.username ? `@${names.username}` : "";
     let presenceLabel = document.createElement("div");
-    return presenceLabel.className = "avatar-card-label", presenceLabel.append(getPresenceLabel(presence)), captionInner.append(nameContainer, usernameLabel, presenceLabel), caption.appendChild(captionInner), content.append(avatar, caption), container.appendChild(content), card.appendChild(container), card;
+    return presenceLabel.className = "avatar-card-label", presenceLabel.append(getPresenceLabel(presence)), captionInner.append(nameContainer, usernameLabel, presenceLabel), caption.appendChild(captionInner), content.append(avatar, caption), container.appendChild(content), card2.appendChild(container), card2;
   }
   __name(createMutualCard, "createMutualCard");
   async function renderMutualsPane(pane, mutuals, ids) {
@@ -136348,10 +139379,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     onFriendsPage ? await initMutualsTab(mutuals, ids) : await initProfilePill(userId, ids);
   }
   __name(initMutualFriends, "initMutualFriends");
-  function init143() {
+  function init150() {
     initMutualFriends();
   }
-  __name(init143, "init");
+  __name(init150, "init");
 
   // src/content/features/profile/friends/unfriend.js
   init_observer();
@@ -136452,10 +139483,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       let removeButton2 = document.createElement("button");
       removeButton2.innerHTML = "\u2715", removeButton2.style.position = "absolute", removeButton2.style.top = "8px", removeButton2.style.right = "8px", removeButton2.style.opacity = "0.6", removeButton2.style.background = "none", removeButton2.style.border = "none", removeButton2.style.padding = "4px", removeButton2.style.cursor = "pointer", removeButton2.style.color = "var(--rovalra-main-text-color)", removeButton2.style.fontSize = "16px", removeButton2.style.zIndex = "10", removeButton2.style.transition = "opacity 0.15s", removeButton2.addEventListener("click", (e) => {
         e.stopPropagation(), selectedFriends.delete(friendId);
-        let card = document.querySelector(`li[id="${friendId}"]`);
-        if (card) {
-          let radio = card.querySelector(".rovalra-unfriend-radio");
-          radio && radio.setChecked(!1), card.style.outline = "";
+        let card2 = document.querySelector(`li[id="${friendId}"]`);
+        if (card2) {
+          let radio = card2.querySelector(".rovalra-unfriend-radio");
+          radio && radio.setChecked(!1), card2.style.outline = "";
         }
         friendItem.style.opacity = "0.3", friendItem.style.pointerEvents = "none", setTimeout(() => {
           friendItem.remove(), updateUnfriendButton();
@@ -136494,8 +139525,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         let friendId = friendsToRemove[i2];
         if (await unfriendUser(friendId)) {
           successCount++;
-          let card = document.querySelector(`li[id="${friendId}"]`);
-          card && (card.style.opacity = "0.3", card.style.pointerEvents = "none");
+          let card2 = document.querySelector(`li[id="${friendId}"]`);
+          card2 && (card2.style.opacity = "0.3", card2.style.pointerEvents = "none");
         }
         progressLabel.textContent = `${ts2("unfriend.unfriending")} ${i2 + 1}/${friendsToRemove.length}`;
       }
@@ -136511,9 +139542,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     })) : unfriendButton.style.display = "none");
   }
   __name(updateUnfriendButton, "updateUnfriendButton");
-  function getFriendIdFromCard(card) {
-    if (card.id && /^\d+$/.test(card.id)) return card.id;
-    let profileLink = card.querySelector(
+  function getFriendIdFromCard(card2) {
+    if (card2.id && /^\d+$/.test(card2.id)) return card2.id;
+    let profileLink = card2.querySelector(
       '.avatar-card-link, a[href*="/users/"]'
     );
     if (profileLink) {
@@ -136540,21 +139571,21 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       onClick: /* @__PURE__ */ __name(() => {
         enableBulkUnfriend = !enableBulkUnfriend, document.querySelectorAll(".rovalra-unfriend-radio").forEach((radio) => {
           radio.style.display = enableBulkUnfriend ? "block" : "none";
-        }), document.querySelectorAll("li.list-item.avatar-card").forEach((card) => {
-          enableBulkUnfriend ? (card.style.cursor = "pointer", card.style.pointerEvents = "auto", card.querySelectorAll(
+        }), document.querySelectorAll("li.list-item.avatar-card").forEach((card2) => {
+          enableBulkUnfriend ? (card2.style.cursor = "pointer", card2.style.pointerEvents = "auto", card2.querySelectorAll(
             "a, button, svg, span, img"
-          ).forEach((el3) => {
-            el3.style.pointerEvents = "none";
-          }), card.style.userSelect = "none", card.addEventListener("click", handleCardClick)) : (card.style.cursor = "", card.style.pointerEvents = "", card.querySelectorAll(
+          ).forEach((el4) => {
+            el4.style.pointerEvents = "none";
+          }), card2.style.userSelect = "none", card2.addEventListener("click", handleCardClick)) : (card2.style.cursor = "", card2.style.pointerEvents = "", card2.querySelectorAll(
             "a, button, svg, span, img"
-          ).forEach((el3) => {
-            el3.style.pointerEvents = "";
-          }), card.style.userSelect = "", card.removeEventListener("click", handleCardClick), card.style.outline = "");
+          ).forEach((el4) => {
+            el4.style.pointerEvents = "";
+          }), card2.style.userSelect = "", card2.removeEventListener("click", handleCardClick), card2.style.outline = "");
         }), enableBulkUnfriend && (selectedFriends.forEach((friendId) => {
-          let card = document.querySelector(`li[id="${friendId}"]`), radio = card?.querySelector(
+          let card2 = document.querySelector(`li[id="${friendId}"]`), radio = card2?.querySelector(
             ".rovalra-unfriend-radio"
           );
-          radio && card && radio.setChecked(!0);
+          radio && card2 && radio.setChecked(!0);
         }), updateUnfriendButton()), bulkToggleButton2.textContent = enableBulkUnfriend ? ts2("unfriend.exitBulkMode") : ts2("unfriend.bulkUnfriend");
       }, "onClick")
     }), bulkToggleButton2.classList.add("rovalra-bulk-unfriend-btn"), bulkToggleButton2.style.marginLeft = "12px", headerContainer.appendChild(bulkToggleButton2), unfriendButton = createButton(ts2("unfriend.unfriend"), "alert", {
@@ -136568,26 +139599,26 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     radio && !e.target.closest(".rovalra-unfriend-radio") && radio.click();
   }
   __name(handleCardClick, "handleCardClick");
-  function addSelectionCheckboxToCard(card, friendId) {
-    if (card.querySelector(".rovalra-unfriend-radio")) return;
-    let contentContainer = card.querySelector(".avatar-card-content");
+  function addSelectionCheckboxToCard(card2, friendId) {
+    if (card2.querySelector(".rovalra-unfriend-radio")) return;
+    let contentContainer = card2.querySelector(".avatar-card-content");
     if (!contentContainer) return;
     let radio = createRadioButton({
       onChange: /* @__PURE__ */ __name((checked) => {
-        let currentId = getFriendIdFromCard(card);
-        currentId && (checked ? selectedFriends.add(currentId) : (selectedFriends.delete(currentId), card.style.outline = ""), updateUnfriendButton());
+        let currentId = getFriendIdFromCard(card2);
+        currentId && (checked ? selectedFriends.add(currentId) : (selectedFriends.delete(currentId), card2.style.outline = ""), updateUnfriendButton());
       }, "onChange")
     });
-    radio.className = "rovalra-unfriend-radio", radio.style.position = "absolute", radio.style.top = "8px", radio.style.left = "8px", radio.style.zIndex = "10", radio.style.display = enableBulkUnfriend ? "block" : "none", card.style.position = "relative", contentContainer.appendChild(radio);
+    radio.className = "rovalra-unfriend-radio", radio.style.position = "absolute", radio.style.top = "8px", radio.style.left = "8px", radio.style.zIndex = "10", radio.style.display = enableBulkUnfriend ? "block" : "none", card2.style.position = "relative", contentContainer.appendChild(radio);
   }
   __name(addSelectionCheckboxToCard, "addSelectionCheckboxToCard");
   function cleanupBulkMode() {
     enableBulkUnfriend = !1, selectedFriends.clear(), unfriendButton && (unfriendButton.remove(), unfriendButton = null), bulkToggleButton2 && (bulkToggleButton2.remove(), bulkToggleButton2 = null), cardAttributeObservers.forEach((obs) => obs.disconnect()), cardAttributeObservers.clear(), friendsMap = null, headerObserver2 && (headerObserver2.disconnect(), headerObserver2 = null), cardsObserver2 && (cardsObserver2.disconnect(), cardsObserver2 = null), document.querySelectorAll(".rovalra-unfriend-radio").forEach((radio) => {
       radio.remove();
-    }), document.querySelectorAll("li.list-item.avatar-card").forEach((card) => {
-      card.style.cursor = "", card.style.pointerEvents = "", card.querySelectorAll("a, button, svg, span, img").forEach((el3) => {
-        el3.style.pointerEvents = "";
-      }), card.style.userSelect = "", card.removeEventListener("click", handleCardClick), card.style.outline = "", card.style.opacity = "";
+    }), document.querySelectorAll("li.list-item.avatar-card").forEach((card2) => {
+      card2.style.cursor = "", card2.style.pointerEvents = "", card2.querySelectorAll("a, button, svg, span, img").forEach((el4) => {
+        el4.style.pointerEvents = "";
+      }), card2.style.userSelect = "", card2.removeEventListener("click", handleCardClick), card2.style.outline = "", card2.style.opacity = "";
     });
   }
   __name(cleanupBulkMode, "cleanupBulkMode");
@@ -136617,16 +139648,16 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     ), cardsObserver2 = observeElement(
       "li.list-item.avatar-card",
-      (card) => {
+      (card2) => {
         let updateCardState = /* @__PURE__ */ __name(() => {
-          let friendId = getFriendIdFromCard(card);
+          let friendId = getFriendIdFromCard(card2);
           if (!friendId) return;
-          addSelectionCheckboxToCard(card);
-          let radio = card.querySelector(".rovalra-unfriend-radio");
-          radio && radio.setChecked(selectedFriends.has(friendId)), enableBulkUnfriend && (card.style.cursor = "pointer", card.addEventListener("click", handleCardClick));
+          addSelectionCheckboxToCard(card2);
+          let radio = card2.querySelector(".rovalra-unfriend-radio");
+          radio && radio.setChecked(selectedFriends.has(friendId)), enableBulkUnfriend && (card2.style.cursor = "pointer", card2.addEventListener("click", handleCardClick));
         }, "updateCardState");
         updateCardState();
-        let profileLink = card.querySelector(
+        let profileLink = card2.querySelector(
           '.avatar-card-link, a[href*="/users/"]'
         );
         if (profileLink) {
@@ -136637,21 +139668,21 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             },
             ["href"]
           );
-          cardAttributeObservers.set(card, attrObserver);
+          cardAttributeObservers.set(card2, attrObserver);
         }
       },
       {
         multiple: !0,
-        onRemove: /* @__PURE__ */ __name((card) => {
-          card.removeEventListener("click", handleCardClick);
-          let obs = cardAttributeObservers.get(card);
-          obs && (obs.disconnect(), cardAttributeObservers.delete(card));
+        onRemove: /* @__PURE__ */ __name((card2) => {
+          card2.removeEventListener("click", handleCardClick);
+          let obs = cardAttributeObservers.get(card2);
+          obs && (obs.disconnect(), cardAttributeObservers.delete(card2));
         }, "onRemove")
       }
     );
   }
   __name(initializeIfOnFriendsPage, "initializeIfOnFriendsPage");
-  async function init144() {
+  async function init151() {
     if (!(await chrome.storage.local.get("bulkUnfriendEnabled")).bulkUnfriendEnabled)
       return;
     let handlePageChange = /* @__PURE__ */ __name(async () => {
@@ -136672,7 +139703,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !1 }
     ), window.addEventListener("popstate", handlePageChange);
   }
-  __name(init144, "init");
+  __name(init151, "init");
 
   // src/content/features/profile/friends/unfriendDetector.js
   init_overlay();
@@ -136691,7 +139722,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       (u) => !u.displayName && !u.username
     );
     if (!missing.length) return unfriendedUsers;
-    let resolved = /* @__PURE__ */ new Map();
+    let resolved2 = /* @__PURE__ */ new Map();
     return await Promise.all(
       missing.map(async (user) => {
         try {
@@ -136700,7 +139731,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             endpoint: `/v1/users/${user.id}`,
             useBackground: !0
           });
-          (accountData?.name || accountData?.displayName) && resolved.set(Number(user.id), {
+          (accountData?.name || accountData?.displayName) && resolved2.set(Number(user.id), {
             username: accountData.name || null,
             displayName: accountData.displayName || null
           });
@@ -136711,8 +139742,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           );
         }
       })
-    ), resolved.size ? unfriendedUsers.map((u) => {
-      let found = resolved.get(Number(u.id));
+    ), resolved2.size ? unfriendedUsers.map((u) => {
+      let found = resolved2.get(Number(u.id));
       return found ? {
         ...u,
         username: u.username || found.username,
@@ -136728,8 +139759,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         if (!await settings.unfriendDetectorEnabled) return;
         let userId = await getAuthenticatedUserId(!0);
         if (!userId) return;
-        let pending2 = await consumePendingUnfriends(userId);
-        pending2.length && await showUnfriendDetectedOverlay(pending2);
+        let pending3 = await consumePendingUnfriends(userId);
+        pending3.length && await showUnfriendDetectedOverlay(pending3);
       } finally {
         isHandlingQueue = !1;
       }
@@ -136739,13 +139770,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   async function consumePendingUnfriends(userId) {
     let allPending = (await new Promise(
       (resolve) => chrome.storage.local.get([PENDING_UNFRIENDS_KEY2], resolve)
-    ))[PENDING_UNFRIENDS_KEY2] || {}, pending2 = allPending[userId] || [];
-    return pending2.length ? (delete allPending[userId], await new Promise(
+    ))[PENDING_UNFRIENDS_KEY2] || {}, pending3 = allPending[userId] || [];
+    return pending3.length ? (delete allPending[userId], await new Promise(
       (resolve) => chrome.storage.local.set(
         { [PENDING_UNFRIENDS_KEY2]: allPending },
         resolve
       )
-    ), pending2) : [];
+    ), pending3) : [];
   }
   __name(consumePendingUnfriends, "consumePendingUnfriends");
   async function showUnfriendDetectedOverlay(unfriendedUsers) {
@@ -136848,14 +139879,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         });
   }
   __name(showUnfriendDetectedOverlay, "showUnfriendDetectedOverlay");
-  async function init145() {
+  async function init152() {
     await settings.unfriendDetectorEnabled && (setUnfriendDetectedListener((removedFriends) => {
       showUnfriendDetectedOverlay(removedFriends);
     }), await handlePendingQueue(), !listenerAttached && chrome.storage?.onChanged && (listenerAttached = !0, chrome.storage.onChanged.addListener((changes, areaName) => {
       areaName === "local" && changes[PENDING_UNFRIENDS_KEY2] && handlePendingQueue();
     })));
   }
-  __name(init145, "init");
+  __name(init152, "init");
 
   // src/content/features/profile/badges/bulkRemover.js
   init_observer();
@@ -136871,8 +139902,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return /\/users\/(?:\d+\/)?inventory\/?$/.test(location.pathname) && location.hash === "#!/badges";
   }
   __name(isBadgeInventoryPage, "isBadgeInventoryPage");
-  function getBadgeId2(card) {
-    let href = card.querySelector('a[href*="/badges/"]')?.href || "";
+  function getBadgeId2(card2) {
+    let href = card2.querySelector('a[href*="/badges/"]')?.href || "";
     return getBadgeIdFromUrl(href);
   }
   __name(getBadgeId2, "getBadgeId");
@@ -136882,29 +139913,29 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }), actionButton.style.display = selectedBadges.size ? "inline-flex" : "none");
   }
   __name(updateActionButton, "updateActionButton");
-  function restoreCard(card) {
-    card.style.outline = "", card.style.cursor = "", card.style.userSelect = "", card.querySelectorAll("a, button, img, span").forEach((element) => {
+  function restoreCard(card2) {
+    card2.style.outline = "", card2.style.cursor = "", card2.style.userSelect = "", card2.querySelectorAll("a, button, img, span").forEach((element) => {
       element.style.pointerEvents = "";
-    }), card.removeEventListener("click", handleCardClick2);
+    }), card2.removeEventListener("click", handleCardClick2);
   }
   __name(restoreCard, "restoreCard");
-  function setCardMode(card) {
-    let radio = card.querySelector(".rovalra-badge-radio");
-    radio && (radio.style.display = bulkMode ? "inline-flex" : "none", bulkMode ? (card.style.cursor = "pointer", card.style.userSelect = "none", card.querySelectorAll("a, button, img, span").forEach((element) => {
+  function setCardMode(card2) {
+    let radio = card2.querySelector(".rovalra-badge-radio");
+    radio && (radio.style.display = bulkMode ? "inline-flex" : "none", bulkMode ? (card2.style.cursor = "pointer", card2.style.userSelect = "none", card2.querySelectorAll("a, button, img, span").forEach((element) => {
       element.style.pointerEvents = "none";
-    }), card.addEventListener("click", handleCardClick2)) : restoreCard(card), radio.setChecked(selectedBadges.has(getBadgeId2(card))));
+    }), card2.addEventListener("click", handleCardClick2)) : restoreCard(card2), radio.setChecked(selectedBadges.has(getBadgeId2(card2))));
   }
   __name(setCardMode, "setCardMode");
-  function addSelectionControl(card) {
-    if (card.querySelector(".rovalra-badge-radio")) return;
-    let badgeId = getBadgeId2(card);
+  function addSelectionControl(card2) {
+    if (card2.querySelector(".rovalra-badge-radio")) return;
+    let badgeId = getBadgeId2(card2);
     if (!badgeId) return;
     let radio = createRadioButton({
       onChange: /* @__PURE__ */ __name((checked) => {
-        checked ? selectedBadges.add(badgeId) : selectedBadges.delete(badgeId), card.style.outline = checked ? "2px solid var(--rovalra-playbutton-color)" : "", updateActionButton();
+        checked ? selectedBadges.add(badgeId) : selectedBadges.delete(badgeId), card2.style.outline = checked ? "2px solid var(--rovalra-playbutton-color)" : "", updateActionButton();
       }, "onChange")
     });
-    radio.className = "rovalra-badge-radio", radio.style.display = "none", radio.style.position = "absolute", radio.style.top = "8px", radio.style.left = "8px", radio.style.zIndex = "2", card.style.position = "relative", card.appendChild(radio), setCardMode(card);
+    radio.className = "rovalra-badge-radio", radio.style.display = "none", radio.style.position = "absolute", radio.style.top = "8px", radio.style.left = "8px", radio.style.zIndex = "2", card2.style.position = "relative", card2.appendChild(radio), setCardMode(card2);
   }
   __name(addSelectionControl, "addSelectionControl");
   function handleCardClick2(event) {
@@ -136953,12 +139984,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     description.textContent = ids.length === 1 ? ts2("bulkBadgeRemover.descriptionSingle") : ts2("bulkBadgeRemover.descriptionPlural", { count: ids.length }), description.style.marginBottom = "16px", body.appendChild(description);
     let badgeList = document.createElement("div");
     badgeList.style.display = "grid", badgeList.style.gridTemplateColumns = "1fr 1fr", badgeList.style.gap = "8px", badgeList.style.maxHeight = "320px", badgeList.style.overflowY = "auto", ids.forEach((badgeId) => {
-      let card = document.querySelector(`.item-card-container:has(a[href*="/badges/${badgeId}"])`), item = document.createElement("div");
+      let card2 = document.querySelector(`.item-card-container:has(a[href*="/badges/${badgeId}"])`), item = document.createElement("div");
       item.style.display = "flex", item.style.alignItems = "center", item.style.gap = "8px", item.style.padding = "6px", item.style.minWidth = "0", item.style.borderRadius = "6px", item.style.backgroundColor = "var(--rovalra-container-background-color)";
       let image = document.createElement("img");
-      image.src = card?.querySelector("img")?.src || "", image.alt = "", image.style.width = "48px", image.style.height = "48px", image.style.objectFit = "cover", image.style.borderRadius = "4px", image.style.flexShrink = "0", item.appendChild(image);
+      image.src = card2?.querySelector("img")?.src || "", image.alt = "", image.style.width = "48px", image.style.height = "48px", image.style.objectFit = "cover", image.style.borderRadius = "4px", image.style.flexShrink = "0", item.appendChild(image);
       let name = document.createElement("span");
-      name.textContent = card?.querySelector('a[href*="/badges/"]')?.textContent?.trim() || `Badge ${badgeId}`, name.style.color = "var(--rovalra-main-text-color)", name.style.fontSize = "14px", name.style.fontWeight = "500", name.style.lineHeight = "1.2", name.style.minWidth = "0", name.style.overflow = "hidden", name.style.textOverflow = "ellipsis", name.style.whiteSpace = "nowrap", item.appendChild(name), badgeList.appendChild(item);
+      name.textContent = card2?.querySelector('a[href*="/badges/"]')?.textContent?.trim() || `Badge ${badgeId}`, name.style.color = "var(--rovalra-main-text-color)", name.style.fontSize = "14px", name.style.fontWeight = "500", name.style.lineHeight = "1.2", name.style.minWidth = "0", name.style.overflow = "hidden", name.style.textOverflow = "ellipsis", name.style.whiteSpace = "nowrap", item.appendChild(name), badgeList.appendChild(item);
     }), body.appendChild(badgeList);
     let cancel = createButton(ts2("bulkBadgeRemover.cancel"), "secondary"), confirm = createButton(ts2("bulkBadgeRemover.deleteCount", { count: ids.length }), "alert"), overlay = createOverlay({
       title: ts2("bulkBadgeRemover.confirmTitle"),
@@ -136988,7 +140019,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     bulkMode = !1, selectedBadges.clear(), toggleButton?.remove(), actionButton?.remove(), toggleButton = null, actionButton = null, document.querySelectorAll(".rovalra-badge-radio").forEach((radio) => radio.remove()), document.querySelectorAll("#assetsItems .item-card-container").forEach(restoreCard);
   }
   __name(cleanup7, "cleanup");
-  async function init146() {
+  async function init153() {
     if (!(await chrome.storage.local.get("bulkBadgeRemoverEnabled")).bulkBadgeRemoverEnabled) return;
     let refresh4 = /* @__PURE__ */ __name(async () => {
       let userId = await getAuthenticatedUserId(), pageUserId = getUserIdFromInventoryUrl() || String(userId);
@@ -137007,7 +140038,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       event.target.closest("#vertical-menu a, .menu-secondary-option") && setTimeout(refresh4, 0);
     });
   }
-  __name(init146, "init");
+  __name(init153, "init");
 
   // src/content/features/profile/header/avatarDownload.js
   init_observer();
@@ -137117,12 +140148,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     button.classList.replace("text-label-medium", "text-label-large"), button.classList.add(buttonIdentifier), toggleContainer.style.display = "flex", toggleContainer.style.gap = "10px", toggleContainer.prepend(button);
   }
   __name(addDownloadButton, "addDownloadButton");
-  async function init147() {
+  async function init154() {
     await settings.avatarDownloadEnabled && observeElement(".avatar-toggle-button", addDownloadButton, {
       multiple: !0
     });
   }
-  __name(init147, "init");
+  __name(init154, "init");
 
   // src/content/index.js
   init_avatarBorder();
@@ -137131,7 +140162,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_observer();
   init_handlesettings();
   var PROFILE_AVATAR_SELECTOR = ".user-profile-header-details-avatar-container .avatar.avatar-card-fullbody", AVATAR_CLASS = "rovalra-improved-avatar-card";
-  async function init148() {
+  async function init155() {
     try {
       if (!(await loadSettings()).improvedAvatarCard) return;
       observeElement(
@@ -137143,7 +140174,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       console.error("RoValra: Improved avatar card init failed", error3);
     }
   }
-  __name(init148, "init");
+  __name(init155, "init");
 
   // src/content/features/sitewide/moreRobuxDigits.js
   init_observer();
@@ -137151,7 +140182,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   var NAVBAR_AMOUNT_SELECTOR = "#nav-robux-amount, #nav-robux-balance", NAVBAR_AMOUNT_DATA_KEYS = [
     "rovalraNavbarRobuxAmount",
     "rovalraUsdAmount"
-  ], initialized18 = !1;
+  ], initialized20 = !1;
   function getPrimaryText(element) {
     return Array.from(element.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent || "").join("").trim();
   }
@@ -137254,14 +140285,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     refresh4(), observeChildren(element, refresh4), observeAttributes(element, refresh4, NAVBAR_AMOUNT_DATA_KEYS);
   }
   __name(watchNavbarAmount, "watchNavbarAmount");
-  function init149() {
-    initialized18 || (initialized18 = !0, observeElement(NAVBAR_AMOUNT_SELECTOR, watchNavbarAmount, {
+  function init156() {
+    initialized20 || (initialized20 = !0, observeElement(NAVBAR_AMOUNT_SELECTOR, watchNavbarAmount, {
       multiple: !0
     }), document.addEventListener("rovalra:settingSaved", () => {
       document.querySelectorAll(NAVBAR_AMOUNT_SELECTOR).forEach(refreshNavbarAmount);
     }));
   }
-  __name(init149, "init");
+  __name(init156, "init");
 
   // src/content/core/catalog/purchasePromptItemId.js
   init_observer();
@@ -137327,10 +140358,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           let storeItems = document.querySelectorAll(
             ".item-card, .store-card, .catalog-item-card"
           );
-          for (let card of storeItems) {
-            let nameEl = card.querySelector(
+          for (let card2 of storeItems) {
+            let nameEl = card2.querySelector(
               ".item-name, .card-name, .name"
-            ), linkEl = card.querySelector(
+            ), linkEl = card2.querySelector(
               'a[href*="/catalog/"], a[href*="/bundles/"]'
             );
             if (nameEl && linkEl && nameEl.textContent.trim() === cartItems[i2].name) {
@@ -137372,8 +140403,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             "[data-product-id], [data-item-id], [data-asset-id], [data-rovalra-item-id]"
           )
         ];
-        for (let el3 of idElements) {
-          let id = el3.dataset.rovalraItemId || el3.dataset.productId || el3.dataset.itemId || el3.dataset.assetId;
+        for (let el4 of idElements) {
+          let id = el4.dataset.rovalraItemId || el4.dataset.productId || el4.dataset.itemId || el4.dataset.assetId;
           if (id && !isNaN(id) && id !== "0") {
             itemId = id;
             break;
@@ -137415,19 +140446,19 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     let itemType = isGamePass ? "GamePass" : isBundle ? "Bundle" : "Asset";
     if (itemId && !expectedPrice)
       try {
-        let details = await getItemDetails(itemId, itemType);
-        if (details) {
-          if (details.price && (expectedPrice = details.price), details.itemRestrictions && Array.isArray(details.itemRestrictions)) {
+        let details2 = await getItemDetails(itemId, itemType);
+        if (details2) {
+          if (details2.price && (expectedPrice = details2.price), details2.itemRestrictions && Array.isArray(details2.itemRestrictions)) {
             let restrictedFlags = [
               "Collectible",
               "Limited",
               "LimitedUnique"
             ];
-            isLimited = details.itemRestrictions.some(
+            isLimited = details2.itemRestrictions.some(
               (r) => restrictedFlags.includes(r)
             );
           }
-          !isLimited && details.hasResellers === !0 && (isLimited = !0), !isLimited && details.saleLocationType === "ShopAndAllExperiences" && details.hasResellers === !0 && (isLimited = !0);
+          !isLimited && details2.hasResellers === !0 && (isLimited = !0), !isLimited && details2.saleLocationType === "ShopAndAllExperiences" && details2.hasResellers === !0 && (isLimited = !0);
         }
       } catch (error3) {
         console.warn("RoValra: Failed to fetch item price details", error3);
@@ -137478,27 +140509,27 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             item.name
           ), item.id)
             try {
-              let details = await getItemDetails(
+              let details2 = await getItemDetails(
                 item.id,
                 item.type || "Asset"
               );
-              if (details) {
-                details.price && modal.setAttribute(
+              if (details2) {
+                details2.price && modal.setAttribute(
                   `data-rovalra-item-price-${index}`,
-                  details.price
+                  details2.price
                 );
                 let isLimited = !1;
-                if (details.itemRestrictions && Array.isArray(details.itemRestrictions)) {
+                if (details2.itemRestrictions && Array.isArray(details2.itemRestrictions)) {
                   let restrictedFlags = [
                     "Collectible",
                     "Limited",
                     "LimitedUnique"
                   ];
-                  isLimited = details.itemRestrictions.some(
+                  isLimited = details2.itemRestrictions.some(
                     (r) => restrictedFlags.includes(r)
                   );
                 }
-                !isLimited && details.hasResellers === !0 && (isLimited = !0), !isLimited && details.saleLocationType === "ShopAndAllExperiences" && details.hasResellers === !0 && (isLimited = !0), modal.setAttribute(
+                !isLimited && details2.hasResellers === !0 && (isLimited = !0), !isLimited && details2.saleLocationType === "ShopAndAllExperiences" && details2.hasResellers === !0 && (isLimited = !0), modal.setAttribute(
                   `data-rovalra-item-limited-${index}`,
                   isLimited || !1
                 ), isLimited && (cartHasLimited = !0);
@@ -137536,7 +140567,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }, "tryProcess");
     tryProcess();
   }, "attachItemDataToPurchasePrompt");
-  function init150() {
+  function init157() {
     observeElement(
       ".modal-dialog .modal-content, .modal-content, .unified-purchase-dialog-content, .foundation-web-dialog-content",
       (element) => {
@@ -137603,7 +140634,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       "color: #FF4500;"
     );
   }
-  __name(init150, "init");
+  __name(init157, "init");
 
   // src/content/features/profile/currencytransfer.js
   init_api();
@@ -137685,19 +140716,19 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     menuItems.length > 0 ? menuItems[0].insertAdjacentElement("afterend", button) : container.appendChild(button);
   }
   __name(addCurrencyTransferButton, "addCurrencyTransferButton");
-  function init151() {
+  function init158() {
     chrome.storage.local.get({ currencyTransferEnabled: !0 }, (settings2) => {
       settings2.currencyTransferEnabled && registerProfileContextMenuAction(addCurrencyTransferButton, () => {
         getCurrencyTransferStatus();
       });
     });
   }
-  __name(init151, "init");
+  __name(init158, "init");
 
   // src/content/features/profile/header/usernameColor.js
   init_observer();
   init_getSettings();
-  async function addUsernameColor(username, el3) {
+  async function addUsernameColor(username, el4) {
     if (!username || username === "") return;
     username = username.slice(1);
     let colors = [
@@ -137726,16 +140757,16 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
       return value3;
     }, "ComputeNameValue"))(username), value2 = cmv - Math.floor(cmv / colors.length) * colors.length;
-    el3 && (el3.style.color = colors[value2]);
+    el4 && (el4.style.color = colors[value2]);
   }
   __name(addUsernameColor, "addUsernameColor");
-  async function init152() {
+  async function init159() {
     await settings.usernameColor && observeElement(
       ".stylistic-alts-username, .deleted-user-container .user-name",
-      (el3) => {
-        let runUpdate = /* @__PURE__ */ __name(() => el3.innerText.trim() !== "" ? (addUsernameColor(el3.innerText, el3), !0) : !1, "runUpdate");
+      (el4) => {
+        let runUpdate = /* @__PURE__ */ __name(() => el4.innerText.trim() !== "" ? (addUsernameColor(el4.innerText, el4), !0) : !1, "runUpdate");
         if (!runUpdate()) {
-          let { disconnect } = observeChildren(el3, () => {
+          let { disconnect } = observeChildren(el4, () => {
             runUpdate() && disconnect();
           });
         }
@@ -137743,7 +140774,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     );
   }
-  __name(init152, "init");
+  __name(init159, "init");
 
   // src/content/features/profile/header/chatEligibilityTooltip.js
   init_idExtractor();
@@ -137835,12 +140866,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(processPotentialChatOverlay, "processPotentialChatOverlay");
-  async function init153() {
+  async function init160() {
     observerRegistered2 || !getUserIdFromUrl() || !await settings.chatEligibilityTooltipEnabled || (observerRegistered2 = !0, observeElement(PRESENTATION_SELECTOR, processPotentialChatOverlay, {
       multiple: !0
     }));
   }
-  __name(init153, "init");
+  __name(init160, "init");
 
   // src/content/features/profile/profileCustomization.js
   init_api();
@@ -138004,12 +141035,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         let grid = document.createElement("div");
         grid.style.cssText = "display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px; margin-bottom:10px;", container.append(header, grid), sections.push({ value: category.value, header, grid });
         for (let frame of category.frames) {
-          let owned = frame.isFree || ownedFrames.has(frame.value) || ownedFrames.has(frame.link), card = document.createElement("div");
-          card.style.cssText = "display:flex; flex-direction:column; align-items:center; padding:12px; background:var(--rovalra-container-background-color); border-radius:12px;";
+          let owned = frame.isFree || ownedFrames.has(frame.value) || ownedFrames.has(frame.link), card2 = document.createElement("div");
+          card2.style.cssText = "display:flex; flex-direction:column; align-items:center; padding:12px; background:var(--rovalra-container-background-color); border-radius:12px;";
           let cardPreview = createFramePreview(userData.thumbData);
-          card.appendChild(cardPreview);
+          card2.appendChild(cardPreview);
           let label = document.createElement("div");
-          label.style.cssText = "color:var(--rovalra-main-text-color); font-weight:600; font-size:13px; text-align:center; margin:8px 0 4px;", label.textContent = frame.label, card.appendChild(label);
+          label.style.cssText = "color:var(--rovalra-main-text-color); font-weight:600; font-size:13px; text-align:center; margin:8px 0 4px;", label.textContent = frame.label, card2.appendChild(label);
           let button = createPill(
             owned && currentValue === frame.value ? ts2("profileCustomization.equipped") : owned ? ts2("profileCustomization.equip") : ts2("profileCustomization.unowned"),
             owned ? ts2("profileCustomization.equipTooltip") : ts2("profileCustomization.unownedTooltip"),
@@ -138022,7 +141053,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             }), currentValue = nextFrame?.value || "none", unequipButton.style.opacity = currentValue === "none" ? "0.5" : "1", unequipButton.style.cursor = currentValue === "none" ? "not-allowed" : "pointer", await saveProfileFrame(nextFrame?.link), container.querySelectorAll("[data-profile-frame-option]").forEach((item) => {
               item.dataset.profileFrameOwned === "true" && (item.textContent = item.dataset.profileFrameOption === currentValue ? ts2("profileCustomization.equipped") : ts2("profileCustomization.equip"));
             });
-          }) : (button.style.opacity = "0.6", button.style.cursor = "not-allowed"), button.dataset.profileFrameOption = frame.value, button.dataset.profileFrameOwned = owned ? "true" : "false", card.appendChild(button), grid.appendChild(card), applyFrameToHolder(cardPreview, frame.link);
+          }) : (button.style.opacity = "0.6", button.style.cursor = "not-allowed"), button.dataset.profileFrameOption = frame.value, button.dataset.profileFrameOwned = owned ? "true" : "false", card2.appendChild(button), grid.appendChild(card2), applyFrameToHolder(cardPreview, frame.link);
         }
       }
       applyCategory("all");
@@ -138095,7 +141126,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   }
   __name(getAuthedUserData, "getAuthedUserData");
   function createPreviewUserCard(authedUserData, borderLink) {
-    let card = createUserCard({
+    let card2 = createUserCard({
       displayName: authedUserData?.displayName || "User",
       username: "",
       thumbData: authedUserData?.thumbData || { state: "Error" },
@@ -138103,11 +141134,11 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       presenceInfo: 0,
       hidePresence: !0
     });
-    card.dataset.rovalraBorderApplied = "true", card.style.pointerEvents = "none", card.classList.add("rovalra-profile-customization-user-card"), card.querySelector(
+    card2.dataset.rovalraBorderApplied = "true", card2.style.pointerEvents = "none", card2.classList.add("rovalra-profile-customization-user-card"), card2.querySelector(
       ".user-card-labels, .user-card-labels-no-username"
     )?.remove();
-    let avatarEl = card.querySelector(".avatar.avatar-card-fullbody");
-    return avatarEl?.classList.remove("user-profile-header-details-avatar-container"), avatarEl?.querySelector(".avatar-card-image")?.classList.add("rovalra-profile-customization-avatar-image"), avatarEl?.querySelector(".avatar-status")?.remove(), avatarEl && borderLink && applyPreviewBorder(avatarEl, borderLink), card;
+    let avatarEl = card2.querySelector(".avatar.avatar-card-fullbody");
+    return avatarEl?.classList.remove("user-profile-header-details-avatar-container"), avatarEl?.querySelector(".avatar-card-image")?.classList.add("rovalra-profile-customization-avatar-image"), avatarEl?.querySelector(".avatar-status")?.remove(), avatarEl && borderLink && applyPreviewBorder(avatarEl, borderLink), card2;
   }
   __name(createPreviewUserCard, "createPreviewUserCard");
   function clearPreviewBorder(avatarEl) {
@@ -138180,15 +141211,15 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       header.className = "shimmer", header.style.cssText = "width: 130px; height: 18px; margin: 20px 0 10px 0; border-radius: 4px;", container.appendChild(header);
       let grid = document.createElement("div");
       grid.style.cssText = "display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 10px;";
-      let card = document.createElement("div");
-      card.style.cssText = "display: flex; flex-direction: column; padding: 12px; background: var(--rovalra-container-background-color); border-radius: 12px; gap: 12px; opacity: 0.8;", card.innerHTML = `
+      let card2 = document.createElement("div");
+      card2.style.cssText = "display: flex; flex-direction: column; padding: 12px; background: var(--rovalra-container-background-color); border-radius: 12px; gap: 12px; opacity: 0.8;", card2.innerHTML = `
             <div style="display: flex; justify-content: center; gap: 15px;">
                 <div class="shimmer" style="width: 100px; height: 100px; border-radius: 50%;"></div>
                 <div class="shimmer" style="width: 100px; height: 100px; border-radius: 50%;"></div>
             </div>
             <div class="shimmer" style="width: 50%; height: 12px; align-self: center; border-radius: 4px;"></div>
             <div class="shimmer" style="width: 100px; height: 16px; align-self: center; border-radius: 20px; margin-top: 5px;"></div>
-        `, grid.appendChild(card), container.appendChild(grid);
+        `, grid.appendChild(card2), container.appendChild(grid);
     }
   }
   __name(renderLoadingState, "renderLoadingState");
@@ -138335,9 +141366,9 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           for (let ownedVariant of visibleVariants) {
             let variantContainer = document.createElement("div");
             variantContainer.dataset.variantValue = ownedVariant.value, variantContainer.style.cssText = "display: flex; flex-direction: column; align-items: center; flex: 1; border: 1.5px solid transparent; border-radius: 10px; padding: 6px;";
-            let card = createPreviewUserCard(authedUserData);
-            card.style.transform = "scale(1.1)", card.style.margin = "5px 0";
-            let avatarEl = card.querySelector(
+            let card2 = createPreviewUserCard(authedUserData);
+            card2.style.transform = "scale(1.1)", card2.style.margin = "5px 0";
+            let avatarEl = card2.querySelector(
               ".avatar.avatar-card-fullbody"
             );
             avatarEl && visibleLoaders.push(
@@ -138352,7 +141383,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
               container,
               previewHolder
             });
-            variantContainer.append(card, label, equipButton), previewRow.appendChild(variantContainer);
+            variantContainer.append(card2, label, equipButton), previewRow.appendChild(variantContainer);
           }
           let variantLabel = document.createElement("div");
           variantLabel.style.cssText = "color: var(--rovalra-main-text-color); font-weight: 600; font-size: 13px; text-align: center; margin-bottom: 4px;", variantLabel.textContent = variant.label;
@@ -138502,10 +141533,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     )));
   }
   __name(initProfileCustomization, "initProfileCustomization");
-  function init154() {
+  function init161() {
     initProfileCustomization();
   }
-  __name(init154, "init");
+  __name(init161, "init");
 
   // src/content/core/profile/profileEdit.js
   init_observer();
@@ -138587,7 +141618,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     existingSections.forEach((section) => section.remove());
   }
   __name(renderProfileEditFeatures, "renderProfileEditFeatures");
-  function init155() {
+  function init162() {
     isProfileEditPage() && (observeElement(
       "ul.foundation-web-list",
       (list) => renderProfileEditFeatures(list.parentElement),
@@ -138603,7 +141634,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       });
     }));
   }
-  __name(init155, "init");
+  __name(init162, "init");
 
   // src/content/core/settings/badgeSettings.js
   init_api();
@@ -138863,7 +141894,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     });
   }
   __name(renderAllSocialLinks, "renderAllSocialLinks");
-  async function init156() {
+  async function init163() {
     await settings.socialLinksEnabled && (window.addEventListener("rovalra-profile-platform-response", (event) => {
       event.detail?.components?.About && (profileSocialLinks = getSocialLinks(event.detail), renderAllSocialLinks());
     }), observeElement(
@@ -138876,7 +141907,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     ));
   }
-  __name(init156, "init");
+  __name(init163, "init");
 
   // src/content/features/settings/index.js
   init_assets();
@@ -138888,7 +141919,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_getSettings();
   init_overlay();
   init_buttons();
-  var OPEN_EVENT = "rovalra:openBulkUnblock", BLOCK_API = "/user-blocking-api/v1/users/get-blocked-users", BUTTON_ID5 = "rovalra-native-bulk-unblock", managerOpen = !1, initialized19 = !1, cachedBlockedIds = null, cacheTime = 0, renderTimer = null, selectedUsers = /* @__PURE__ */ new Set();
+  var OPEN_EVENT = "rovalra:openBulkUnblock", BLOCK_API = "/user-blocking-api/v1/users/get-blocked-users", BUTTON_ID5 = "rovalra-native-bulk-unblock", managerOpen = !1, initialized21 = !1, cachedBlockedIds = null, cacheTime = 0, renderTimer = null, selectedUsers = /* @__PURE__ */ new Set();
   function getIdsFromResponse(data) {
     let possibleLists = [
       data?.blockedUserIds,
@@ -139227,12 +142258,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     });
   }
   __name(handleOpenManager, "handleOpenManager");
-  function init157() {
-    initialized19 || (initialized19 = !0, document.addEventListener(OPEN_EVENT, handleOpenManager), document.addEventListener("roblox-dom-changed", scheduleNativeButton), window.addEventListener("hashchange", scheduleNativeButton), window.addEventListener("popstate", scheduleNativeButton), window.addEventListener("rovalra:urlChanged", scheduleNativeButton), chrome.storage.onChanged.addListener((changes, area) => {
+  function init164() {
+    initialized21 || (initialized21 = !0, document.addEventListener(OPEN_EVENT, handleOpenManager), document.addEventListener("roblox-dom-changed", scheduleNativeButton), window.addEventListener("hashchange", scheduleNativeButton), window.addEventListener("popstate", scheduleNativeButton), window.addEventListener("rovalra:urlChanged", scheduleNativeButton), chrome.storage.onChanged.addListener((changes, area) => {
       area === "local" && changes.bulkUnblockEnabled && (clearCache(), scheduleNativeButton());
     }), scheduleNativeButton());
   }
-  __name(init157, "init");
+  __name(init164, "init");
 
   // src/content/features/settings/index.js
   init_observer();
@@ -139927,8 +142958,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       "span:not(.rovalra-markdown-color)",
       "div"
     ];
-    container.querySelectorAll(selectors.join(",")).forEach((el3) => {
-      el3.style.color && el3.style.removeProperty("color"), el3.style.backgroundColor && el3.style.removeProperty("background-color");
+    container.querySelectorAll(selectors.join(",")).forEach((el4) => {
+      el4.style.color && el4.style.removeProperty("color"), el4.style.backgroundColor && el4.style.removeProperty("background-color");
     });
   }
   __name(stripInlineStyles, "stripInlineStyles");
@@ -139963,8 +142994,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     searchInput.addEventListener("input", (e) => {
       performSearch(e.target.value);
     }), searchInput.addEventListener("focus", () => {
-      document.querySelectorAll("#unified-menu .menu-option-content").forEach((el3) => {
-        el3.classList.remove("active"), el3.removeAttribute("aria-current");
+      document.querySelectorAll("#unified-menu .menu-option-content").forEach((el4) => {
+        el4.classList.remove("active"), el4.removeAttribute("aria-current");
       });
       let newUrl = new URL(window.location.href);
       newUrl.searchParams.get("rovalra") !== "search" && (newUrl.searchParams.set("rovalra", "search"), history.pushState(
@@ -140032,8 +143063,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     link.classList.add("menu-option-content"), link.href = `#!/${sectionName.toLowerCase()}`;
     let span = document.createElement("span");
     return span.classList.add("font-caption-header"), span.textContent = title, link.appendChild(span), listItem.appendChild(link), link.addEventListener("click", async function(e) {
-      e.preventDefault(), document.querySelectorAll("#unified-menu .menu-option-content").forEach((el3) => {
-        el3.classList.remove("active"), el3.removeAttribute("aria-current");
+      e.preventDefault(), document.querySelectorAll("#unified-menu .menu-option-content").forEach((el4) => {
+        el4.classList.remove("active"), el4.removeAttribute("aria-current");
       }), this.classList.add("active"), this.setAttribute("aria-current", "page");
       let newUrl = new URL(window.location.href);
       newUrl.searchParams.get("rovalra") !== sectionName.toLowerCase() && (newUrl.searchParams.set("rovalra", sectionName.toLowerCase()), history.pushState(null, "", newUrl.pathname + newUrl.search)), await loadTabContent(sectionName), stripInlineStyles(document.getElementById("content-container"));
@@ -140158,8 +143189,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     async function loadTabContent(hashKey) {
       hashKey || (hashKey = "info");
       let funStuffBlocked = hashKey.toLowerCase() === "funstuff" && !await isFunStuffTabEnabled();
-      funStuffBlocked && (hashKey = "info"), document.querySelectorAll("#unified-menu .menu-option-content").forEach((el3) => {
-        el3.classList.remove("active"), el3.removeAttribute("aria-current");
+      funStuffBlocked && (hashKey = "info"), document.querySelectorAll("#unified-menu .menu-option-content").forEach((el4) => {
+        el4.classList.remove("active"), el4.removeAttribute("aria-current");
       });
       let targetMenuLink = document.querySelector(
         `#unified-menu li[id="${hashKey.toLowerCase()}-tab"] a.menu-option-content`
@@ -140448,8 +143479,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   });
   function renderChangelogRelease(release) {
     release = release && typeof release == "object" ? release : {};
-    let card = document.createElement("article");
-    card.className = "rovalra-changelog-card";
+    let card2 = document.createElement("article");
+    card2.className = "rovalra-changelog-card";
     let header = document.createElement("div");
     header.className = "rovalra-changelog-header";
     let titleGroup = document.createElement("div");
@@ -140473,7 +143504,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return body.className = "rovalra-changelog-body", body.innerHTML = parseUntrustedMarkdown(release.body, {
       fullMarkdown: !0,
       githubMentions: !0
-    }) || ui("changelogs.noNotes"), card.append(header, body), card;
+    }) || ui("changelogs.noNotes"), card2.append(header, body), card2;
   }
   __name(renderChangelogRelease, "renderChangelogRelease");
   function isCurrentChangelogRelease(release) {
@@ -140947,8 +143978,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return frame?.assetId ? `https://www.roblox.com/catalog/${encodeURIComponent(frame.assetId)}/${encodeURIComponent(frame.label || "item")}` : null;
   }
   __name(getFrameAssetUrl, "getFrameAssetUrl");
-  function getFrameAssetPrice(frame, details) {
-    let price = details?.price ?? details?.lowestPrice ?? frame?.price;
+  function getFrameAssetPrice(frame, details2) {
+    let price = details2?.price ?? details2?.lowestPrice ?? frame?.price;
     return typeof price == "number" ? price : Number(price) || null;
   }
   __name(getFrameAssetPrice, "getFrameAssetPrice");
@@ -141213,7 +144244,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     let previewContainer = document.createElement("div");
     previewContainer.style.cssText = "position: relative; width: 100%; height: 180px; display: grid; place-items: center; margin: 40px 0;";
     let createPreviewCard = /* @__PURE__ */ __name((v2, isOther = !1) => {
-      let card = createUserCard({
+      let card2 = createUserCard({
         displayName: authedUserData.displayName,
         username: "",
         thumbData: authedUserData.thumbData,
@@ -141222,11 +144253,11 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         isOpaque: !isOther,
         hidePresence: !0
       });
-      card.dataset.rovalraBorderApplied = "true", card.querySelector(
+      card2.dataset.rovalraBorderApplied = "true", card2.querySelector(
         ".user-card-labels, .user-card-labels-no-username"
       )?.remove();
-      let avatarEl = card.querySelector(".avatar.avatar-card-fullbody");
-      return avatarEl && applyBorderToContainer(avatarEl, v2.link, !0), card.style.overflow = "visible", card.style.width = "90px", card.style.height = "90px", card.style.gridArea = "1 / 1", card.style.display = "block", isOther ? (card.style.transform = "scale(1.1) translateX(65px)", card.style.zIndex = "1", card.style.pointerEvents = "none", card.style.opacity = "0.35") : (card.style.transform = "scale(1.4)", card.style.zIndex = "2"), card;
+      let avatarEl = card2.querySelector(".avatar.avatar-card-fullbody");
+      return avatarEl && applyBorderToContainer(avatarEl, v2.link, !0), card2.style.overflow = "visible", card2.style.width = "90px", card2.style.height = "90px", card2.style.gridArea = "1 / 1", card2.style.display = "block", isOther ? (card2.style.transform = "scale(1.1) translateX(65px)", card2.style.zIndex = "1", card2.style.pointerEvents = "none", card2.style.opacity = "0.35") : (card2.style.transform = "scale(1.4)", card2.style.zIndex = "2"), card2;
     }, "createPreviewCard");
     otherVariant && previewContainer.appendChild(createPreviewCard(otherVariant, !0)), previewContainer.appendChild(createPreviewCard(variant, !1));
     let infoWrapper = document.createElement("div");
@@ -142670,8 +145701,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       let grid = document.createElement("div");
       grid.style.cssText = "display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 10px;";
       for (let j2 = 0; j2 < 2; j2++) {
-        let card = document.createElement("div");
-        card.style.cssText = "display: flex; flex-direction: column; padding: 12px; background: var(--rovalra-container-background-color); border-radius: 12px; gap: 12px; opacity: 0.8;", card.innerHTML = `
+        let card2 = document.createElement("div");
+        card2.style.cssText = "display: flex; flex-direction: column; padding: 12px; background: var(--rovalra-container-background-color); border-radius: 12px; gap: 12px; opacity: 0.8;", card2.innerHTML = `
                 <div style="display: flex; justify-content: center; gap: 15px;">
                     <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
                         <div class="shimmer" style="width: 100px; height: 100px; border-radius: 50%;"></div>
@@ -142685,7 +145716,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
                 <div class="shimmer" style="width: 50%; height: 12px; align-self: center; border-radius: 4px;"></div>
                 <div class="shimmer" style="width: 25%; height: 10px; align-self: center; border-radius: 4px;"></div>
                 <div class="shimmer" style="width: 100px; height: 16px; align-self: center; border-radius: 20px; margin-top: 5px;"></div>
-            `, grid.appendChild(card);
+            `, grid.appendChild(card2);
       }
       skeleton.appendChild(grid);
     }
@@ -142735,7 +145766,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         "#rovalra-store-preview-holder"
       );
       if (authedUserData) {
-        let card = createUserCard({
+        let card2 = createUserCard({
           displayName: authedUserData.displayName,
           username: "",
           thumbData: authedUserData.thumbData,
@@ -142743,13 +145774,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           presenceInfo: 1,
           hidePresence: !0
         });
-        if (card.dataset.rovalraBorderApplied = "true", card.style.transform = "scale(1.2)", card.style.margin = "25px 0", card.style.pointerEvents = "none", previewHolder.appendChild(card), currentBorderValue !== "none") {
+        if (card2.dataset.rovalraBorderApplied = "true", card2.style.transform = "scale(1.2)", card2.style.margin = "25px 0", card2.style.pointerEvents = "none", previewHolder.appendChild(card2), currentBorderValue !== "none") {
           let currentBorder = findBorderItem2(
             borderCategories,
             currentBorderValue
           );
           if (currentBorder && currentBorder.link) {
-            let avatarEl = card.querySelector(
+            let avatarEl = card2.querySelector(
               ".avatar.avatar-card-fullbody"
             );
             avatarEl && applyBorderToContainer(
@@ -143065,8 +146096,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }), infoWrapper.appendChild(freeLabel);
     } else {
       let priceLabel = document.createElement("div");
-      priceLabel.style.cssText = "font-size: 14px; font-weight: 600; color: var(--rovalra-secondary-text-color); display: flex; align-items: center; gap: 4px;", getFrameAssetDetails(frame).then((details) => {
-        let price = getFrameAssetPrice(frame, details);
+      priceLabel.style.cssText = "font-size: 14px; font-weight: 600; color: var(--rovalra-secondary-text-color); display: flex; align-items: center; gap: 4px;", getFrameAssetDetails(frame).then((details2) => {
+        let price = getFrameAssetPrice(frame, details2);
         if (price === null) {
           priceLabel.textContent = ts2("profileFrame.viewItem");
           return;
@@ -143096,8 +146127,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       };
     else {
       let assetUrl = getFrameAssetUrl(frame);
-      assetUrl ? (actionBtn.textContent = ts2("profileFrame.loading"), getFrameAssetDetails(frame).then((details) => {
-        let price = getFrameAssetPrice(frame, details);
+      assetUrl ? (actionBtn.textContent = ts2("profileFrame.loading"), getFrameAssetDetails(frame).then((details2) => {
+        let price = getFrameAssetPrice(frame, details2);
         actionBtn.innerHTML = price === null ? ts2("profileFrame.viewItem") : `<span class="icon-robux-16x16" style="margin-right: 6px; vertical-align: middle; position: relative; top: -1px; filter: brightness(0) invert(1);"></span>${ts2("profileFrame.buyFor", { price: price.toLocaleString() })}`;
       }), actionBtn.onclick = () => window.open(assetUrl, "_blank")) : (actionBtn.textContent = ts2("profileFrame.viewItem"), actionBtn.disabled = !0);
     }
@@ -143123,12 +146154,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       let grid = document.createElement("div");
       grid.style.cssText = "display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 10px;";
       for (let j2 = 0; j2 < 3; j2++) {
-        let card = document.createElement("div");
-        card.style.cssText = "display: flex; flex-direction: column; align-items: center; padding: 12px; background: var(--rovalra-container-background-color); border-radius: 12px; gap: 12px; opacity: 0.8;", card.innerHTML = `
+        let card2 = document.createElement("div");
+        card2.style.cssText = "display: flex; flex-direction: column; align-items: center; padding: 12px; background: var(--rovalra-container-background-color); border-radius: 12px; gap: 12px; opacity: 0.8;", card2.innerHTML = `
                 <div class="shimmer" style="width: 100%; aspect-ratio: 3.1; border-radius: 10px;"></div>
                 <div class="shimmer" style="width: 60%; height: 12px; border-radius: 4px;"></div>
                 <div class="shimmer" style="width: 100px; height: 16px; border-radius: 20px;"></div>
-            `, grid.appendChild(card);
+            `, grid.appendChild(card2);
       }
       container.appendChild(grid);
     }
@@ -143252,8 +146283,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           let intersection = observeIntersection(
             frameCard,
             (entry) => {
-              entry.isIntersecting && (intersection.unobserve(), applyFrameToHolder(cardPreview, frame.link), !frame.isFree && getFrameAssetDetails(frame).then((details) => {
-                let price = getFrameAssetPrice(frame, details);
+              entry.isIntersecting && (intersection.unobserve(), applyFrameToHolder(cardPreview, frame.link), !frame.isFree && getFrameAssetDetails(frame).then((details2) => {
+                let price = getFrameAssetPrice(frame, details2);
                 if (price === null) {
                   priceLabel.textContent = ts2(
                     "profileFrame.viewItem"
@@ -143486,8 +146517,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       null,
       "",
       url.pathname + url.search + window.location.hash
-    ), document.querySelectorAll("#unified-menu .menu-option-content").forEach((el3) => {
-      el3.classList.remove("active"), el3.removeAttribute("aria-current");
+    ), document.querySelectorAll("#unified-menu .menu-option-content").forEach((el4) => {
+      el4.classList.remove("active"), el4.removeAttribute("aria-current");
     }), query.length < 2) {
       contentContainer.innerHTML = purify.sanitize(
         `<div id="settings-content" style="padding: 15px; text-align: center; color: var(--rovalra-main-text-color);">${ts2("settings.search.minLength")}</div>`
@@ -143584,7 +146615,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }).catch((e) => console.warn("Failed to load region data:", e)), await applyTheme(), window.location.href.includes("rovalra=") && injectStylesheet(
       "css/settings_layout.css",
       "rovalra-settings-layout-css"
-    ), await buildSettingsKey(), addCustomButton2(debouncedAddPopoverButton), addPopoverButton(), initializeSettingsEventListeners(), init157(), document.addEventListener("roblox-dom-changed", handleGlobalDomChange), observeElement(SETTINGS_POPOVER_MENU_SELECTOR, () => addPopoverButton(), {
+    ), await buildSettingsKey(), addCustomButton2(debouncedAddPopoverButton), addPopoverButton(), initializeSettingsEventListeners(), init164(), document.addEventListener("roblox-dom-changed", handleGlobalDomChange), observeElement(SETTINGS_POPOVER_MENU_SELECTOR, () => addPopoverButton(), {
       multiple: !0,
       onRemove: onPopoverRemoved
     }), observeElement(
@@ -143599,10 +146630,10 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ), await checkRoValraPage();
   }
   __name(initializeExtension, "initializeExtension");
-  function init158() {
+  function init165() {
     document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", initializeExtension) : initializeExtension();
   }
-  __name(init158, "init");
+  __name(init165, "init");
   window.addEventListener("beforeunload", () => {
     document.removeEventListener("roblox-dom-changed", handleGlobalDomChange);
   });
@@ -143684,7 +146715,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_user();
   init_api();
   init_i18n();
-  var STORAGE_KEY12 = "rovalra_first_account_cache", TRUSTED_CREATOR_STORAGE_KEY = "rovalra_trusted_creator_cache", ONE_HOUR_MS = 36e5, pendingSections = /* @__PURE__ */ new WeakSet();
+  var STORAGE_KEY13 = "rovalra_first_account_cache", TRUSTED_CREATOR_STORAGE_KEY = "rovalra_trusted_creator_cache", ONE_HOUR_MS = 36e5, pendingSections = /* @__PURE__ */ new WeakSet();
   function isAccountSettingsPage() {
     return /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?my\/account(?:\/|$)/i.test(
       window.location.pathname
@@ -143821,7 +146852,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         let userId = await getAuthenticatedUserId();
         if (!userId) return;
         if (firstAccountEnabled) {
-          let userCache = ((await getLocalStorage([STORAGE_KEY12]))[STORAGE_KEY12] || {})[userId], now = Date.now();
+          let userCache = ((await getLocalStorage([STORAGE_KEY13]))[STORAGE_KEY13] || {})[userId], now = Date.now();
           if (userCache && now - userCache.timestamp < ONE_HOUR_MS)
             insertFirstAccountElement(
               section,
@@ -143840,12 +146871,12 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
             if (!response.ok) throw new Error("API failed");
             let data = await response.json();
             if (data?.playerInfo) {
-              let isOriginalUser = data.playerInfo.isOriginalUser, creationTimestamp = data.playerInfo.originalAccountCreationTimestampMs, currentCache = (await getLocalStorage([STORAGE_KEY12]))[STORAGE_KEY12] || {};
+              let isOriginalUser = data.playerInfo.isOriginalUser, creationTimestamp = data.playerInfo.originalAccountCreationTimestampMs, currentCache = (await getLocalStorage([STORAGE_KEY13]))[STORAGE_KEY13] || {};
               currentCache[userId] = {
                 isOriginalUser,
                 originalAccountCreationTimestampMs: creationTimestamp,
                 timestamp: Date.now()
-              }, await setLocalStorage({ [STORAGE_KEY12]: currentCache }), insertFirstAccountElement(
+              }, await setLocalStorage({ [STORAGE_KEY13]: currentCache }), insertFirstAccountElement(
                 section,
                 isOriginalUser,
                 creationTimestamp
@@ -143862,7 +146893,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }
   }
   __name(loadAccountInfo, "loadAccountInfo");
-  function init159() {
+  function init166() {
     isAccountSettingsPage() && chrome.storage.local.get(
       { firstAccountEnabled: !0, trustedCreatorEnabled: !0 },
       (result) => {
@@ -143877,7 +146908,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }
     );
   }
-  __name(init159, "init");
+  __name(init166, "init");
 
   // src/content/features/settings/roblox/legacyThemeSwitcher.js
   init_observer();
@@ -143935,7 +146966,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return dropdown.element.classList.add("col-xs-12", "col-sm-6"), container.append(label, dropdown.element), container;
   }
   __name(createThemeDropdown, "createThemeDropdown");
-  async function init160() {
+  async function init167() {
     window.location.pathname.startsWith("/my/account") && chrome.storage.local.get({ legacyThemeSwitcherEnabled: !0 }, (result) => {
       result.legacyThemeSwitcherEnabled && observeElement("h2.setting-section-header", async (header) => {
         if (header.textContent.trim() !== "Personal") return;
@@ -143946,7 +146977,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       }, { multiple: !0 });
     });
   }
-  __name(init160, "init");
+  __name(init167, "init");
 
   // src/content/features/home/accurateContinue.js
   init_api();
@@ -143955,7 +146986,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     ".game-sort-carousel-wrapper",
     '[data-testid="game-carousel"]',
     ".game-carousel"
-  ].join(","), GAME_CARD_LINK_SELECTOR2 = "a.game-card-link[href]", initialized20 = !1, accurateContinueEnabled = !1, autoRefreshEnabled = !0, recentlyVisitedGames = [], recentlyVisitedTopic = "Continue", refreshPromise = null, lastRefreshAt = 0, launchRefreshGeneration = 0, domSyncGeneration = 0, continueCarousel = null;
+  ].join(","), GAME_CARD_LINK_SELECTOR2 = "a.game-card-link[href]", initialized22 = !1, accurateContinueEnabled = !1, autoRefreshEnabled = !0, recentlyVisitedGames = [], recentlyVisitedTopic = "Continue", refreshPromise = null, lastRefreshAt = 0, launchRefreshGeneration = 0, domSyncGeneration = 0, continueCarousel = null;
   function isHomePage() {
     return window.location.pathname.toLowerCase().replace(/^\/[a-z]{2}(?:-[a-z]{2})?\//, "/").startsWith("/home");
   }
@@ -144051,8 +147082,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       'a[data-testid="section-header-title-subtitle-container"], h1, h2, h3, .container-header, .game-sort-header-container'
     ), headerText = normalizeText4(header?.textContent), normalizedTopic = normalizeText4(topic), score = 0;
     normalizedTopic && headerText === normalizedTopic && (score += 1e3), headerText === "continue" && (score += 1e3), headerText.startsWith("continue ") && (score += 500);
-    for (let card of cards)
-      [...getElementIds(card)].some((id) => knownIds.has(id)) && (score += 10);
+    for (let card2 of cards)
+      [...getElementIds(card2)].some((id) => knownIds.has(id)) && (score += 10);
     return { score, cards };
   }
   __name(scoreCarousel, "scoreCarousel");
@@ -144076,11 +147107,11 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     if (!universeId && !rootPlaceId) return null;
     let wrapperTag = templateCard?.tagName?.toLowerCase() || "div", wrapper = document.createElement(wrapperTag);
     wrapper.className = templateCard?.className || "game-card-container", wrapper.classList.add("rovalra-live-continue-card"), wrapper.dataset.rovalraContinueUniverseId = universeId || rootPlaceId;
-    let card = createGameCard({
+    let card2 = createGameCard({
       gameId: universeId || void 0,
       placeId: rootPlaceId || void 0
     });
-    return wrapper.appendChild(card), wrapper;
+    return wrapper.appendChild(card2), wrapper;
   }
   __name(createContinueCardRoot, "createContinueCardRoot");
   function resetCarouselScroll(cardParent, carousel) {
@@ -144102,29 +147133,29 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     let { cards, parent: cardParent } = getCarouselCardCollection(carousel);
     if (!cards.length || !cardParent) return !1;
     let nativeIds = /* @__PURE__ */ new Set();
-    for (let card of cards)
-      if (!card.classList.contains("rovalra-live-continue-card"))
-        for (let id of getElementIds(card)) nativeIds.add(id);
+    for (let card2 of cards)
+      if (!card2.classList.contains("rovalra-live-continue-card"))
+        for (let id of getElementIds(card2)) nativeIds.add(id);
     let removedDuplicate = !1;
-    for (let card of cards)
-      card.classList.contains("rovalra-live-continue-card") && [...getElementIds(card)].some((id) => nativeIds.has(id)) && (card.remove(), removedDuplicate = !0);
+    for (let card2 of cards)
+      card2.classList.contains("rovalra-live-continue-card") && [...getElementIds(card2)].some((id) => nativeIds.has(id)) && (card2.remove(), removedDuplicate = !0);
     removedDuplicate && ({ cards, parent: cardParent } = getCarouselCardCollection(carousel));
     let previousIds = /* @__PURE__ */ new Set();
     for (let game of previousGames)
       for (let id of getGameIds(game)) previousIds.add(id);
     let matchingCards = cards.filter(
-      (card) => [...getElementIds(card)].some((id) => previousIds.has(id))
+      (card2) => [...getElementIds(card2)].some((id) => previousIds.has(id))
     );
     if (previousIds.size && matchingCards.length === 0)
       return continueCarousel = null, !1;
     let targetCount = Math.min(nextGames.length, Math.max(cards.length, 1)), targetGames = nextGames.slice(0, targetCount), cardsById = /* @__PURE__ */ new Map();
-    for (let card of cards)
-      for (let id of getElementIds(card))
-        cardsById.has(id) || cardsById.set(id, card);
+    for (let card2 of cards)
+      for (let id of getElementIds(card2))
+        cardsById.has(id) || cardsById.set(id, card2);
     let usedCards = /* @__PURE__ */ new Set(), orderedCards = [], createdCards = 0;
     for (let game of targetGames) {
-      let card = [...getGameIds(game)].map((id) => cardsById.get(id)).find((candidate) => candidate && !usedCards.has(candidate));
-      !card && createdCards < MAX_NEW_CARDS_PER_REFRESH && (card = createContinueCardRoot(game, cards[0]), card && (cardParent.appendChild(card), cards.push(card), createdCards += 1)), card && (usedCards.add(card), orderedCards.push(card));
+      let card2 = [...getGameIds(game)].map((id) => cardsById.get(id)).find((candidate) => candidate && !usedCards.has(candidate));
+      !card2 && createdCards < MAX_NEW_CARDS_PER_REFRESH && (card2 = createContinueCardRoot(game, cards[0]), card2 && (cardParent.appendChild(card2), cards.push(card2), createdCards += 1)), card2 && (usedCards.add(card2), orderedCards.push(card2));
     }
     if (!orderedCards.length) return !1;
     let display = getComputedStyle(cardParent).display;
@@ -144134,14 +147165,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       "grid",
       "inline-grid"
     ].includes(display))
-      orderedCards.forEach((card, index) => {
-        card.style.order = String(index);
-      }), cards.filter((card) => !usedCards.has(card)).forEach((card, index) => {
-        card.style.order = String(targetGames.length + index);
+      orderedCards.forEach((card2, index) => {
+        card2.style.order = String(index);
+      }), cards.filter((card2) => !usedCards.has(card2)).forEach((card2, index) => {
+        card2.style.order = String(targetGames.length + index);
       });
     else {
       let fragment2 = document.createDocumentFragment();
-      orderedCards.forEach((card) => fragment2.appendChild(card)), cardParent.insertBefore(fragment2, cardParent.firstChild);
+      orderedCards.forEach((card2) => fragment2.appendChild(card2)), cardParent.insertBefore(fragment2, cardParent.firstChild);
     }
     return resetCarouselScroll(cardParent, carousel), !0;
   }
@@ -144238,18 +147269,18 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     });
   }
   __name(initializeAutoRefreshListeners, "initializeAutoRefreshListeners");
-  async function init161() {
+  async function init168() {
     let storedSettings = await chrome.storage.local.get({
       [ACCURATE_CONTINUE_SETTING]: !1,
       [AUTO_REFRESH_SETTING]: !0
     });
-    if (accurateContinueEnabled = storedSettings[ACCURATE_CONTINUE_SETTING] === !0, autoRefreshEnabled = storedSettings[AUTO_REFRESH_SETTING] !== !1, initialized20 || (initialized20 = !0, initializeAutoRefreshListeners()), !accurateContinueEnabled) {
+    if (accurateContinueEnabled = storedSettings[ACCURATE_CONTINUE_SETTING] === !0, autoRefreshEnabled = storedSettings[AUTO_REFRESH_SETTING] !== !1, initialized22 || (initialized22 = !0, initializeAutoRefreshListeners()), !accurateContinueEnabled) {
       publishAccurateContinue([], !1);
       return;
     }
     await refreshAccurateContinue({ force: !0 });
   }
-  __name(init161, "init");
+  __name(init168, "init");
 
   // src/content/features/home/homeLayout.js
   init_observer();
@@ -144276,7 +147307,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     disable: "Disable",
     show: "Show",
     hide: "Hide"
-  }, categories2 = [], savedOrder3 = [], hiddenCategoryKeys = [], initialized21 = !1, observersInitialized3 = !1, homeLayoutButtonEnabled = !0, locale3 = { ...DEFAULT_LOCALE3 }, dropIndicator2 = null, dragState2 = {
+  }, categories2 = [], savedOrder3 = [], hiddenCategoryKeys = [], initialized23 = !1, observersInitialized3 = !1, homeLayoutButtonEnabled = !0, locale3 = { ...DEFAULT_LOCALE3 }, dropIndicator2 = null, dragState2 = {
     active: !1,
     element: null,
     list: null,
@@ -144833,13 +147864,13 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(hydrateFromStorage, "hydrateFromStorage");
-  async function init162() {
-    if (!initialized21) {
+  async function init169() {
+    if (!initialized23) {
       if (await settings.homeLayoutEnabled === !1) {
-        initialized21 = !0, publishHomeLayoutState([], []);
+        initialized23 = !0, publishHomeLayoutState([], []);
         return;
       }
-      initialized21 = !0, await loadLocale3(), homeLayoutButtonEnabled = await settings.homeLayoutButtonEnabled !== !1, hydrateFromStorage(), document.addEventListener("rovalra-home-layout-categories", (event) => {
+      initialized23 = !0, await loadLocale3(), homeLayoutButtonEnabled = await settings.homeLayoutButtonEnabled !== !1, hydrateFromStorage(), document.addEventListener("rovalra-home-layout-categories", (event) => {
         replaceCategories(event.detail?.categories);
       }), chrome.storage.onChanged.addListener((changes, namespace) => {
         namespace === "local" && (changes[ORDER_STORAGE_KEY3] && publishHomeLayoutState(changes[ORDER_STORAGE_KEY3].newValue), changes[HIDDEN_STORAGE_KEY3] && publishHomeLayoutState(
@@ -144872,7 +147903,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       { multiple: !0 }
     ));
   }
-  __name(init162, "init");
+  __name(init169, "init");
 
   // src/content/features/home/customThemeEditor.js
   init_buttons();
@@ -144897,7 +147928,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     { label: "Top Right", value: "top right" },
     { label: "Bottom Left", value: "bottom left" },
     { label: "Bottom Right", value: "bottom right" }
-  ], initialized22 = !1, editorHandle = null, backgroundImageConfig = { ...DEFAULT_BACKGROUND_IMAGE }, backgroundEnabled = !1, bgControls = null, bgUrlTimeout = null, bgSaveTimeout = null;
+  ], initialized24 = !1, editorHandle = null, backgroundImageConfig = { ...DEFAULT_BACKGROUND_IMAGE }, backgroundEnabled = !1, bgControls = null, bgUrlTimeout = null, bgSaveTimeout = null;
   function text2(key, defaultValue) {
     return ts2(`customThemeEditor.${key}`, { defaultValue });
   }
@@ -145054,8 +148085,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(restoreBackgroundEditor, "restoreBackgroundEditor");
-  function init163() {
-    initialized22 || (initialized22 = !0, document.addEventListener("rovalra:openCustomThemeBackground", () => {
+  function init170() {
+    initialized24 || (initialized24 = !0, document.addEventListener("rovalra:openCustomThemeBackground", () => {
       sessionStorage.setItem(EDITOR_SESSION_KEY, "true"), openBackgroundEditor().catch(
         (error3) => console.error("RoValra: Failed to open custom background settings.", error3)
       );
@@ -145063,7 +148094,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       event.detail?.name === BACKGROUND_IMAGE_ENABLED_SETTING && (backgroundEnabled = event.detail.value === !0, applyBgPreview());
     }), window.addEventListener("popstate", restoreBackgroundEditor), window.addEventListener("hashchange", restoreBackgroundEditor));
   }
-  __name(init163, "init");
+  __name(init170, "init");
 
   // src/content/features/home/friendLabels.js
   init_userCardElements();
@@ -145073,7 +148104,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   init_buttons();
   init_input();
   init_overlay();
-  var SETTING_NAME7 = "friendLabelsEnabled", STORAGE_KEY13 = "rovalra_friend_labels", CARD_SELECTOR2 = ".friends-carousel-tile", EXCLUDED_CONTAINER_SELECTOR = ".roseal-friends-carousel-container", DROPDOWN_LIST_SELECTOR = ".friend-tile-dropdown ul", MODERN_TOOLTIP_ROOT_SELECTOR = ".friend-tile-dropdown--iarc", MODERN_ACTIONS_SELECTOR = ".in-game-friend-card-actions", MODERN_PROFILE_LINK_SELECTOR = 'a[href*="/users/"][href*="/profile"]', HOST_CLASS = "rovalra-friend-label-host", LABEL_CLASS = "rovalra-friend-label", MENU_ITEM_CLASS = "rovalra-friend-label-menu-item", MENU_BUTTON_CLASS = "rovalra-friend-label-menu-button", MODERN_TOOLTIP_ITEM_CLASS = "rovalra-friend-label-modern-item", MODERN_TOOLTIP_BUTTON_CLASS = "rovalra-friend-label-modern-button", MAX_LABEL_LENGTH = 24, enabled6 = !1, observersRegistered2 = !1, storageListenerRegistered3 = !1, friendLabels = {}, lastInteractedFriendCard = null;
+  var SETTING_NAME7 = "friendLabelsEnabled", STORAGE_KEY14 = "rovalra_friend_labels", CARD_SELECTOR2 = ".friends-carousel-tile", EXCLUDED_CONTAINER_SELECTOR = ".roseal-friends-carousel-container", DROPDOWN_LIST_SELECTOR = ".friend-tile-dropdown ul", MODERN_TOOLTIP_ROOT_SELECTOR = ".friend-tile-dropdown--iarc", MODERN_ACTIONS_SELECTOR = ".in-game-friend-card-actions", MODERN_PROFILE_LINK_SELECTOR = 'a[href*="/users/"][href*="/profile"]', HOST_CLASS = "rovalra-friend-label-host", LABEL_CLASS = "rovalra-friend-label", MENU_ITEM_CLASS = "rovalra-friend-label-menu-item", MENU_BUTTON_CLASS = "rovalra-friend-label-menu-button", MODERN_TOOLTIP_ITEM_CLASS = "rovalra-friend-label-modern-item", MODERN_TOOLTIP_BUTTON_CLASS = "rovalra-friend-label-modern-button", MAX_LABEL_LENGTH = 24, enabled6 = !1, observersRegistered2 = !1, storageListenerRegistered3 = !1, friendLabels = {}, lastInteractedFriendCard = null;
   function isExcludedCarouselPresent() {
     return !!document.querySelector(EXCLUDED_CONTAINER_SELECTOR);
   }
@@ -145093,8 +148124,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(sanitizeLabels, "sanitizeLabels");
   async function loadFriendLabels() {
     try {
-      let result = await chrome.storage.local.get(STORAGE_KEY13);
-      return sanitizeLabels(result[STORAGE_KEY13]);
+      let result = await chrome.storage.local.get(STORAGE_KEY14);
+      return sanitizeLabels(result[STORAGE_KEY14]);
     } catch (error3) {
       return console.warn("RoValra: Failed to load friend labels", error3), {};
     }
@@ -145104,7 +148135,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     friendLabels = sanitizeLabels(nextLabels);
     try {
       await chrome.storage.local.set({
-        [STORAGE_KEY13]: friendLabels
+        [STORAGE_KEY14]: friendLabels
       });
     } catch (error3) {
       console.warn("RoValra: Failed to save friend labels", error3);
@@ -145150,31 +148181,31 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return host.className = HOST_CLASS, nameRow.replaceWith(host), host.appendChild(nameRow), host;
   }
   __name(findLabelHost, "findLabelHost");
-  function removeRenderedLabel(card) {
-    if (!(card instanceof HTMLElement)) return;
-    let label = card.querySelector(`.${LABEL_CLASS}`), host = label?.closest(`.${HOST_CLASS}`);
+  function removeRenderedLabel(card2) {
+    if (!(card2 instanceof HTMLElement)) return;
+    let label = card2.querySelector(`.${LABEL_CLASS}`), host = label?.closest(`.${HOST_CLASS}`);
     label?.remove(), host && !host.querySelector(`.${LABEL_CLASS}`) && unwrapLabelHost(host);
   }
   __name(removeRenderedLabel, "removeRenderedLabel");
-  function renderFriendLabel(card, suppliedContext = null) {
-    if (!(card instanceof HTMLElement)) return;
+  function renderFriendLabel(card2, suppliedContext = null) {
+    if (!(card2 instanceof HTMLElement)) return;
     if (isExcludedCarouselPresent()) {
-      removeRenderedLabel(card);
+      removeRenderedLabel(card2);
       return;
     }
-    let context = suppliedContext || getUserCardContext(card), existingLabel = card.querySelector(`.${LABEL_CLASS}`);
+    let context = suppliedContext || getUserCardContext(card2), existingLabel = card2.querySelector(`.${LABEL_CLASS}`);
     if (!enabled6 || !context.userId) {
-      removeRenderedLabel(card);
+      removeRenderedLabel(card2);
       return;
     }
     let labelText = getFriendLabel(context.userId);
     if (!labelText) {
-      removeRenderedLabel(card);
+      removeRenderedLabel(card2);
       return;
     }
     let host = findLabelHost(context);
     if (!host) {
-      removeRenderedLabel(card);
+      removeRenderedLabel(card2);
       return;
     }
     if (host.classList.add(HOST_CLASS), existingLabel) {
@@ -145193,8 +148224,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
       removeFeatureUi();
       return;
     }
-    document.querySelectorAll(CARD_SELECTOR2).forEach((card) => {
-      renderFriendLabel(card);
+    document.querySelectorAll(CARD_SELECTOR2).forEach((card2) => {
+      renderFriendLabel(card2);
     });
   }
   __name(refreshExistingCards, "refreshExistingCards");
@@ -145218,7 +148249,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     );
   }
   __name(getExistingLabels, "getExistingLabels");
-  async function openLabelEditor(card, context) {
+  async function openLabelEditor(card2, context) {
     let userId = String(context.userId), currentLabel = getFriendLabel(userId), displayName = getDisplayNameText(context) || await t2("friendLabels.friendFallback"), body = document.createElement("div");
     body.className = "rovalra-friend-label-editor";
     let { container: inputContainer, input } = createStyledInput({
@@ -145346,18 +148377,18 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   __name(getUserIdFromProfileLink, "getUserIdFromProfileLink");
   function findFriendCardByUserId(userId) {
     if (!userId) return null;
-    for (let card of document.querySelectorAll(CARD_SELECTOR2)) {
-      let context = getUserCardContext(card);
+    for (let card2 of document.querySelectorAll(CARD_SELECTOR2)) {
+      let context = getUserCardContext(card2);
       if (String(context.userId) === String(userId))
-        return card;
+        return card2;
     }
     return null;
   }
   __name(findFriendCardByUserId, "findFriendCardByUserId");
   function findHoveredFriendCard() {
-    for (let card of document.querySelectorAll(CARD_SELECTOR2))
-      if (card.matches(":hover"))
-        return card;
+    for (let card2 of document.querySelectorAll(CARD_SELECTOR2))
+      if (card2.matches(":hover"))
+        return card2;
     return null;
   }
   __name(findHoveredFriendCard, "findHoveredFriendCard");
@@ -145372,14 +148403,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     return activeCard2 instanceof HTMLElement ? (lastInteractedFriendCard = activeCard2, activeCard2) : lastInteractedFriendCard instanceof HTMLElement && lastInteractedFriendCard.isConnected ? lastInteractedFriendCard : null;
   }
   __name(resolveModernTooltipCard, "resolveModernTooltipCard");
-  function rememberFriendCard(card) {
-    if (!(card instanceof HTMLElement) || card.dataset.rovalraFriendLabelTracking === "true")
+  function rememberFriendCard(card2) {
+    if (!(card2 instanceof HTMLElement) || card2.dataset.rovalraFriendLabelTracking === "true")
       return;
-    card.dataset.rovalraFriendLabelTracking = "true";
+    card2.dataset.rovalraFriendLabelTracking = "true";
     let remember = /* @__PURE__ */ __name(() => {
-      lastInteractedFriendCard = card;
+      lastInteractedFriendCard = card2;
     }, "remember");
-    card.addEventListener("pointerenter", remember), card.addEventListener("pointerdown", remember), card.addEventListener("focusin", remember);
+    card2.addEventListener("pointerenter", remember), card2.addEventListener("pointerdown", remember), card2.addEventListener("focusin", remember);
   }
   __name(rememberFriendCard, "rememberFriendCard");
   function findModernActionMount(viewProfileControl) {
@@ -145419,8 +148450,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
         );
         if (!viewProfileControl)
           return;
-        let card = resolveModernTooltipCard(tooltip);
-        if (!(card ? getUserCardContext(card) : null)?.userId)
+        let card2 = resolveModernTooltipCard(tooltip);
+        if (!(card2 ? getUserCardContext(card2) : null)?.userId)
           return;
         let mount = findModernActionMount(viewProfileControl), labelText = await t2("friendLabels.menuAction");
         if (dedupeModernTooltipActions(tooltip))
@@ -145475,8 +148506,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     if (!(!enabled6 || isExcludedCarouselPresent() || !(menuList instanceof HTMLElement)) && !(menuList.querySelector(`.${MENU_ITEM_CLASS}`) || menuList.dataset.rovalraFriendLabelPending === "true")) {
       menuList.dataset.rovalraFriendLabelPending = "true";
       try {
-        let card = menuList.closest(".friend-tile-dropdown")?.closest(CARD_SELECTOR2);
-        if (!card || !getUserCardContext(card).userId) return;
+        let card2 = menuList.closest(".friend-tile-dropdown")?.closest(CARD_SELECTOR2);
+        if (!card2 || !getUserCardContext(card2).userId) return;
         let item = document.createElement("li");
         item.className = MENU_ITEM_CLASS;
         let button = createButton(
@@ -145485,7 +148516,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
           {
             onClick: /* @__PURE__ */ __name(async (event) => {
               event.preventDefault(), event.stopPropagation();
-              let currentCard = button.closest(CARD_SELECTOR2) || card, currentContext = getUserCardContext(currentCard);
+              let currentCard = button.closest(CARD_SELECTOR2) || card2, currentContext = getUserCardContext(currentCard);
               currentContext.userId && await openLabelEditor(currentCard, currentContext);
             }, "onClick")
           }
@@ -145502,8 +148533,8 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   function registerObservers2() {
     observersRegistered2 || (observersRegistered2 = !0, observeElement(
       CARD_SELECTOR2,
-      (card) => {
-        rememberFriendCard(card), renderFriendLabel(card);
+      (card2) => {
+        rememberFriendCard(card2), renderFriendLabel(card2);
       },
       {
         multiple: !0
@@ -145520,14 +148551,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
   function attachActionsToExistingDropdowns() {
     document.querySelectorAll(DROPDOWN_LIST_SELECTOR).forEach((menuList) => {
       attachDropdownAction(menuList);
-    }), document.querySelectorAll(CARD_SELECTOR2).forEach((card) => {
-      rememberFriendCard(card);
+    }), document.querySelectorAll(CARD_SELECTOR2).forEach((card2) => {
+      rememberFriendCard(card2);
     }), attachActionsToExistingModernTooltips();
   }
   __name(attachActionsToExistingDropdowns, "attachActionsToExistingDropdowns");
   function registerStorageListener3() {
     storageListenerRegistered3 || (storageListenerRegistered3 = !0, chrome.storage.onChanged.addListener(async (changes, namespace) => {
-      if (namespace === "local" && (changes[STORAGE_KEY13] && (friendLabels = sanitizeLabels(changes[STORAGE_KEY13].newValue), enabled6 && refreshExistingCards()), !!changes[SETTING_NAME7])) {
+      if (namespace === "local" && (changes[STORAGE_KEY14] && (friendLabels = sanitizeLabels(changes[STORAGE_KEY14].newValue), enabled6 && refreshExistingCards()), !!changes[SETTING_NAME7])) {
         if (enabled6 = changes[SETTING_NAME7].newValue === !0, !enabled6) {
           removeFeatureUi();
           return;
@@ -145537,14 +148568,14 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     }));
   }
   __name(registerStorageListener3, "registerStorageListener");
-  async function init164() {
+  async function init171() {
     if (registerStorageListener3(), enabled6 = await settings.friendLabelsEnabled === !0, !enabled6) {
       removeFeatureUi();
       return;
     }
     friendLabels = await loadFriendLabels(), registerObservers2(), refreshExistingCards(), attachActionsToExistingDropdowns();
   }
-  __name(init164, "init");
+  __name(init171, "init");
 
   // src/content/features/home/underratedGames.js
   init_api();
@@ -145558,7 +148589,7 @@ ${await t2("antiBots.processFailed", { failedCount: failedMembers.length })}`), 
     rotates: "Rotates",
     suggestOnDiscord: `Suggest underrated games on ${DISCORD_MARKER}`,
     ageRestrictionWarning: "Some of these games may be locked to 16+ because of Roblox's 250 HEP requirement."
-  }, ROTATION_MARKER = "__ROVALRA_UNDERRATED_GAMES_ROTATION__", initialized23 = !1, rotationExpiresAt = null, underratedGamesByUniverseId = /* @__PURE__ */ new Map(), maturitySummaryPromises = /* @__PURE__ */ new Map();
+  }, ROTATION_MARKER = "__ROVALRA_UNDERRATED_GAMES_ROTATION__", initialized25 = !1, rotationExpiresAt = null, underratedGamesByUniverseId = /* @__PURE__ */ new Map(), maturitySummaryPromises = /* @__PURE__ */ new Map();
   async function getUnderratedGamesLocale() {
     let [is13Plus, showAgeRestrictionWarning] = await Promise.all([
       isAuthenticatedUser13PlusAndAgeChecked(),
@@ -145793,12 +148824,12 @@ ${locale4.suggestOnDiscord}`), subtitle;
     let sample = games3[0];
     if (!sample.name || !sample.rootPlaceId)
       try {
-        let universeIds = games3.map((g2) => g2.universeId), [details, votes] = await Promise.all([
+        let universeIds = games3.map((g2) => g2.universeId), [details2, votes] = await Promise.all([
           getUniversesDetails(universeIds),
           getUniversesVotes(universeIds)
         ]);
-        if (Array.isArray(details)) {
-          let detailsMap = new Map(details.map((d2) => [d2.id, d2])), votesMap = new Map(
+        if (Array.isArray(details2)) {
+          let detailsMap = new Map(details2.map((d2) => [d2.id, d2])), votesMap = new Map(
             Array.isArray(votes) ? votes.map((v2) => [v2.universeId, v2]) : []
           );
           games3 = games3.map((game) => {
@@ -145823,8 +148854,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
     return rotationExpiresAt = Number.isNaN(rotationDate.getTime()) ? null : rotationDate.toISOString(), createUnderratedGamesSort(games3, await getUnderratedGamesLocale());
   }
   __name(loadUnderratedGames, "loadUnderratedGames");
-  async function init165() {
-    initialized23 || (initialized23 = !0, await settings.underratedGamesEnabled !== !1 && loadUnderratedGames().then((sort) => {
+  async function init172() {
+    initialized25 || (initialized25 = !0, await settings.underratedGamesEnabled !== !1 && loadUnderratedGames().then((sort) => {
       sort && (publishUnderratedGamesSort(sort), document.body && replaceRotationMarker(document.body), observeElement(
         'a[data-testid="section-header-title-subtitle-container"], .game-sort-carousel-wrapper, .container-header, .game-sort-header-container',
         replaceRotationMarker,
@@ -145838,7 +148869,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       console.warn("RoValra: underrated games failed to load", error3);
     }));
   }
-  __name(init165, "init");
+  __name(init172, "init");
 
   // src/shared/gameBookmarks.js
   var BOOKMARKS_KEY = "rovalra_game_bookmarks", DEFAULT_CATEGORY_ID = "uncategorized";
@@ -146217,10 +149248,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }, "detailCleanup");
   }
   __name(attachDetail, "attachDetail");
-  function init166() {
+  function init173() {
     return initialization ||= initialize3(), initialization;
   }
-  __name(init166, "init");
+  __name(init173, "init");
   async function initialize3() {
     await Promise.all(
       Object.keys(labels).map(async (key) => {
@@ -146268,7 +149299,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
   init_observer();
   init_getSettings();
   init_dropdown();
-  var TOPIC_ID = 10000013059, SUB_ID = "rovalra-bookmarked-games", initialized24 = !1, selectedCategory = "all", generation = 0, games = [], lastIds = "", emptyFilter = !1, renderedContainers = /* @__PURE__ */ new WeakSet();
+  var TOPIC_ID = 10000013059, SUB_ID = "rovalra-bookmarked-games", initialized26 = !1, selectedCategory = "all", generation = 0, games = [], lastIds = "", emptyFilter = !1, renderedContainers = /* @__PURE__ */ new WeakSet();
   function publish() {
     let state5 = getBookmarkState(), filtered = games.filter(
       (game) => selectedCategory === "all" || state5.bookmarks[game.universeId]?.categoryIds.includes(
@@ -146317,11 +149348,11 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }
     let nextGames = [];
     for (let i2 = 0; i2 < ids.length; i2 += 50) {
-      let chunk = ids.slice(i2, i2 + 50).map(Number), [details, votes] = await Promise.all([
-        getUniversesDetails(chunk),
-        getUniversesVotes(chunk)
+      let chunk2 = ids.slice(i2, i2 + 50).map(Number), [details2, votes] = await Promise.all([
+        getUniversesDetails(chunk2),
+        getUniversesVotes(chunk2)
       ]), votesById = new Map(votes.map((vote) => [vote.universeId, vote]));
-      for (let game of details) {
+      for (let game of details2) {
         let vote = votesById.get(game.id);
         nextGames.push({
           ...game,
@@ -146380,8 +149411,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
     return category?.id === DEFAULT_CATEGORY_ID ? bookmarkLabel("uncategorized") : category?.name || bookmarkLabel("all");
   }
   __name(filterLabel, "filterLabel");
-  async function init167() {
-    initialized24 || (initialized24 = !0, await settings.gameBookmarksEnabled !== !1 && (await init166(), subscribeBookmarks(() => {
+  async function init174() {
+    initialized26 || (initialized26 = !0, await settings.gameBookmarksEnabled !== !1 && (await init173(), subscribeBookmarks(() => {
       refresh3().catch(console.warn);
     }), observeElement(
       "#HomeContainer .home-sort-header-container, #HomeContainer .game-sort-header-container, #HomeContainer .container-header",
@@ -146393,8 +149424,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
       { multiple: !0 }
     ), observeElement(
       "#HomeContainer a.game-card-link",
-      (card) => {
-        let container = card.closest("#HomeContainer");
+      (card2) => {
+        let container = card2.closest("#HomeContainer");
         renderedContainers.has(container) || (renderedContainers.add(container), requestAnimationFrame(
           () => document.dispatchEvent(
             new CustomEvent("rovalra-home-rendered")
@@ -146404,7 +149435,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       { multiple: !0 }
     ), await refresh3()));
   }
-  __name(init167, "init");
+  __name(init174, "init");
 
   // src/content/features/home/playtime.js
   init_api();
@@ -146419,7 +149450,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
     ["month", "playtime.thisMonth"],
     ["year", "playtime.thisYear"],
     ["all_time", "playtime.allTime"]
-  ], initialized25 = !1, period = "all_time", periods = [], periodAriaLabel = "", generation2 = 0, playtimes = /* @__PURE__ */ new Map(), games2 = [];
+  ], initialized27 = !1, period = "all_time", periods = [], periodAriaLabel = "", generation2 = 0, playtimes = /* @__PURE__ */ new Map(), games2 = [];
   function formatPlaytime(seconds) {
     if (seconds >= 3600) {
       let hours = seconds / 3600, value2 = hours >= 10 ? Math.round(hours) : hours.toFixed(1);
@@ -146481,12 +149512,12 @@ ${locale4.suggestOnDiscord}`), subtitle;
       ...new Set(
         places.map(({ detail }) => Number(detail?.universeId)).filter(Boolean)
       )
-    ], [details, votes] = await Promise.all([
+    ], [details2, votes] = await Promise.all([
       getUniversesDetails(universeIds),
       getUniversesVotes(universeIds)
     ]), votesById = new Map(
       votes.map((vote) => [Number(vote.universeId), vote])
-    ), detailById = new Map(details.map((game) => [Number(game.id), game]));
+    ), detailById = new Map(details2.map((game) => [Number(game.id), game]));
     games2 = places.flatMap(({ entry, detail }) => {
       let universeId = Number(detail?.universeId), game = detailById.get(universeId);
       if (!game) return [];
@@ -146507,10 +149538,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
   function decorateCards() {
     addDropdown2(), document.querySelectorAll(
       `#HomeContainer a.game-card-link[href*="sortSubId=${SUB_ID2}"]`
-    ).forEach((card) => {
-      let placeId = card.href.match(/\/games\/(\d+)/)?.[1], seconds = playtimes.get(placeId), row = card.querySelector('[data-testid="game-tile-stats"]') || card.querySelector('[data-testid="text-icon-row-text"]')?.parentElement;
+    ).forEach((card2) => {
+      let placeId = card2.href.match(/\/games\/(\d+)/)?.[1], seconds = playtimes.get(placeId), row = card2.querySelector('[data-testid="game-tile-stats"]') || card2.querySelector('[data-testid="text-icon-row-text"]')?.parentElement;
       if (!seconds || !row) return;
-      let label = card.querySelector(".rovalra-home-playtime");
+      let label = card2.querySelector(".rovalra-home-playtime");
       if (!label) {
         label = document.createElement("span"), label.className = "info-label rovalra-home-playtime";
         let icon = Icon({
@@ -146553,8 +149584,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }
   }
   __name(addDropdown2, "addDropdown");
-  async function init168() {
-    initialized25 || (initialized25 = !0, await settings.homePlaytimeEnabled === !0 && (periods = await Promise.all(
+  async function init175() {
+    initialized27 || (initialized27 = !0, await settings.homePlaytimeEnabled === !0 && (periods = await Promise.all(
       PERIOD_KEYS.map(async ([value2, key]) => ({ value: value2, label: await t2(key) }))
     ), periodAriaLabel = await t2("playtime.period"), observeElement(
       "#HomeContainer .home-sort-header-container, #HomeContainer .game-sort-header-container, #HomeContainer .container-header",
@@ -146568,7 +149599,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       (error3) => console.warn("RoValra: Failed to load playtime", error3)
     )));
   }
-  __name(init168, "init");
+  __name(init175, "init");
 
   // src/content/features/home/hideAddFriendsButton.js
   init_observer();
@@ -146623,14 +149654,14 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }));
   }
   __name(registerStorageListener4, "registerStorageListener");
-  async function init169() {
+  async function init176() {
     if (registerStorageListener4(), enabled7 = await settings.HideAddFriendsButton === !0, !enabled7) {
       removeHiddenButtonClasses();
       return;
     }
     registerObserver(), applyExistingAddFriendsButtons();
   }
-  __name(init169, "init");
+  __name(init176, "init");
 
   // src/content/features/home/friendsCarouselRedesign.js
   init_observer();
@@ -146643,15 +149674,15 @@ ${locale4.suggestOnDiscord}`), subtitle;
   init_friendslist();
   init_userCard();
   init_launcher();
-  var SETTING_NAME9 = "friendsCarouselRedesignEnabled", STYLE_ID3 = "rovalra-friends-carousel-redesign-style", SCROLL_CLASS = "rovalra-friends-carousel-scroll", WRAPPER_CLASS = "rovalra-friends-carousel", ARROW_CLASS = "rovalra-fc-arrow", HOVER_CARD_CLASS = "rovalra-fc-hover-card", HIDDEN_ATTR = "data-rovalra-fc-hidden", CAROUSEL_SELECTOR2 = "#HomeContainer .react-friends-carousel-container", ROSEAL_CAROUSEL_SELECTOR = ".roseal-friends-carousel-container", ORIGINAL_LIST_SELECTOR = "#HomeContainer .react-friends-carousel-container .friends-carousel-list-container", FRIEND_ID_CAP = 500, RENDER_CHUNK = 40, PRESENCE_REFRESH_MS = 1e4, PRESENCE_BATCH_SIZE = 100, HOVER_SHOW_DELAY = 0, THUMBNAIL_BATCH_DELAY_MS = 50, enabled8 = !1, observersRegistered3 = !1, storageListenerRegistered5 = !1, populateToken = 0;
+  var SETTING_NAME9 = "friendsCarouselRedesignEnabled", STYLE_ID4 = "rovalra-friends-carousel-redesign-style", SCROLL_CLASS = "rovalra-friends-carousel-scroll", WRAPPER_CLASS = "rovalra-friends-carousel", ARROW_CLASS = "rovalra-fc-arrow", HOVER_CARD_CLASS = "rovalra-fc-hover-card", HIDDEN_ATTR = "data-rovalra-fc-hidden", CAROUSEL_SELECTOR2 = "#HomeContainer .react-friends-carousel-container", ROSEAL_CAROUSEL_SELECTOR = ".roseal-friends-carousel-container", ORIGINAL_LIST_SELECTOR = "#HomeContainer .react-friends-carousel-container .friends-carousel-list-container", FRIEND_ID_CAP = 500, RENDER_CHUNK = 40, PRESENCE_REFRESH_MS = 1e4, PRESENCE_BATCH_SIZE = 100, HOVER_SHOW_DELAY = 0, THUMBNAIL_BATCH_DELAY_MS = 50, enabled8 = !1, observersRegistered3 = !1, storageListenerRegistered5 = !1, populateToken = 0;
   function isHomePage3() {
     return window.location.pathname.toLowerCase().replace(/^\/[a-z]{2}(?:-[a-z]{2})?\//, "/").startsWith("/home");
   }
   __name(isHomePage3, "isHomePage");
   function ensureStyle2() {
-    if (document.getElementById(STYLE_ID3)) return;
+    if (document.getElementById(STYLE_ID4)) return;
     let assets7 = getAssets(), style = document.createElement("style");
-    style.id = STYLE_ID3, style.textContent = `
+    style.id = STYLE_ID4, style.textContent = `
         .${WRAPPER_CLASS} {
             position: relative;
             width: 100%;
@@ -146772,73 +149803,73 @@ ${locale4.suggestOnDiscord}`), subtitle;
     clearTimeout(hoverShowTimer), clearTimeout(hoverHideTimer), activeHoverCard?.remove(), activeHoverCard = null;
   }
   __name(removeHoverCard, "removeHoverCard");
-  function positionHoverCard(card, anchorRect) {
-    let { offsetWidth: w2, offsetHeight: h } = card, left = anchorRect.left + anchorRect.width / 2 - w2 / 2;
+  function positionHoverCard(card2, anchorRect) {
+    let { offsetWidth: w2, offsetHeight: h } = card2, left = anchorRect.left + anchorRect.width / 2 - w2 / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - w2 - 8));
     let top = anchorRect.bottom + 8;
-    top + h > window.innerHeight - 8 && (top = Math.max(8, anchorRect.top - h - 8)), card.style.left = `${Math.round(left)}px`, card.style.top = `${Math.round(top)}px`;
+    top + h > window.innerHeight - 8 && (top = Math.max(8, anchorRect.top - h - 8)), card2.style.left = `${Math.round(left)}px`, card2.style.top = `${Math.round(top)}px`;
   }
   __name(positionHoverCard, "positionHoverCard");
-  function el2(tag, className) {
+  function el3(tag, className) {
     let node = document.createElement(tag);
     return className && (node.className = className), node;
   }
-  __name(el2, "el");
+  __name(el3, "el");
   function makeFoundationButton(label, emphasis) {
-    let btn = el2(
+    let btn = el3(
       "button",
       `${FOUNDATION_BTN_BASE} ${emphasis ? "bg-action-emphasis content-action-emphasis" : "bg-action-standard content-action-standard"}`
     );
     btn.type = "button";
-    let span = el2("span", "flex items-center min-width-0 gap-small");
-    return span.textContent = label, btn.append(el2("div", FOUNDATION_BTN_OVERLAY), span), btn;
+    let span = el3("span", "flex items-center min-width-0 gap-small");
+    return span.textContent = label, btn.append(el3("div", FOUNDATION_BTN_OVERLAY), span), btn;
   }
   __name(makeFoundationButton, "makeFoundationButton");
   function buildHoverCard({ userId, displayName, presence, placeThumb }) {
-    let name = displayName || L2("friendFallback"), wrapper = el2(
+    let name = displayName || L2("friendFallback"), wrapper = el3(
       "div",
       `${HOVER_CARD_CLASS} friend-tile-dropdown friend-tile-dropdown--iarc`
-    ), card = el2(
+    ), card2 = el3(
       "div",
       "in-game-friend-card--iarc flex flex-col items-start justify-center padding-y-large padding-x-large gap-medium radius-medium stroke-standard stroke-default bg-over-media-300 width-full"
     ), type = presence?.userPresenceType ?? 0, gameName = type === 2 && presence?.lastLocation || "", rootPlaceId = presence?.rootPlaceId || presence?.placeId || null, inGame = type === 2 && rootPlaceId;
     if (inGame) {
-      let link = el2(
+      let link = el3(
         "a",
         "flex items-center gap-small width-full min-width-0"
       );
       link.href = `https://www.roblox.com/games/${rootPlaceId}`;
-      let thumb = el2("img", "rovalra-fc-hc-thumb");
+      let thumb = el3("img", "rovalra-fc-hc-thumb");
       thumb.alt = "", placeThumb && (thumb.src = placeThumb);
-      let info = el2(
+      let info = el3(
         "span",
         "friend-presence-info flex flex-col justify-center min-width-0 fill"
-      ), line1 = el2(
+      ), line1 = el3(
         "span",
         "friend-tile-is-playing text-body-medium content-default text-truncate-end text-no-wrap"
       );
       line1.textContent = L2("isPlaying", { name });
-      let line2 = el2(
+      let line2 = el3(
         "span",
         "friend-tile-game-name text-title-medium content-emphasis text-truncate-end text-no-wrap"
       );
-      line2.textContent = gameName, info.append(line1, line2), link.append(thumb, info), card.appendChild(link);
+      line2.textContent = gameName, info.append(line1, line2), link.append(thumb, info), card2.appendChild(link);
     } else {
-      let info = el2(
+      let info = el3(
         "span",
         "friend-presence-info flex flex-col justify-center min-width-0 fill width-full"
-      ), line1 = el2(
+      ), line1 = el3(
         "span",
         "friend-tile-game-name text-title-medium content-emphasis text-truncate-end text-no-wrap"
       );
       line1.textContent = name;
-      let line2 = el2(
+      let line2 = el3(
         "span",
         "friend-tile-is-playing text-body-medium content-default text-truncate-end text-no-wrap"
       );
-      line2.textContent = L2(type === 1 ? "online" : type === 3 ? "inStudio" : "offline"), info.append(line1, line2), card.appendChild(info);
+      line2.textContent = L2(type === 1 ? "online" : type === 3 ? "inStudio" : "offline"), info.append(line1, line2), card2.appendChild(info);
     }
-    let actions = el2(
+    let actions = el3(
       "div",
       "in-game-friend-card-actions flex flex-col self-stretch gap-small"
     );
@@ -146852,11 +149883,11 @@ ${locale4.suggestOnDiscord}`), subtitle;
     chatBtn.addEventListener("click", () => {
       openWebChat(userId), removeHoverCard();
     }), actions.appendChild(chatBtn);
-    let profileLink = el2(
+    let profileLink = el3(
       "a",
       "foundation-web-link inline-flex items-center gap-xsmall content-emphasis no-underline motion-safe:transition-opacity hover:cursor-pointer hover:[opacity:0.8] radius-xsmall flex items-center justify-center self-stretch height-600 text-label-medium content-action-standard"
     );
-    return profileLink.href = `https://www.roblox.com/users/${userId}/profile`, profileLink.textContent = L2("viewProfile"), actions.appendChild(profileLink), card.appendChild(actions), wrapper.appendChild(card), wrapper.addEventListener("mouseenter", () => clearTimeout(hoverHideTimer)), wrapper.addEventListener("mouseleave", () => {
+    return profileLink.href = `https://www.roblox.com/users/${userId}/profile`, profileLink.textContent = L2("viewProfile"), actions.appendChild(profileLink), card2.appendChild(actions), wrapper.appendChild(card2), wrapper.addEventListener("mouseenter", () => clearTimeout(hoverHideTimer)), wrapper.addEventListener("mouseleave", () => {
       hoverHideTimer = setTimeout(removeHoverCard, 120);
     }), wrapper;
   }
@@ -146865,8 +149896,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
     tile.addEventListener("mouseenter", () => {
       clearTimeout(hoverHideTimer), clearTimeout(hoverShowTimer), hoverShowTimer = setTimeout(() => {
         removeHoverCard();
-        let card = buildHoverCard(data);
-        card.style.visibility = "hidden", document.body.appendChild(card), positionHoverCard(card, tile.getBoundingClientRect()), card.style.visibility = "", activeHoverCard = card;
+        let card2 = buildHoverCard(data);
+        card2.style.visibility = "hidden", document.body.appendChild(card2), positionHoverCard(card2, tile.getBoundingClientRect()), card2.style.visibility = "", activeHoverCard = card2;
       }, HOVER_SHOW_DELAY);
     }), tile.addEventListener("mouseleave", () => {
       clearTimeout(hoverShowTimer), hoverHideTimer = setTimeout(removeHoverCard, 120);
@@ -146905,9 +149936,9 @@ ${locale4.suggestOnDiscord}`), subtitle;
     let scrollEl = document.createElement("div");
     scrollEl.className = SCROLL_CLASS;
     let prevBtn = document.createElement("button");
-    prevBtn.type = "button", prevBtn.className = `${ARROW_CLASS} prev`, prevBtn.setAttribute("aria-label", L2("prevFriends")), prevBtn.appendChild(el2("span", "rovalra-fc-arrow-icon"));
+    prevBtn.type = "button", prevBtn.className = `${ARROW_CLASS} prev`, prevBtn.setAttribute("aria-label", L2("prevFriends")), prevBtn.appendChild(el3("span", "rovalra-fc-arrow-icon"));
     let nextBtn = document.createElement("button");
-    nextBtn.type = "button", nextBtn.className = `${ARROW_CLASS} next`, nextBtn.setAttribute("aria-label", L2("nextFriends")), nextBtn.appendChild(el2("span", "rovalra-fc-arrow-icon"));
+    nextBtn.type = "button", nextBtn.className = `${ARROW_CLASS} next`, nextBtn.setAttribute("aria-label", L2("nextFriends")), nextBtn.appendChild(el3("span", "rovalra-fc-arrow-icon"));
     let page = /* @__PURE__ */ __name((direction) => {
       scrollEl.scrollBy({
         left: direction * Math.round(scrollEl.clientWidth * 0.8),
@@ -146979,10 +150010,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
   }
   __name(loadFriends2, "loadFriends");
   function createLazyThumbnailLoader() {
-    let pending2 = /* @__PURE__ */ new Set(), flushScheduled = !1, flush2 = /* @__PURE__ */ __name(async () => {
+    let pending3 = /* @__PURE__ */ new Set(), flushScheduled = !1, flush3 = /* @__PURE__ */ __name(async () => {
       flushScheduled = !1;
-      let tiles = [...pending2];
-      pending2.clear();
+      let tiles = [...pending3];
+      pending3.clear();
       let ids = tiles.map((tile) => Number(tile.dataset.rovalraUserId));
       if (!ids.length) return;
       let thumbs = await getBatchThumbnails(
@@ -147008,8 +150039,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
       }
     }, "flush"), observer2 = new IntersectionObserver((entries2) => {
       for (let entry of entries2)
-        entry.isIntersecting && (observer2.unobserve(entry.target), pending2.add(entry.target));
-      pending2.size && !flushScheduled && (flushScheduled = !0, setTimeout(flush2, THUMBNAIL_BATCH_DELAY_MS));
+        entry.isIntersecting && (observer2.unobserve(entry.target), pending3.add(entry.target));
+      pending3.size && !flushScheduled && (flushScheduled = !0, setTimeout(flush3, THUMBNAIL_BATCH_DELAY_MS));
     });
     return observer2;
   }
@@ -147100,12 +150131,12 @@ ${locale4.suggestOnDiscord}`), subtitle;
     let thumbnailObserver = createLazyThumbnailLoader();
     scrollEl.rovalraThumbnailObserver = thumbnailObserver;
     for (let i2 = 0; i2 < friends.length; i2 += RENDER_CHUNK) {
-      let chunk = friends.slice(i2, i2 + RENDER_CHUNK), ids = chunk.map((friend) => friend.id), { presence, placeThumbs } = await fetchChunkData(
+      let chunk2 = friends.slice(i2, i2 + RENDER_CHUNK), ids = chunk2.map((friend) => friend.id), { presence, placeThumbs } = await fetchChunkData(
         ids,
         onlinePresence
       );
       if (token !== populateToken || !scrollEl.isConnected) return;
-      for (let friend of chunk) {
+      for (let friend of chunk2) {
         let id = friend.id, displayName = !friend.isDeleted && friend.combinedName || friend.displayName || friend.username || "", tile = createFriendTile(
           friend,
           { state: "Pending" },
@@ -147177,10 +150208,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }));
   }
   __name(registerStorageListener5, "registerStorageListener");
-  async function init170() {
+  async function init177() {
     registerStorageListener5(), enabled8 = await settings[SETTING_NAME9] === !0, enabled8 && (registerObservers3(), document.querySelectorAll(CAROUSEL_SELECTOR2).forEach(applyToCarousel));
   }
-  __name(init170, "init");
+  __name(init177, "init");
 
   // src/content/features/sitewide/pinnedFriends.js
   init_userCardElements();
@@ -147188,11 +150219,11 @@ ${locale4.suggestOnDiscord}`), subtitle;
   init_observer();
   init_getSettings();
   init_i18n();
-  var SETTING_NAME10 = "pinnedFriendsEnabled", STORAGE_KEY14 = "rovalra_pinned_friends", CARD_SELECTOR3 = ".friends-carousel-tile", EXCLUDED_CONTAINER_SELECTOR2 = ".roseal-friends-carousel-container", MENU_SELECTOR = ".friend-tile-dropdown, .friend-tile-dropdown--iarc", PROFILE_LINK_SELECTOR = 'a[href*="/users/"][href*="/profile"]', ITEM_CLASS = "rovalra-pin-friend-item", BUTTON_CLASS = "rovalra-pin-friend-button", PINNED_CLASS2 = "rovalra-pinned-friend", PENDING_FLAG = "rovalraPinnedFriendPending", enabled9 = !1, pinned = /* @__PURE__ */ new Set(), observersRegistered4 = !1, storageListenerRegistered6 = !1;
+  var SETTING_NAME10 = "pinnedFriendsEnabled", STORAGE_KEY15 = "rovalra_pinned_friends", CARD_SELECTOR3 = ".friends-carousel-tile", EXCLUDED_CONTAINER_SELECTOR2 = ".roseal-friends-carousel-container", MENU_SELECTOR = ".friend-tile-dropdown, .friend-tile-dropdown--iarc", PROFILE_LINK_SELECTOR = 'a[href*="/users/"][href*="/profile"]', ITEM_CLASS = "rovalra-pin-friend-item", BUTTON_CLASS = "rovalra-pin-friend-button", PINNED_CLASS2 = "rovalra-pinned-friend", PENDING_FLAG = "rovalraPinnedFriendPending", enabled9 = !1, pinned = /* @__PURE__ */ new Set(), observersRegistered4 = !1, storageListenerRegistered6 = !1;
   function loadPinned() {
     return new Promise((resolve) => {
-      chrome.storage.local.get({ [STORAGE_KEY14]: [] }, (data) => {
-        let stored = data?.[STORAGE_KEY14];
+      chrome.storage.local.get({ [STORAGE_KEY15]: [] }, (data) => {
+        let stored = data?.[STORAGE_KEY15];
         resolve(new Set(Array.isArray(stored) ? stored.map(String) : []));
       });
     });
@@ -147200,7 +150231,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
   __name(loadPinned, "loadPinned");
   function savePinned() {
     return new Promise((resolve) => {
-      chrome.storage.local.set({ [STORAGE_KEY14]: [...pinned] }, resolve);
+      chrome.storage.local.set({ [STORAGE_KEY15]: [...pinned] }, resolve);
     });
   }
   __name(savePinned, "savePinned");
@@ -147208,8 +150239,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
     return !!document.querySelector(EXCLUDED_CONTAINER_SELECTOR2);
   }
   __name(isExcludedCarouselPresent2, "isExcludedCarouselPresent");
-  function getOrderTarget(card) {
-    let node = card;
+  function getOrderTarget(card2) {
+    let node = card2;
     for (let depth = 0; node?.parentElement && depth < 4; depth += 1) {
       let { display } = getComputedStyle(node.parentElement);
       if (display.includes("flex") || display.includes("grid"))
@@ -147219,10 +150250,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
     return null;
   }
   __name(getOrderTarget, "getOrderTarget");
-  function applyCard(card) {
+  function applyCard(card2) {
     if (!enabled9) return;
-    let { userId } = getUserCardContext(card), isPinned = !!userId && pinned.has(String(userId)), target = getOrderTarget(card) || card;
-    target !== card && card.classList.remove(PINNED_CLASS2), target.classList.toggle(PINNED_CLASS2, isPinned);
+    let { userId } = getUserCardContext(card2), isPinned = !!userId && pinned.has(String(userId)), target = getOrderTarget(card2) || card2;
+    target !== card2 && card2.classList.remove(PINNED_CLASS2), target.classList.toggle(PINNED_CLASS2, isPinned);
   }
   __name(applyCard, "applyCard");
   function applyCards() {
@@ -147264,7 +150295,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
   function getMenuUserId(menu) {
     let link = menu.querySelector(PROFILE_LINK_SELECTOR), linked = link ? getUserIdFromUrl(link.href) : null;
     if (linked) return linked;
-    let card = menu.closest(CARD_SELECTOR3) || document.querySelector(`${CARD_SELECTOR3}:hover`), userId = card ? getUserCardContext(card).userId : null;
+    let card2 = menu.closest(CARD_SELECTOR3) || document.querySelector(`${CARD_SELECTOR3}:hover`), userId = card2 ? getUserCardContext(card2).userId : null;
     return userId ? String(userId) : null;
   }
   __name(getMenuUserId, "getMenuUserId");
@@ -147287,7 +150318,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
   }
   __name(attachMenu, "attachMenu");
   function removeUi2() {
-    document.querySelectorAll(`.${ITEM_CLASS}`).forEach((item) => item.remove()), document.querySelectorAll(`.${PINNED_CLASS2}`).forEach((card) => card.classList.remove(PINNED_CLASS2));
+    document.querySelectorAll(`.${ITEM_CLASS}`).forEach((item) => item.remove()), document.querySelectorAll(`.${PINNED_CLASS2}`).forEach((card2) => card2.classList.remove(PINNED_CLASS2));
   }
   __name(removeUi2, "removeUi");
   function registerObservers4() {
@@ -147297,8 +150328,8 @@ ${locale4.suggestOnDiscord}`), subtitle;
   function registerStorageListener6() {
     storageListenerRegistered6 || (storageListenerRegistered6 = !0, chrome.storage.onChanged.addListener(async (changes, namespace) => {
       if (namespace === "local") {
-        if (changes[STORAGE_KEY14]) {
-          let stored = changes[STORAGE_KEY14].newValue;
+        if (changes[STORAGE_KEY15]) {
+          let stored = changes[STORAGE_KEY15].newValue;
           pinned = new Set(Array.isArray(stored) ? stored.map(String) : []), enabled9 && applyCards();
         }
         if (changes[SETTING_NAME10]) {
@@ -147312,10 +150343,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }));
   }
   __name(registerStorageListener6, "registerStorageListener");
-  async function init171() {
+  async function init178() {
     registerStorageListener6(), enabled9 = await settings[SETTING_NAME10] === !0, enabled9 && (pinned = await loadPinned(), registerObservers4());
   }
-  __name(init171, "init");
+  __name(init178, "init");
 
   // src/content/features/create.roblox.com/download.js
   init_idExtractor();
@@ -147595,7 +150626,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
     targetContainer.prepend(downloadButton), delete buttonContainer.dataset.rovalraDownloadButtonPending;
   }
   __name(addButton, "addButton");
-  function init172() {
+  function init179() {
     window.location.href.includes("/store/asset/") && chrome.storage.local.get({ DownloadCreateEnabled: !0 }, (result) => {
       result.DownloadCreateEnabled && (observeElement(
         '[data-testid="assetButtonsDeprecatedTestId"]',
@@ -147610,7 +150641,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
       ));
     });
   }
-  __name(init172, "init");
+  __name(init179, "init");
 
   // src/content/features/catalog/explorer.js
   init_idExtractor();
@@ -147982,9 +151013,9 @@ ${locale4.suggestOnDiscord}`), subtitle;
     return `https://www.rovalra.com/static/${isDarkMode() ? "class_icons_dark" : "class_icons_light"}/${encodeURIComponent(className)}.png`;
   }
   __name(classIconUrl, "classIconUrl");
-  function applyMaskIcon(el3, url) {
+  function applyMaskIcon(el4, url) {
     let mask = `url("${url}") no-repeat center / contain`;
-    el3.style.webkitMask = mask, el3.style.mask = mask;
+    el4.style.webkitMask = mask, el4.style.mask = mask;
   }
   __name(applyMaskIcon, "applyMaskIcon");
   function getInstanceName(instance2) {
@@ -148336,13 +151367,13 @@ ${locale4.suggestOnDiscord}`), subtitle;
     return /^[\w .'-]{1,80}$/.test(trimmed) ? trimmed : null;
   }
   __name(safeRichTextFontFace, "safeRichTextFontFace");
-  function applyRichTextFontStyles(el3, attrs) {
+  function applyRichTextFontStyles(el4, attrs) {
     let color2 = safeRichTextColor(attrs.color);
-    color2 && (el3.style.color = color2);
+    color2 && (el4.style.color = color2);
     let size = Number(attrs.size);
-    Number.isFinite(size) && (el3.style.fontSize = `${Math.max(1, Math.min(100, Math.round(size)))}px`);
+    Number.isFinite(size) && (el4.style.fontSize = `${Math.max(1, Math.min(100, Math.round(size)))}px`);
     let face = safeRichTextFontFace(attrs.face);
-    face && (el3.style.fontFamily = `"${face}", sans-serif`);
+    face && (el4.style.fontFamily = `"${face}", sans-serif`);
   }
   __name(applyRichTextFontStyles, "applyRichTextFontStyles");
   function appendRichText(parent, text3) {
@@ -148361,10 +151392,10 @@ ${locale4.suggestOnDiscord}`), subtitle;
             break;
           }
       } else {
-        let el3 = document.createElement(
+        let el4 = document.createElement(
           tagName === "font" ? "span" : tagName
         );
-        el3.dataset.richTextTag = tagName, tagName === "font" && applyRichTextFontStyles(el3, parseRichTextAttributes(match[3])), stack[stack.length - 1].appendChild(el3), stack.push(el3);
+        el4.dataset.richTextTag = tagName, tagName === "font" && applyRichTextFontStyles(el4, parseRichTextAttributes(match[3])), stack[stack.length - 1].appendChild(el4), stack.push(el4);
       }
       lastIndex = tagRegex.lastIndex;
     }
@@ -148548,12 +151579,12 @@ ${locale4.suggestOnDiscord}`), subtitle;
           );
         }) : await getStudioFontFamily(familyName), fontPromises = [];
         for (let face of faces) {
-          let fontUrl = `data:${face.mimeType || "font/ttf"};base64,${face.base64}`, fontFace = new FontFace(name, `url(${fontUrl})`, {
+          let fontUrl = `data:${face.mimeType || "font/ttf"};base64,${face.base64}`, fontFace2 = new FontFace(name, `url(${fontUrl})`, {
             weight: face.weight.toString(),
             style: cssFontStyle(face.style)
           });
           fontPromises.push(
-            fontFace.load().then((loadedFace) => {
+            fontFace2.load().then((loadedFace) => {
               document.fonts.add(loadedFace);
             }).catch((e) => {
               console.warn(
@@ -148581,14 +151612,14 @@ ${locale4.suggestOnDiscord}`), subtitle;
     function collectFonts(inst) {
       if (inst) {
         if (["TextLabel", "TextButton", "TextBox"].includes(inst.ClassName)) {
-          let fontFace = inst.Properties?.FontFace;
-          fontFace && fontFace.Family && !fontFamilyMap.has(fontFace.Family) && fontPromises.push(
-            loadFontFamily(fontFace.Family).catch((e) => {
+          let fontFace2 = inst.Properties?.FontFace;
+          fontFace2 && fontFace2.Family && !fontFamilyMap.has(fontFace2.Family) && fontPromises.push(
+            loadFontFamily(fontFace2.Family).catch((e) => {
               console.warn(
                 "Failed to preload font",
-                fontFace.Family,
+                fontFace2.Family,
                 e
-              ), fontFamilyMap.set(fontFace.Family, "sans-serif");
+              ), fontFamilyMap.set(fontFace2.Family, "sans-serif");
             })
           );
         }
@@ -149237,38 +152268,38 @@ ${locale4.suggestOnDiscord}`), subtitle;
   }
   __name(resolveLayoutTree, "resolveLayoutTree");
   function renderDom(node, imageMap, onSelectInstance, instanceToElMap) {
-    let instance2 = node.instance, props = instance2.Properties || {}, decorators = node.decorators, el3 = document.createElement("div");
-    el3.dataset.rovalraPath = node.path || "", instanceToElMap && instanceToElMap.set(instance2, el3), el3.style.cursor = "pointer", el3.addEventListener("click", (e) => {
-      e.stopPropagation(), onSelectInstance && onSelectInstance(instance2, el3);
-    }), el3.style.boxSizing = "border-box", el3.style.position = node.isRoot ? "relative" : "absolute", el3.style.display = "block";
+    let instance2 = node.instance, props = instance2.Properties || {}, decorators = node.decorators, el4 = document.createElement("div");
+    el4.dataset.rovalraPath = node.path || "", instanceToElMap && instanceToElMap.set(instance2, el4), el4.style.cursor = "pointer", el4.addEventListener("click", (e) => {
+      e.stopPropagation(), onSelectInstance && onSelectInstance(instance2, el4);
+    }), el4.style.boxSizing = "border-box", el4.style.position = node.isRoot ? "relative" : "absolute", el4.style.display = "block";
     let automaticSize = props.AutomaticSize ?? 0, isText = ["TextLabel", "TextButton", "TextBox"].includes(
       instance2.ClassName
     );
-    isText && automaticSize > 0 && props.TextTruncate === 0 ? (automaticSize === 1 || automaticSize === 3 ? (el3.style.minWidth = `${Math.max(0, node.resolvedWidth)}px`, el3.style.width = "fit-content") : el3.style.width = `${Math.max(0, node.resolvedWidth)}px`, automaticSize === 2 || automaticSize === 3 ? (el3.style.minHeight = `${Math.max(0, node.resolvedHeight)}px`, el3.style.height = "fit-content") : el3.style.height = `${Math.max(0, node.resolvedHeight)}px`) : (el3.style.width = `${Math.max(0, node.resolvedWidth)}px`, el3.style.height = `${Math.max(0, node.resolvedHeight)}px`);
+    isText && automaticSize > 0 && props.TextTruncate === 0 ? (automaticSize === 1 || automaticSize === 3 ? (el4.style.minWidth = `${Math.max(0, node.resolvedWidth)}px`, el4.style.width = "fit-content") : el4.style.width = `${Math.max(0, node.resolvedWidth)}px`, automaticSize === 2 || automaticSize === 3 ? (el4.style.minHeight = `${Math.max(0, node.resolvedHeight)}px`, el4.style.height = "fit-content") : el4.style.height = `${Math.max(0, node.resolvedHeight)}px`) : (el4.style.width = `${Math.max(0, node.resolvedWidth)}px`, el4.style.height = `${Math.max(0, node.resolvedHeight)}px`);
     let transparency = typeof props.BackgroundTransparency == "number" ? props.BackgroundTransparency : 1, isVisuallyTransparent = transparency >= 1;
-    if (["ImageLabel", "ImageButton"].includes(instance2.ClassName) && (typeof props.ImageTransparency == "number" ? props.ImageTransparency : 1) < 1 && (isVisuallyTransparent = !1), ["TextLabel", "TextButton", "TextBox"].includes(instance2.ClassName) && (typeof props.TextTransparency == "number" ? props.TextTransparency : 1) < 1 && typeof props.Text == "string" && props.Text.length > 0 && (isVisuallyTransparent = !1), decorators.UIStroke && decorators.UIStroke.Enabled !== !1 && (typeof decorators.UIStroke.Transparency == "number" ? decorators.UIStroke.Transparency : 1) < 1 && (isVisuallyTransparent = !1), isVisuallyTransparent && instance2.ClassName !== "ScrollingFrame" ? el3.style.pointerEvents = "none" : el3.style.pointerEvents = "auto", !node.isRoot) {
-      el3.style.left = `${node.resolvedX}px`, el3.style.top = `${node.resolvedY}px`, props.AnchorPoint ? el3.style.transformOrigin = `${(props.AnchorPoint.x || 0) * 100}% ${(props.AnchorPoint.y || 0) * 100}%` : el3.style.transformOrigin = "0px 0px";
+    if (["ImageLabel", "ImageButton"].includes(instance2.ClassName) && (typeof props.ImageTransparency == "number" ? props.ImageTransparency : 1) < 1 && (isVisuallyTransparent = !1), ["TextLabel", "TextButton", "TextBox"].includes(instance2.ClassName) && (typeof props.TextTransparency == "number" ? props.TextTransparency : 1) < 1 && typeof props.Text == "string" && props.Text.length > 0 && (isVisuallyTransparent = !1), decorators.UIStroke && decorators.UIStroke.Enabled !== !1 && (typeof decorators.UIStroke.Transparency == "number" ? decorators.UIStroke.Transparency : 1) < 1 && (isVisuallyTransparent = !1), isVisuallyTransparent && instance2.ClassName !== "ScrollingFrame" ? el4.style.pointerEvents = "none" : el4.style.pointerEvents = "auto", !node.isRoot) {
+      el4.style.left = `${node.resolvedX}px`, el4.style.top = `${node.resolvedY}px`, props.AnchorPoint ? el4.style.transformOrigin = `${(props.AnchorPoint.x || 0) * 100}% ${(props.AnchorPoint.y || 0) * 100}%` : el4.style.transformOrigin = "0px 0px";
       let transform = "";
       if (typeof props.Rotation == "number" && props.Rotation !== 0 && (transform += ` rotate(${props.Rotation}deg)`), decorators.UIScale) {
         let scale = decorators.UIScale.Scale ?? 1;
         scale !== 1 && (transform += ` scale(${scale})`);
       }
-      transform && (el3.style.transform = transform.trim());
+      transform && (el4.style.transform = transform.trim());
     }
-    typeof props.ZIndex == "number" && (el3.style.zIndex = props.ZIndex);
+    typeof props.ZIndex == "number" && (el4.style.zIndex = props.ZIndex);
     let hasUIGradient = instance2.ClassName !== "TextBox" && instance2.ClassName !== "ScrollingFrame" && decorators.UIGradient && decorators.UIGradient.Enabled !== !1;
     if (transparency < 1)
       if (hasUIGradient) {
         let g2 = decorators.UIGradient;
-        el3.style.backgroundImage = buildUIGradient(
+        el4.style.backgroundImage = buildUIGradient(
           g2,
           props.BackgroundColor3,
           transparency
         );
         let posX = 50 + (g2.Offset?.x || 0) * 100, posY = 50 + (g2.Offset?.y || 0) * 100;
-        el3.style.backgroundPosition = `${posX}% ${posY}%`;
+        el4.style.backgroundPosition = `${posX}% ${posY}%`;
       } else
-        el3.style.backgroundColor = robloxColorToCss(
+        el4.style.backgroundColor = robloxColorToCss(
           props.BackgroundColor3,
           1 - transparency
         );
@@ -149296,50 +152327,50 @@ ${locale4.suggestOnDiscord}`), subtitle;
         `0 0 0 ${thickness / 2}px ${color2}, inset 0 0 0 ${thickness / 2}px ${color2}`
       );
     }
-    if (shadows.length > 0 && (el3.style.boxShadow = shadows.join(", ")), decorators.UICorner) {
-      let c = decorators.UICorner, getRad = /* @__PURE__ */ __name((udim) => udim ? (udim.Scale || 0) * Math.min(node.resolvedWidth, node.resolvedHeight) + (udim.Offset || 0) : 0, "getRad"), tl = getRad(c.TopLeftRadius || c.CornerRadius), tr = getRad(c.TopRightRadius || c.CornerRadius), br = getRad(c.BottomRightRadius || c.CornerRadius), bl = getRad(c.BottomLeftRadius || c.CornerRadius);
-      el3.style.borderRadius = `${tl}px ${tr}px ${br}px ${bl}px`;
+    if (shadows.length > 0 && (el4.style.boxShadow = shadows.join(", ")), decorators.UICorner) {
+      let c = decorators.UICorner, getRad = /* @__PURE__ */ __name((udim) => udim ? (udim.Scale || 0) * Math.min(node.resolvedWidth, node.resolvedHeight) + (udim.Offset || 0) : 0, "getRad"), tl = getRad(c.TopLeftRadius || c.CornerRadius), tr2 = getRad(c.TopRightRadius || c.CornerRadius), br = getRad(c.BottomRightRadius || c.CornerRadius), bl = getRad(c.BottomLeftRadius || c.CornerRadius);
+      el4.style.borderRadius = `${tl}px ${tr2}px ${br}px ${bl}px`;
     }
-    props.ClipsDescendants === !0 && (el3.style.overflow = "hidden");
-    let isScrollingFrame = instance2.ClassName === "ScrollingFrame", childContainer = el3;
+    props.ClipsDescendants === !0 && (el4.style.overflow = "hidden");
+    let isScrollingFrame = instance2.ClassName === "ScrollingFrame", childContainer = el4;
     if (isScrollingFrame) {
       let scrollDir = props.ScrollingDirection ?? 1;
       if (scrollDir === 1) {
-        el3.style.overflowX = "auto", el3.style.overflowY = "hidden";
-        let targetScroll = el3.scrollLeft, isAnimating = !1, animateScroll = /* @__PURE__ */ __name(() => {
-          let current = el3.scrollLeft, diff = targetScroll - current;
+        el4.style.overflowX = "auto", el4.style.overflowY = "hidden";
+        let targetScroll = el4.scrollLeft, isAnimating = !1, animateScroll = /* @__PURE__ */ __name(() => {
+          let current = el4.scrollLeft, diff = targetScroll - current;
           if (Math.abs(diff) < 0.5) {
-            el3.scrollLeft = targetScroll, isAnimating = !1;
+            el4.scrollLeft = targetScroll, isAnimating = !1;
             return;
           }
-          el3.scrollLeft += diff * 0.2, requestAnimationFrame(animateScroll);
+          el4.scrollLeft += diff * 0.2, requestAnimationFrame(animateScroll);
         }, "animateScroll");
-        el3.addEventListener(
+        el4.addEventListener(
           "wheel",
           (e) => {
             if (e.deltaY !== 0 && e.deltaX === 0) {
               e.preventDefault(), targetScroll += e.deltaY;
-              let maxScroll = el3.scrollWidth - el3.clientWidth;
+              let maxScroll = el4.scrollWidth - el4.clientWidth;
               targetScroll = Math.max(
                 0,
                 Math.min(targetScroll, maxScroll)
               ), isAnimating || (isAnimating = !0, requestAnimationFrame(animateScroll));
             } else
-              targetScroll = el3.scrollLeft;
+              targetScroll = el4.scrollLeft;
           },
           { passive: !1 }
-        ), el3.addEventListener("scroll", () => {
-          isAnimating || (targetScroll = el3.scrollLeft);
+        ), el4.addEventListener("scroll", () => {
+          isAnimating || (targetScroll = el4.scrollLeft);
         });
-      } else scrollDir === 2 ? (el3.style.overflowX = "hidden", el3.style.overflowY = "auto") : el3.style.overflow = "auto";
-      props.ScrollBarThickness === 0 ? (el3.style.scrollbarWidth = "none", el3.classList.add("rovalra-no-scrollbar")) : (el3.style.scrollbarWidth = "thin", el3.classList.add("rovalra-explorer-scrolling-frame"));
+      } else scrollDir === 2 ? (el4.style.overflowX = "hidden", el4.style.overflowY = "auto") : el4.style.overflow = "auto";
+      props.ScrollBarThickness === 0 ? (el4.style.scrollbarWidth = "none", el4.classList.add("rovalra-no-scrollbar")) : (el4.style.scrollbarWidth = "thin", el4.classList.add("rovalra-explorer-scrolling-frame"));
       let canvasEl = document.createElement("div");
-      canvasEl.style.position = "absolute", canvasEl.style.top = "0", canvasEl.style.left = "0", canvasEl.style.width = `${node.canvasWidth || node.resolvedWidth}px`, canvasEl.style.height = `${node.canvasHeight || node.resolvedHeight}px`, canvasEl.style.pointerEvents = "none", el3.appendChild(canvasEl), childContainer = canvasEl;
+      canvasEl.style.position = "absolute", canvasEl.style.top = "0", canvasEl.style.left = "0", canvasEl.style.width = `${node.canvasWidth || node.resolvedWidth}px`, canvasEl.style.height = `${node.canvasHeight || node.resolvedHeight}px`, canvasEl.style.pointerEvents = "none", el4.appendChild(canvasEl), childContainer = canvasEl;
     }
     if (isText) {
-      el3.style.display = "flex";
+      el4.style.display = "flex";
       let textXAlignment = resolveTextXAlignment(props.TextXAlignment), textYAlignment = resolveTextYAlignment(props.TextYAlignment);
-      el3.style.alignItems = textYAlignment === "top" ? "flex-start" : textYAlignment === "bottom" ? "flex-end" : "center", el3.style.justifyContent = textXAlignment === "left" ? "flex-start" : textXAlignment === "right" ? "flex-end" : "center", el3.style.padding = `${ROBLOX_TEXT_PADDING}px`, el3.style.overflow = "hidden";
+      el4.style.alignItems = textYAlignment === "top" ? "flex-start" : textYAlignment === "bottom" ? "flex-end" : "center", el4.style.justifyContent = textXAlignment === "left" ? "flex-start" : textXAlignment === "right" ? "flex-end" : "center", el4.style.padding = `${ROBLOX_TEXT_PADDING}px`, el4.style.overflow = "hidden";
       let textSpan = document.createElement("span");
       textSpan.style.display = "inline-block", textSpan.style.boxSizing = "border-box", textSpan.style.maxWidth = "100%", textSpan.style.maxHeight = "100%", textSpan.style.textAlign = textXAlignment;
       let textContent = typeof props.Text == "string" ? props.Text : "";
@@ -149351,11 +152382,11 @@ ${locale4.suggestOnDiscord}`), subtitle;
         textColor,
         1 - textTransparency
       );
-      let fontFace = props.FontFace, fontFamily = "sans-serif", fontWeight = "normal", fontStyle = "normal";
-      if (fontFace && fontFace.Family) {
-        if (fontFamily = fontFamilyMap.get(fontFace.Family) || "sans-serif", typeof fontFace.Weight == "number" && (fontWeight = fontFace.Weight), typeof fontFace.Style == "number") {
+      let fontFace2 = props.FontFace, fontFamily = "sans-serif", fontWeight = "normal", fontStyle = "normal";
+      if (fontFace2 && fontFace2.Family) {
+        if (fontFamily = fontFamilyMap.get(fontFace2.Family) || "sans-serif", typeof fontFace2.Weight == "number" && (fontWeight = fontFace2.Weight), typeof fontFace2.Style == "number") {
           let styles2 = ["normal", "italic", "oblique"];
-          styles2[fontFace.Style] && (fontStyle = styles2[fontFace.Style]);
+          styles2[fontFace2.Style] && (fontStyle = styles2[fontFace2.Style]);
         }
       } else typeof props.Font == "number" && (fontFamily = ROBLOX_FONT_ENUM_MAP[props.Font] || "sans-serif");
       textSpan.style.fontFamily = fontFamily, textSpan.style.fontWeight = fontWeight, textSpan.style.fontStyle = fontStyle;
@@ -149408,9 +152439,9 @@ ${locale4.suggestOnDiscord}`), subtitle;
             textSpan.childNodes,
             (child) => child.cloneNode(!0)
           )
-        ) : strokeSpan.textContent = textContent, textWrapper.appendChild(textSpan), textWrapper.appendChild(strokeSpan), el3.appendChild(textWrapper);
+        ) : strokeSpan.textContent = textContent, textWrapper.appendChild(textSpan), textWrapper.appendChild(strokeSpan), el4.appendChild(textWrapper);
       } else
-        el3.appendChild(textSpan);
+        el4.appendChild(textSpan);
     }
     if (["ImageLabel", "ImageButton"].includes(instance2.ClassName)) {
       let imgUri = props.Image;
@@ -149422,21 +152453,21 @@ ${locale4.suggestOnDiscord}`), subtitle;
             let imgTransparency = typeof props.ImageTransparency == "number" ? props.ImageTransparency : 0, imgColor = props.ImageColor3 || { r: 1, g: 1, b: 1 }, scaleType = props.ScaleType ?? 0, resampleMode = props.ResampleMode ?? 0, rectOffset = props.ImageRectOffset, rectSize = props.ImageRectSize, isSpriteSheet = rectOffset && rectSize && (rectSize.x !== 0 || rectSize.y !== 0), isSliced = scaleType === 1 && props.SliceCenter, isTiled = scaleType === 2, filter = getTintFilter(imgColor), imageRendering = resampleMode === 1 ? "pixelated" : "auto";
             if (!isSliced && !isSpriteSheet && !isTiled) {
               let img = document.createElement("img");
-              if (img.src = imageUrl, img.style.width = "100%", img.style.height = "100%", scaleType === 3 ? img.style.objectFit = "contain" : scaleType === 4 ? img.style.objectFit = "cover" : img.style.objectFit = "fill", img.style.pointerEvents = "none", img.style.position = "absolute", img.style.top = "0", img.style.left = "0", img.style.opacity = 1 - imgTransparency, img.style.imageRendering = imageRendering, img.style.borderRadius = el3.style.borderRadius, filter && (img.style.filter = filter), el3.appendChild(img), hasUIGradient) {
+              if (img.src = imageUrl, img.style.width = "100%", img.style.height = "100%", scaleType === 3 ? img.style.objectFit = "contain" : scaleType === 4 ? img.style.objectFit = "cover" : img.style.objectFit = "fill", img.style.pointerEvents = "none", img.style.position = "absolute", img.style.top = "0", img.style.left = "0", img.style.opacity = 1 - imgTransparency, img.style.imageRendering = imageRendering, img.style.borderRadius = el4.style.borderRadius, filter && (img.style.filter = filter), el4.appendChild(img), hasUIGradient) {
                 let g2 = decorators.UIGradient, gradDiv = document.createElement("div");
-                gradDiv.style.position = "absolute", gradDiv.style.top = "0", gradDiv.style.left = "0", gradDiv.style.width = "100%", gradDiv.style.height = "100%", gradDiv.style.backgroundImage = buildUIGradient(g2), gradDiv.style.mixBlendMode = "multiply", gradDiv.style.webkitMaskImage = `url("${imageUrl}")`, gradDiv.style.maskImage = `url("${imageUrl}")`, gradDiv.style.maskSize = img.style.objectFit, gradDiv.style.webkitMaskSize = img.style.objectFit, gradDiv.style.maskRepeat = "no-repeat", gradDiv.style.webkitMaskRepeat = "no-repeat", gradDiv.style.pointerEvents = "none", gradDiv.style.borderRadius = el3.style.borderRadius;
+                gradDiv.style.position = "absolute", gradDiv.style.top = "0", gradDiv.style.left = "0", gradDiv.style.width = "100%", gradDiv.style.height = "100%", gradDiv.style.backgroundImage = buildUIGradient(g2), gradDiv.style.mixBlendMode = "multiply", gradDiv.style.webkitMaskImage = `url("${imageUrl}")`, gradDiv.style.maskImage = `url("${imageUrl}")`, gradDiv.style.maskSize = img.style.objectFit, gradDiv.style.webkitMaskSize = img.style.objectFit, gradDiv.style.maskRepeat = "no-repeat", gradDiv.style.webkitMaskRepeat = "no-repeat", gradDiv.style.pointerEvents = "none", gradDiv.style.borderRadius = el4.style.borderRadius;
                 let posX = 50 + (g2.Offset?.x || 0) * 100, posY = 50 + (g2.Offset?.y || 0) * 100;
-                gradDiv.style.backgroundPosition = `${posX}% ${posY}%`, el3.appendChild(gradDiv);
+                gradDiv.style.backgroundPosition = `${posX}% ${posY}%`, el4.appendChild(gradDiv);
               }
             } else {
               let bgDiv = document.createElement("div");
-              bgDiv.style.position = "absolute", bgDiv.style.top = "0", bgDiv.style.left = "0", bgDiv.style.width = "100%", bgDiv.style.height = "100%", bgDiv.style.pointerEvents = "none", bgDiv.style.opacity = 1 - imgTransparency, bgDiv.style.imageRendering = imageRendering, bgDiv.style.borderRadius = el3.style.borderRadius, bgDiv.style.transformOrigin = "center center", filter && (bgDiv.style.filter = filter), el3.appendChild(bgDiv);
+              bgDiv.style.position = "absolute", bgDiv.style.top = "0", bgDiv.style.left = "0", bgDiv.style.width = "100%", bgDiv.style.height = "100%", bgDiv.style.pointerEvents = "none", bgDiv.style.opacity = 1 - imgTransparency, bgDiv.style.imageRendering = imageRendering, bgDiv.style.borderRadius = el4.style.borderRadius, bgDiv.style.transformOrigin = "center center", filter && (bgDiv.style.filter = filter), el4.appendChild(bgDiv);
               let gradDiv = null;
               if (hasUIGradient) {
                 let g2 = decorators.UIGradient;
-                gradDiv = document.createElement("div"), gradDiv.style.position = "absolute", gradDiv.style.top = "0", gradDiv.style.left = "0", gradDiv.style.width = "100%", gradDiv.style.height = "100%", gradDiv.style.backgroundImage = buildUIGradient(g2), gradDiv.style.mixBlendMode = "multiply", gradDiv.style.pointerEvents = "none", gradDiv.style.borderRadius = el3.style.borderRadius, gradDiv.style.transformOrigin = "center center";
+                gradDiv = document.createElement("div"), gradDiv.style.position = "absolute", gradDiv.style.top = "0", gradDiv.style.left = "0", gradDiv.style.width = "100%", gradDiv.style.height = "100%", gradDiv.style.backgroundImage = buildUIGradient(g2), gradDiv.style.mixBlendMode = "multiply", gradDiv.style.pointerEvents = "none", gradDiv.style.borderRadius = el4.style.borderRadius, gradDiv.style.transformOrigin = "center center";
                 let posX = 50 + (g2.Offset?.x || 0) * 100, posY = 50 + (g2.Offset?.y || 0) * 100;
-                gradDiv.style.backgroundPosition = `${posX}% ${posY}%`, el3.appendChild(gradDiv);
+                gradDiv.style.backgroundPosition = `${posX}% ${posY}%`, el4.appendChild(gradDiv);
               }
               let applyBgStyles = /* @__PURE__ */ __name((natW, natH) => {
                 if (isSliced) {
@@ -149499,7 +152530,7 @@ ${locale4.suggestOnDiscord}`), subtitle;
         );
         childEl && childContainer.appendChild(childEl);
       }
-    return el3;
+    return el4;
   }
   __name(renderDom, "renderDom");
   function collectImageIds(instance2, ids = [], originalIds = []) {
@@ -149610,14 +152641,14 @@ ${locale4.suggestOnDiscord}`), subtitle;
     ), imageMap = await imagePromise;
     await fontPromise;
     let currentW = 1280, currentH = 720, currentPixelDensity = 96, isRotated = !1, scaleMode = "fit", selectedPreviewInstance = null, instanceToElMap = /* @__PURE__ */ new Map();
-    function highlightSelection(el3) {
+    function highlightSelection(el4) {
       instanceToElMap.forEach((e) => {
         e.style.outline = "", e.style.outlineOffset = "";
-      }), el3 && (el3.style.outline = "2px solid #00a2ff", el3.style.outlineOffset = "1px");
+      }), el4 && (el4.style.outline = "2px solid #00a2ff", el4.style.outlineOffset = "1px");
     }
     __name(highlightSelection, "highlightSelection");
-    let onSelectWithHighlight = /* @__PURE__ */ __name((inst, el3) => {
-      selectedPreviewInstance = inst, highlightSelection(el3), onSelectInstance && onSelectInstance(inst);
+    let onSelectWithHighlight = /* @__PURE__ */ __name((inst, el4) => {
+      selectedPreviewInstance = inst, highlightSelection(el4), onSelectInstance && onSelectInstance(inst);
     }, "onSelectWithHighlight");
     registerHighlightCallback && registerHighlightCallback((inst) => {
       selectedPreviewInstance = inst, highlightSelection(instanceToElMap.get(inst));
@@ -150157,23 +153188,23 @@ ${locale4.suggestOnDiscord}`), subtitle;
     }), (buttonContainer.firstElementChild || buttonContainer).prepend(button);
   }
   __name(addCreateStoreButton, "addCreateStoreButton");
-  async function init173() {
+  async function init180() {
     let path = window.location.pathname, onCatalog = /\/catalog\//.test(path), onBundle = /\/bundles\//.test(path), onGame = /\/games\//.test(path), onCreateStore = /\/store\/asset\//.test(path);
     !onCatalog && !onBundle && !onGame && !onCreateStore || await settings.ExplorerEnabled && (onCatalog && observeElement(
       ".item-details-info-header .right",
-      (el3) => addCatalogButton(el3)
+      (el4) => addCatalogButton(el4)
     ), onBundle && observeElement(
       ".item-details-info-header .right",
-      (el3) => addBundleButton(el3)
-    ), onGame && observeElement("#game-context-menu", (el3) => addGameButton(el3)), onCreateStore && (observeElement(
+      (el4) => addBundleButton(el4)
+    ), onGame && observeElement("#game-context-menu", (el4) => addGameButton(el4)), onCreateStore && (observeElement(
       '[data-testid="assetButtonsTestId"]',
-      (el3) => addCreateStoreButton(el3)
+      (el4) => addCreateStoreButton(el4)
     ), observeElement(
       '[data-testid="assetButtonsDeprecatedTestId"]',
-      (el3) => addCreateStoreButton(el3)
+      (el4) => addCreateStoreButton(el4)
     )));
   }
-  __name(init173, "init");
+  __name(init180, "init");
 
   // src/content/index.js
   init_handlesettings();
@@ -150184,9 +153215,9 @@ ${locale4.suggestOnDiscord}`), subtitle;
       paths: ["*"],
       once: !0,
       features: [
-        init158,
-        init166,
-        init70,
+        init165,
+        init173,
+        init74,
         init7,
         init8,
         init6,
@@ -150196,297 +153227,304 @@ ${locale4.suggestOnDiscord}`), subtitle;
         init12,
         init13,
         init14,
-        init16,
+        init15,
         init17,
+        init18,
         initFriendsListTracking,
         initUnfriendDetectorTracking,
-        init145,
+        init152,
         initTransactionsTracking,
         initBadgesTracking,
         initAvatarInventoryTracking,
         initUserCurrencyTracking,
         initAuthenticatedUserLanguageTracking,
-        init18,
-        init25,
+        init19,
         init26,
-        init10,
-        init125,
-        init28,
-        init29,
-        init23,
-        init127,
-        init30,
-        init33,
-        init133,
-        init31,
-        init32,
-        init20,
-        init149,
-        init48,
-        init2,
         init27,
-        init150,
-        init139,
-        init22,
-        initializeModernIcons,
-        init35,
-        init37,
+        init28,
+        init10,
+        init132,
+        init30,
+        init31,
+        init24,
+        init134,
+        init32,
         init36,
+        init140,
+        init33,
+        init34,
+        init35,
+        init21,
+        init156,
+        init52,
+        init2,
+        init29,
+        init157,
+        init146,
+        init23,
+        initializeModernIcons,
         init38,
-        init39,
         init40,
-        init47,
+        init39,
         init41,
         init42,
         init43,
+        init51,
+        init44,
         init45,
         init46,
-        init163,
-        initNotificationCenter,
-        init56,
-        initSitewide,
+        init47,
         init49,
-        init50
+        init50,
+        init170,
+        initNotificationCenter,
+        init60,
+        initSitewide,
+        init53,
+        init54
       ]
     },
     // pretty much just the 40% method
     {
       paths: ["/catalog", "/bundles", "/game-pass", "/games"],
-      features: [init3, init63, init114]
+      features: [init3, init67, init120]
     },
     {
       paths: ["/developer-product/"],
-      features: [init63, init84]
+      features: [init67, init88]
     },
     // Game pass viewer for 404 pages
     {
       paths: ["/game-pass/"],
-      features: [init24]
+      features: [init25]
     },
     // Catalog and bundle pages
     {
       paths: ["/catalog", "/bundles"],
       features: [
-        init58,
-        init57,
-        init59,
-        init61,
         init62,
+        init61,
+        init63,
         init65,
         init66,
-        init67,
-        init68,
-        init173,
-        init64
+        init69,
+        init70,
+        init71,
+        init72,
+        init180,
+        init68
       ]
     },
     // Avatar pages
     {
       paths: ["/looks"],
-      features: [init67]
+      features: [init71]
     },
     // Group pages
     {
       paths: ["/communities/"],
       features: [
-        init102,
-        init103,
-        init104,
-        init105,
-        init107,
         init108,
         init109,
-        init67
+        init110,
+        init111,
+        init113,
+        init114,
+        init115,
+        init71
       ]
     },
     // Communities list page (My Communities) — matches /communities and /communities/...
     {
       paths: ["/communities"],
-      features: [init106]
+      features: [init112]
     },
     // Game pages
     {
       paths: ["/games/"],
       features: [
-        init83,
-        init19,
+        init87,
+        init20,
         initServerIdExtraction,
-        init69,
-        init76,
-        init77,
+        init73,
         init80,
-        init79,
         init81,
+        init84,
+        init83,
+        init85,
         initRecentServers,
-        init75,
-        init122,
-        init123,
-        init86,
-        init124,
-        init173,
-        init88
+        init79,
+        init128,
+        init129,
+        init90,
+        init130,
+        init131,
+        init180,
+        init92
       ]
     },
     // private games and game pages
     {
       paths: ["/games/", "/private-games"],
       features: [
+        init86,
         init82,
-        init78,
-        init87,
-        init21,
-        init71,
-        init72,
-        init73,
-        init74
+        init91,
+        init22,
+        init75,
+        init76,
+        init77,
+        init78
       ]
     },
     {
       paths: ["/badges/"],
-      features: [init74]
+      features: [init78]
     },
     // Donation store page
     {
       paths: ["/games/store-section/"],
-      features: [init85]
+      features: [init89]
     },
     // Private games page and unavailable game redirects
     {
       paths: ["/games/", "/private-games/"],
-      features: [init23]
+      features: [init24]
     },
     // avatar
     {
       paths: ["/my/avatar"],
       features: [
-        init51,
-        init52,
-        init53,
-        init54,
-        init55
+        init55,
+        init56,
+        init57,
+        init58,
+        init59
       ]
     },
     // Roblox Plus Page
     {
       paths: ["/plus"],
       features: [
-        init110,
-        init111,
-        init112
+        init116,
+        init117,
+        init118
       ]
     },
     // User profile pages
     {
       paths: ["/users/"],
       features: [
-        init114,
-        init148,
-        init129,
-        init113,
-        init115,
-        init116,
-        init117,
+        init120,
+        init155,
+        init136,
         init119,
-        init128,
-        init130,
-        init131,
-        init132,
-        init140,
-        init141,
-        init142,
-        init143,
-        init144,
-        init146,
-        init134,
+        init121,
+        init122,
+        init123,
+        init125,
+        init135,
         init137,
         init138,
-        init136,
-        init135,
         init139,
-        init121,
-        init151,
-        init120,
         init147,
+        init148,
+        init149,
+        init150,
+        init151,
         init153,
+        init141,
+        init144,
+        init145,
+        init143,
+        init142,
+        init146,
+        init127,
+        init158,
+        init126,
         init154,
-        init156,
+        init160,
+        init161,
+        init163,
         initProfileButton,
         initProfile
       ]
     },
     {
       paths: ["/users/profile/edit"],
-      features: [init155]
+      features: [init162]
     },
     {
       paths: ["/users/", "/banned-users/"],
-      features: [init126, init118, init152]
+      features: [init133, init124, init159]
     },
     {
       paths: ["/deleted-users/"],
-      features: [init152]
+      features: [init159]
     },
     // Transactions page
     {
       paths: ["/transactions"],
       features: [
-        init89,
-        init90,
-        init91,
-        init92,
-        init93
+        init93,
+        init94,
+        init95,
+        init96,
+        init97
       ]
     },
     {
       paths: ["/upgrades/paymentmethods"],
-      features: [init44]
+      features: [init48]
     },
     // Trading
     {
       paths: ["/trades", "/trade", "/users"],
       features: [
-        init94,
-        init95,
-        init96,
-        init97,
         init98,
         init99,
         init100,
-        init101
+        init101,
+        init102,
+        init103,
+        init104,
+        init105,
+        init106,
+        init107
       ]
     },
     // Moderation Panel
     {
       paths: ["/moderation"],
-      features: [init15]
+      features: [init16]
     },
     // create
     {
       paths: ["/store/asset"],
-      features: [init172, init173]
+      features: [init179, init180]
     },
     {
       paths: ["/home"],
       features: [
-        init162,
-        init167,
-        init168,
-        init165,
-        init161,
         init169,
-        init164,
-        init170,
-        init171
+        init174,
+        init175,
+        init172,
+        init168,
+        init176,
+        init171,
+        init177,
+        init178
       ]
     },
     {
       paths: ["/my/account"],
-      features: [init159, init160]
+      features: [init166, init167]
     },
     // Scam prevention
     {
       paths: ["/NewLogin", "/Login"],
-      features: [init34]
+      features: [init37]
     },
     // Buy Robux Page
     {
@@ -150536,11 +153574,11 @@ ${locale4.suggestOnDiscord}`), subtitle;
       route.paths.some((p2) => {
         let lowerP = p2.toLowerCase();
         return lowerP === "*" || path.startsWith(lowerP) || normalizedPath.startsWith(lowerP);
-      }) && route.features && Array.isArray(route.features) && route.features.forEach((init174) => {
-        if (!featuresRunThisPass.has(init174) && !(route.once && initializedPersistentFeatures.has(init174))) {
-          featuresRunThisPass.add(init174), route.once && initializedPersistentFeatures.add(init174);
+      }) && route.features && Array.isArray(route.features) && route.features.forEach((init181) => {
+        if (!featuresRunThisPass.has(init181) && !(route.once && initializedPersistentFeatures.has(init181))) {
+          featuresRunThisPass.add(init181), route.once && initializedPersistentFeatures.add(init181);
           try {
-            init174();
+            init181();
           } catch (error3) {
             console.error("RoValra: Feature init failed", error3);
           }

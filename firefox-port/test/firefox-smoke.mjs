@@ -30,8 +30,11 @@ const handler = async (req, res) => {
   }
   if(req.url==='/transport-fixture') {
     let body='';for await(const chunk of req)body+=chunk;
+    // A page-side GET may reach the fixture before CORS rejects its response.
+    // Keep the server alive so the transport assertions can inspect the result.
+    const payload=body ? JSON.parse(body) : {};
     res.setHeader('Content-Type','application/json');
-    res.end(JSON.stringify({status:'success',setting:{key:'pronouns',value:JSON.parse(body).value},
+    res.end(JSON.stringify({status:'success',setting:{key:'pronouns',value:payload.value},
       bearerReceived:req.headers.authorization==='Bearer test-only-value',cookieReceived:Boolean(req.headers.cookie)}));
     return;
   }
@@ -50,7 +53,8 @@ const handler = async (req, res) => {
       DeepLinkService: {navigateToDeepLink:(...args)=>window.launches.push({method:'navigateToDeepLink',args})} };
       document.addEventListener('rovalra-firefox-test-event', event => {
         document.documentElement.dataset.eventValue = event.detail.nested.value;
-      });`);
+      });
+      window.pageFetchProbe = fetch('${apiBase}/transport-fixture').then(()=>false,()=>true);`);
     return;
   }
   res.setHeader('Content-Type', 'text/html');
@@ -124,8 +128,6 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   const session = await RoValraFirefoxStorage.session.get('firefoxSmokeKey');
   const changed = await Promise.race([change,new Promise(resolve=>setTimeout(()=>resolve('timeout'),5000))]);
   const response = await browser.runtime.sendMessage({action:'getLatestPresence'});
-  let pageFetchBlocked=false;
-  try { await fetch('${apiBase}/transport-fixture'); } catch { pageFetchBlocked=true; }
   const synced=await RoValraFirefoxFetch('${apiBase}/transport-fixture',{
     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer test-only-value'},
     body:JSON.stringify({value:'they/them'})});
@@ -152,7 +154,7 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   const iconsBefore=${iconsFixtureSource(false)},icons=${iconsFixtureSource(true)};
   const globe=await ${globeFixtureSource()};
   await report({test:'content',event:document.documentElement.dataset.eventValue,session:session.firefoxSmokeKey,changed,
-    response,launches,invalid,workerReady,pageFetchBlocked,publicSync,blockedHost,
+    response,launches,invalid,workerReady,publicSync,blockedHost,
     fonts,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,serverEventsBefore,serverEvents,iconsBefore,icons,globe,
     contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
 })().catch(error=>browser.runtime.sendMessage({action:'smokeReport',result:{error:String(error),stack:error.stack}}));
@@ -184,6 +186,8 @@ try {
   await driver.get(base + '/compatibility-fixture');
   await driver.wait(() => results.some(result => result.test === 'content') || results.some(result => result.error), 30000).catch(() => {});
   const page = await driver.executeScript('return {url:location.href,title:document.title,launches:window.launches,interceptor:window.__ROVALRA_INTERCEPTOR_SETUP__}');
+  // Test page CSP in the page world: extension content scripts have host permissions.
+  page.pageFetchBlocked = await driver.executeAsyncScript('window.pageFetchProbe.then(arguments[arguments.length-1])');
   await fs.writeFile(path.join(build,'firefox-visuals-test.png'),Buffer.from(await driver.takeScreenshot(),'base64'));
   await driver.setContext('chrome');
   const consoleErrors = await driver.executeScript('return Services.console.getMessageArray().map(e=>e.message).filter(m=>/moz-extension|Worker|worker|RoValra/.test(m)).slice(-20)');
@@ -231,7 +235,7 @@ try {
       !content.launches.every(r => r.success) || content.invalid.success || page.launches?.length !== 7 ||
       page.launches[6].method !== 'navigateToDeepLink' ||
       !page.interceptor || JSON.stringify(content.workerReady?.values) !== '[2,3,4]' ||
-      !content.pageFetchBlocked || content.publicSync?.setting?.value!=='they/them' ||
+      !page.pageFetchBlocked || content.publicSync?.setting?.value!=='they/them' ||
       !content.publicSync.bearerReceived || content.publicSync.cookieReceived || content.blockedHost.ok ||
       !content.fonts?.every(f=>f.loaded) || content.bookmarkWidth<20 || content.bookmarkWidth>28 || !content.htmlSafe ||
       consoleErrors.some(message=>/Receiving end does not exist|font-src/.test(message))) throw new Error('Firefox smoke checks failed');

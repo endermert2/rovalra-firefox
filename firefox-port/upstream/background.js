@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.14
+ * rovalra v2.6.15
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -166,7 +166,10 @@
               value: "ro"
             },
             {
-              label: languageLabel("Indonesian (Bahasa Indonesia)", "id"),
+              label: languageLabel(
+                "Indonesian (Bahasa Indonesia)",
+                "id"
+              ),
               value: "id"
             },
             {
@@ -180,16 +183,16 @@
             {
               label: languageLabel(
                 "Traditional Chinese (\u7E41\u9AD4\u4E2D\u6587)",
-                "zh-CHT"
+                "zh_TW"
               ),
-              value: "zh-CHT"
+              value: "zh_TW"
             },
             {
               label: languageLabel(
                 "Simplified Chinese (\u7B80\u4F53\u4E2D\u6587)",
-                "zh-CHS"
+                "zh_CN"
               ),
-              value: "zh-CHS"
+              value: "zh_CN"
             },
             {
               label: languageLabel("Arabic (\u0639\u0631\u0628\u064A)", "ar"),
@@ -860,7 +863,28 @@
             "This allows you to quickly copy a private server link or generate a new private server link."
           ],
           type: "checkbox",
-          default: !0
+          default: !0,
+          childSettings: {
+            privateServerFriendsToggleEnabled: {
+              label: "Friends Allowed Toggle",
+              description: [
+                "Adds a Friends Allowed switch under Allow Joining, so you can let friends in or keep them out without opening the server settings."
+              ],
+              type: "checkbox",
+              default: !0,
+              contributors: ["4489102289"]
+            }
+          }
+        },
+        autoFriendsAllowedEnabled: {
+          label: "Friends Allowed On New Private Servers",
+          description: [
+            "Turns on Friends Allowed as soon as you create a private server, so your friends can join without you going into its settings first.",
+            "Only new servers are changed. Servers you already have are left as they are."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["4489102289"]
         }
       }
     },
@@ -2028,6 +2052,27 @@
           type: "checkbox",
           default: !1,
           contributors: ["1960518316"]
+        },
+        tradeRecentItemsEnabled: {
+          label: "Recent Trade Items",
+          description: [
+            "Remembers the items you recently offered and requested, and shows them above each inventory when making a trade.",
+            "Clicking one finds and selects it for you. Your history is only stored on this device."
+          ],
+          type: "checkbox",
+          default: !0,
+          storageKey: "rovalra_trade_recent_items",
+          contributors: ["2239549101"]
+        },
+        tradeQuickActionsEnabled: {
+          label: "Trade Quick Actions",
+          description: [
+            "Adds quick actions to the trades page, letting you only show trades above a certain value or hide trades that are a loss for you.",
+            "Also adds a button to decline every received trade that is a loss by value, after asking you to confirm."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["2239549101"]
         }
       }
     },
@@ -2115,7 +2160,9 @@
           label: "Show Plus Transfer Limits",
           description: "Shows how much Robux you have left before the daily and monthly Roblox Plus transfer limits on the [Plus](https://www.roblox.com/plus) page.",
           type: "checkbox",
-          default: !0
+          default: !0,
+          storageKey: "rovalra_robux_transfer_limits_v1",
+          contributors: ["48255812", "447170745"]
         },
         plusReferralEnabled: {
           label: "Show RoValra Plus Referral",
@@ -2459,6 +2506,24 @@
     Miscellaneous: {
       title: "Miscellaneous",
       settings: {
+        richRobloxLinksEnabled: {
+          label: "Rich Roblox Links",
+          description: [
+            "Turns Roblox links in descriptions into pills with their icon, name and verified badge.",
+            "Hover a pill to preview the community, user, experience or item."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: ["2239549101"]
+        },
+        sidebarVerifiedBadgeEnabled: {
+          label: "Fixes a few spots where the verified badge is missing",
+          description: [
+            "Shows the verified badge next to your name in the sidebar and top bar if you're verified."
+          ],
+          type: "checkbox",
+          default: !0
+        },
         disableThumbnailBackground: {
           label: "Disable Thumbnail Backgrounds",
           description: [
@@ -3331,6 +3396,23 @@ Standards{linkEnd}.`,
           type: "checkbox",
           default: !1
         },
+        privateApiDocsEnabled: {
+          label: ["Private RoValra API docs"],
+          description: [
+            "Adds RoValra API documentation at https://www.roblox.com/rovalra-api-docs.",
+            "The documentation is loaded from RoValra and is only available to accounts with access to it."
+          ],
+          type: "checkbox",
+          default: !1,
+          childSettings: {
+            privateApiDocsSidebarLinkEnabled: {
+              label: "RoValra API sidebar link",
+              description: "Adds a RoValra API link below Communities in the Roblox sidebar.",
+              type: "checkbox",
+              default: !0
+            }
+          }
+        },
         onboardingShown: {
           label: ["Show onboarding"],
           description: [
@@ -3927,9 +4009,14 @@ Standards{linkEnd}.`,
           outfitData
         ), { ok: !1 };
       let details = await new Promise((resolve) => {
-        chrome.storage.local.get("rovalra_avatar_rotator_details", (data) => {
-          resolve(data.rovalra_avatar_rotator_details?.[String(outfitId)] || null);
-        });
+        chrome.storage.local.get(
+          "rovalra_avatar_rotator_details",
+          (data) => {
+            resolve(
+              data.rovalra_avatar_rotator_details?.[String(outfitId)] || null
+            );
+          }
+        );
       });
       if (!details) {
         let detailsRes = await callWithRetry({
@@ -4909,6 +4996,11 @@ Standards{linkEnd}.`,
       );
     });
   });
+  function getImageTypeFromBytes(bytes) {
+    let startsWith = /* @__PURE__ */ __name((signature, offset = 0) => signature.every((byte, i) => bytes[offset + i] === byte), "startsWith"), ascii = /* @__PURE__ */ __name((text) => [...text].map((char) => char.charCodeAt(0)), "ascii");
+    return startsWith([137, 80, 78, 71]) ? "image/png" : startsWith([255, 216, 255]) ? "image/jpeg" : startsWith(ascii("GIF8")) ? "image/gif" : startsWith(ascii("RIFF")) && startsWith(ascii("WEBP"), 8) ? "image/webp" : startsWith(ascii("BM")) ? "image/bmp" : startsWith(ascii("ftypavif"), 4) ? "image/avif" : null;
+  }
+  __name(getImageTypeFromBytes, "getImageTypeFromBytes");
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
       case "updateGameBookmarks":
@@ -5031,6 +5123,60 @@ Standards{linkEnd}.`,
         return getCustomFontFamily(request.assetId).then(sendResponse).catch((err) => {
           sendResponse({ success: !1, error: err.message });
         }), !0;
+      case "fetchImageAsDataUrl": {
+        let imageUrl;
+        try {
+          imageUrl = new URL(request.url);
+        } catch {
+          return sendResponse({ error: "Invalid URL" }), !1;
+        }
+        return imageUrl.protocol !== "https:" && imageUrl.protocol !== "http:" ? (sendResponse({ error: "Unsupported protocol" }), !1) : (fetch(imageUrl.toString(), { credentials: "omit" }).then(async (response) => {
+          if (!response.ok)
+            throw new Error(`Request failed (${response.status})`);
+          let bytes = new Uint8Array(await response.arrayBuffer());
+          if (bytes.length > 20 * 1024 * 1024)
+            throw new Error("Image too large");
+          let contentType = (response.headers.get("content-type") || "").split(";")[0], imageType = contentType.startsWith("image/") ? contentType : getImageTypeFromBytes(bytes);
+          if (!imageType) throw new Error("Not an image");
+          let binary = "";
+          for (let i = 0; i < bytes.length; i += 32768)
+            binary += String.fromCharCode(
+              ...bytes.subarray(i, i + 32768)
+            );
+          sendResponse({
+            dataUrl: `data:${imageType};base64,${btoa(binary)}`
+          });
+        }).catch((err) => sendResponse({ error: err.message })), !0);
+      }
+      case "proxyFetch": {
+        let parsedUrl;
+        try {
+          parsedUrl = new URL(request.url);
+        } catch {
+          return sendResponse({ error: "Invalid URL" }), !1;
+        }
+        if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:")
+          return sendResponse({ error: "Unsupported protocol" }), !1;
+        let { method, headers, body, credentials, cache, redirect } = request.options || {};
+        return fetch(parsedUrl.toString(), {
+          method,
+          headers,
+          body,
+          credentials,
+          cache,
+          redirect
+        }).then(async (response) => {
+          let responseHeaders = {};
+          response.headers.forEach(
+            (val, key) => responseHeaders[key] = val
+          ), sendResponse({
+            status: response.status,
+            statusText: response.statusText,
+            headers: responseHeaders,
+            body: await response.arrayBuffer().catch(() => null)
+          });
+        }).catch((err) => sendResponse({ error: err.message })), !0;
+      }
       case "fetchRobloxApi":
         return callRobloxApiBackground(request.options).then(async (response) => {
           let headers = {};

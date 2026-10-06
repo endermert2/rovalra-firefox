@@ -20,6 +20,7 @@ source['firefox-port/upstream-release.json']=Buffer.from(JSON.stringify({version
   manifestVersion:JSON.parse(input['manifest.json']).version,
   assetSha256:JSON.parse(await fs.readFile(path.join(ROOT,'build/report.json'))).releaseAssetSha256},null,2)+'\n');
 source['firefox-port/UPDATER-REPAIR-2.6.12.8.md']=await fs.readFile(path.join(ROOT,'UPDATER-REPAIR-2.6.12.8.md'));
+source['firefox-port/UPSTREAM-REPAIR-2.6.15.md']=await fs.readFile(path.join(ROOT,'UPSTREAM-REPAIR-2.6.15.md'));
 // Include the original project's corresponding source, pinned to this release.
 const response=await fetch(`https://codeload.github.com/NotValra/RoValra/zip/refs/tags/v${state.upstreamVersion}`,
   {signal:AbortSignal.timeout(120000)});

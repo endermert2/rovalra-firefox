@@ -163,8 +163,8 @@ test('globe initialization clones object payloads into the Firefox page world', 
 test('reviewed upstream baseline adapts successfully and unknown APIs still stop updates', async () => {
   const input=await filesIn(path.join(ROOT,'upstream'));
   const result=await adaptFiles(input,config,baseline.version);
-  assert.equal(result.report.upstreamVersion,'2.6.14.1');
-  assert.equal(result.manifest.version,`2.6.14.${100 + config.adapterRevision}`);
+  assert.equal(result.report.upstreamVersion,'2.6.15');
+  assert.equal(result.manifest.version,`2.6.15.${config.adapterRevision}`);
   input['content.js']=Buffer.concat([input['content.js'],Buffer.from('\nchrome.unknownNewAPI();')]);
   await assert.rejects(adaptFiles(input,config),/New upstream API chrome.unknownNewAPI/);
 });

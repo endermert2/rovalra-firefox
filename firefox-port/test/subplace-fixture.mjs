@@ -6,7 +6,8 @@ import {hardenHTML} from '../hardening.mjs';
 export function subplaceFixtureSource(fixed) {
   const source=extract(['createServerCardFromRobloxApi','createServerCardFromApi','createModernServerCard',
     'enhanceServer','processUptimeBatch','fetchServerUptime','fetchAndDisplayRegion',
-    'displayInactivePlaceStatus','getOrCreateDetailsContainer','updateInfoElement','createInfoElement'],fixed?repaired:original);
+    'getRowServerId','getServerRows','setServerNetworkInfo','displayServerStatus',
+    'displayInactivePlaceStatus','getOrCreateDetailsContainer','applyContainerMinHeight','updateInfoElement','createInfoElement'],fixed?repaired:original);
   return `(async()=>{
     const errors=[],requests=[],joins=[],cards=[];
     const host=document.createElement('section');document.body.append(host);
@@ -15,10 +16,11 @@ export function subplaceFixtureSource(fixed) {
     const cacheReadyPromise=Promise.resolve(),isServerListModificationsEnabled=true,isServerUptimeEnabled=true,
       isServerRegionEnabled=true,isPlaceVersionEnabled=true,isFullServerIDEnabled=false,isFullServerIndicatorsEnabled=true;
     const CLASSES={CONTAINER:'fixture-details',INFO_ROW:'fixture-row',Inactive:'fixture-inactive'},ORDERS={Status:1},
-      STYLES2={row:'',icon:'',text:'',container:'',containerFriends:''};
+      STYLES3={row:'',icon:'',text:'',container:'',containerFriends:''};
     const purify=DOMPurify,console={error:(...args)=>errors.push(args.map(String).join(' '))};
     const setTimeout=(fn,ms)=>globalThis.setTimeout(()=>{try {Promise.resolve(fn()).catch(e=>errors.push(String(e)));}catch(e){errors.push(String(e));}},ms);
-    const noop=()=>{},injectStyles3=noop,cleanupServerUI=noop,attachCleanupObserver=noop,enableAvatarLinks=noop,
+    const serverNetworkInfo=new Map();
+    const noop=()=>{},__name=fn=>fn,injectStyles4=noop,resetServerRow=noop,markJoinButtonFull=noop,cleanupServerUI=noop,attachCleanupObserver=noop,enableAvatarLinks=noop,
       displayPerformance=noop,displayIpAndDcId=noop,addCopyJoinLinkButton=noop,addTooltip=noop;
     const getServerUptime=()=>null,getServerUptimeIsEstimate=()=>false,getServerVersion=()=>null,
       getServerRegion=()=>null,getPlaceIdFromUrl=()=> '111',normalizeRegionName=value=>value||'',
