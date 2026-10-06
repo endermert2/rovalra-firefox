@@ -9,7 +9,7 @@ const upstreamZip = await fs.readFile(path.join(ROOT,'downloads',`rovalra-v${sta
 const input = unpackRelease(upstreamZip);
 const source = {};
 for (const [name,bytes] of Object.entries(input)) source[`firefox-port/upstream/${name}`]=bytes;
-for (const name of ['adapter.mjs','hardening.mjs','lint-policy.mjs','server-fixes.mjs','update.mjs','verify.mjs','publish-manifest.mjs','source-package.mjs','upload-package.mjs','Update-Firefox.ps1','config.json','contracts.json','package.json','package-lock.json','README.md','AUTOMATIC-UPDATES.md','UPDATER-REPAIR-2026-10-04.md','VISUAL-REPAIR-2.6.14.110.md','REPAIR-NOTES.md','MAINTENANCE-2.6.9.5.md','SUBPLACE-FIX-2.6.9.6.md','SUBPLACE-FOLLOWUP-2.6.9.7.md','LICENSE','NOTICE.md']) {
+for (const name of ['adapter.mjs','hardening.mjs','lint-policy.mjs','server-fixes.mjs','update.mjs','verify.mjs','publish-manifest.mjs','source-package.mjs','upload-package.mjs','Update-Firefox.ps1','config.json','contracts.json','package.json','package-lock.json','README.md','AUTOMATIC-UPDATES.md','UPDATER-REPAIR-2026-10-04.md','VISUAL-REPAIR-2.6.14.110.md','AUDIT-REPAIR-2026-10-06.md','REPAIR-NOTES.md','MAINTENANCE-2.6.9.5.md','SUBPLACE-FIX-2.6.9.6.md','SUBPLACE-FOLLOWUP-2.6.9.7.md','LICENSE','NOTICE.md']) {
   source[`firefox-port/${name}`]=await fs.readFile(path.join(ROOT,name));
 }
 for (const folder of ['runtime','patches','test','assets']) for (const [name,bytes] of Object.entries(await filesIn(path.join(ROOT,folder)))) {

@@ -4,6 +4,10 @@ The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
 The current version is 2.6.14.110: upstream release 2.6.14.1 plus adapter revision 10.
 
+The [October 6 audit repair](AUDIT-REPAIR-2026-10-06.md) updates source-map-js to
+1.2.2 in the lockfile and contains the current GitHub upload steps. The extension
+version remains unchanged because this is a build-tool dependency fix.
+
 See [the visual repair](VISUAL-REPAIR-2.6.14.110.md) for the Quick Play SVG icons,
 globe event bridge, packaged image fix, and current upload instructions.
 The [October updater repair](UPDATER-REPAIR-2026-10-04.md) remains included.

@@ -6,9 +6,9 @@ Mozilla developer account, API keys, or signing service.
 
 You can install the local XPI immediately. Completing this guide lets Firefox
 receive future adapted releases automatically through its normal add-on updater.
-The existing hosted workflow stalled after port 2.6.13.8 at its dependency audit. This folder contains the
-repair; upload the updated source and run the workflow as described below.
-See [the visual repair checklist](VISUAL-REPAIR-2.6.14.110.md) for the current upload steps.
+The hosted release is 2.6.14.110. The October 6 dependency audit failure is repaired
+by the updated source-map-js lockfile entry; upload the source and start a new run.
+See [the October 6 audit repair checklist](AUDIT-REPAIR-2026-10-06.md) for current upload steps.
 [REPAIR-NOTES.md](REPAIR-NOTES.md) records the earlier updater diagnosis.
 
 ## 1. How the pieces fit together

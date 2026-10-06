@@ -4,9 +4,13 @@ The current port is **2.6.14.110**, based on upstream release **2.6.14.1** and
 adapter revision 10. It includes the GitHub updater audit repair and fixes for
 Quick Play icons, the region-selector globe, and its logo.
 
-See [the visual repair and upload checklist](firefox-port/VISUAL-REPAIR-2.6.14.110.md).
-Extract `firefox-port/build/rovalra-firefox-upload-2.6.14.110.zip`, copy its contents
+See [the October 6 audit repair checklist](firefox-port/AUDIT-REPAIR-2026-10-06.md).
+Extract `firefox-port/build/rovalra-firefox-upload-2.6.14.110-audit-fix-2026-10-06.zip`, copy its contents
 to the top of your GitHub clone, commit, push, and start a new workflow run.
+
+The October 6 repair updates only the vulnerable `source-map-js` build dependency.
+The extension version remains 2.6.14.110; no reinstall is needed for this audit fix.
+The [visual repair guide](firefox-port/VISUAL-REPAIR-2.6.14.110.md) covers the earlier icons and globe fixes.
 
 For local installation, open **about:addons → gear → Install Add-on From File**
 and select `firefox-port/build/rovalra-firefox-2.6.14.110-unsigned.xpi` over the
