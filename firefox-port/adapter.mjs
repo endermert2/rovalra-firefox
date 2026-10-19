@@ -50,6 +50,22 @@ export async function filesIn(directory, prefix = '') {
 export function apiPaths(source) {
   return [...new Set(source.match(/\bchrome\.[A-Za-z]+(?:\.[A-Za-z]+)*/g) || [])].sort();
 }
+export function splitContentBundle(source, contracts) {
+  // Upstream prepends a standalone Draco decoder to its application IIFE.
+  // Preserve both scopes and their execution order as separate classic scripts.
+  const [decoder, exports, application, ...extra] = parseJS(source).body;
+  if (extra.length || decoder?.type !== 'VariableDeclaration' || decoder.declarations.length !== 1 ||
+      decoder.declarations[0].id.name !== 'DracoDecoderModule' || exports?.type !== 'IfStatement' ||
+      application?.type !== 'ExpressionStatement' || application.expression.type !== 'CallExpression' ||
+      application.expression.callee.type !== 'ArrowFunctionExpression') {
+    throw new Error('Upstream content bundle layout changed; review required');
+  }
+  const prelude = source.slice(0, application.start);
+  if (normalizedHash(prelude) !== contracts.dracoDecoder) {
+    throw new Error('Upstream Draco decoder changed; review required');
+  }
+  return { decoder: prelude, content: source.slice(0, decoder.start) + source.slice(application.start) };
+}
 function replaceFunction(source, name, replacement, contracts) {
   const nodes = functions(source).get(name);
   if (nodes?.length !== 1) throw new Error(`Expected one upstream function ${name}; review required`);
@@ -113,7 +129,7 @@ export function adaptManifest(original, config, upstreamVersion = original.versi
     'https://apis.rovalra.com/*', 'https://www.rovalra.com/*'])];
   for (const script of manifest.content_scripts) {
     if (script.world !== 'MAIN') {
-      script.js.unshift('firefox/purify.js','firefox/content.js','firefox/fonts.js');
+      script.js.unshift('firefox/purify.js','firefox/content.js','firefox/fonts.js','firefox/draco-decoder.js');
       script.css = [...(script.css || []), 'firefox/fonts.css'];
     }
   }
@@ -135,6 +151,11 @@ export async function adaptFiles(input, config, upstreamVersion) {
   for (const permission of [...(original.permissions || []), ...(original.optional_permissions || [])]) {
     if (!contracts.permissions.includes(permission)) throw new Error(`New upstream permission ${permission}; review required`);
   }
+  for (const permission of contracts.optionalOnlyPermissions || []) {
+    if (original.permissions?.includes(permission)) {
+      throw new Error(`Upstream permission ${permission} is no longer optional; review required`);
+    }
+  }
   for (const [name, bytes] of Object.entries(input)) {
     if (!name.endsWith('.js')) continue;
     for (const api of apiPaths(bytes.toString())) {
@@ -142,7 +163,11 @@ export async function adaptFiles(input, config, upstreamVersion) {
     }
     parseJS(bytes.toString());
   }
-  let content = repairServers(input['content.js'].toString(),contracts);
+  const bundle = splitContentBundle(input['content.js'].toString(), contracts);
+  output['firefox/draco-decoder.js'] = Buffer.from((await transform(bundle.decoder, {
+    minify: true, target: 'firefox140', legalComments: 'eof', charset: 'utf8',
+  })).code);
+  let content = repairServers(bundle.content,contracts);
   content = replaceFunction(content, 'createSvgPath',
     await fs.readFile(path.join(ROOT, 'patches/icons.js'), 'utf8'), contracts);
   const launcher = await fs.readFile(path.join(ROOT, 'patches/launcher.js'), 'utf8');
@@ -205,8 +230,8 @@ export async function adaptFiles(input, config, upstreamVersion) {
   parseJS(content);
   // Callback URLs contain one-time authorization codes. Never log them.
   content = content.replaceAll('RoValra API: Request to ${fullUrl}', 'RoValra API: Request');
-  // Mozilla's validator will not parse an individual JS file over 5 MB. Keep
-  // original readable inputs in upstream/ and use upstream's standard bundler.
+  // Mozilla's validator will not parse an individual JS file over 5 MB. The
+  // decoder is packaged separately above; retain readable inputs in upstream/.
   output['content.js'] = Buffer.from((await transform(content, {
     minify: true, target: 'firefox140', legalComments: 'eof', charset: 'utf8',
   })).code);
@@ -218,8 +243,12 @@ export async function adaptFiles(input, config, upstreamVersion) {
   walk.simple(parseJS(background), { ArrowFunctionExpression(node) {
     if (node.body.type === 'SequenceExpression' &&
         background.slice(node.body.start, node.body.end).startsWith('message.type === "settingsCompatGetRes"')) {
+      // A tab can ask before asynchronous settings initialization has finished.
+      // Always return the result shape expected by the upstream content callback.
+      const response = replaceOnce(background.slice(node.body.start, node.body.end),
+        'sendResponse(compatResults)', 'sendResponse(compatResults || { replaced: [], deleted: [] })');
       backgroundEdits.push({ ...node, text:
-        `(message, sender, sendResponse) => { if (message.type !== "settingsCompatGetRes") return false; return (${background.slice(node.body.start, node.body.end)}); }` });
+        `(message, sender, sendResponse) => { if (message.type !== "settingsCompatGetRes") return false; return (${response}); }` });
     }
   } });
   if (backgroundEdits.length !== 1) throw new Error('Settings compatibility listener changed; review required');
@@ -246,7 +275,7 @@ export async function adaptFiles(input, config, upstreamVersion) {
   let fontRules=0;
   output['css/rovalra.css']=Buffer.from(css.replace(/@font-face\s*\{[^}]*https:\/\/www\.rovalra\.com\/static\/fonts\/[^}]*\}/g,()=>{fontRules++;return '';}));
   if(fontRules!==3)throw new Error('Remote icon font CSS changed; review required');
-  output['LICENSE'] = await fs.readFile(path.join(ROOT, 'LICENSE'));
+  output['LICENSE'] = input['LICENSE'] || await fs.readFile(path.join(ROOT, 'LICENSE'));
   output['FIREFOX-PORT-NOTICE.md'] = await fs.readFile(path.join(ROOT, 'NOTICE.md'));
   const manifest = adaptManifest(original, config, upstreamVersion);
   // Firefox rejects data: redirect targets. Serve the same static JSON as a

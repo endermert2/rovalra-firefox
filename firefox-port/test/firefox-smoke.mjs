@@ -92,11 +92,12 @@ browser.runtime.onMessage.addListener((message) => {
 (async () => {
   const promises = await chrome.storage.local.get({testDefault:42});
   const callbacks = await new Promise(resolve => chrome.storage.local.get({testDefault:43},resolve));
+  const notificationsGranted = await chrome.permissions.contains({permissions:['notifications']});
   await browser.declarativeNetRequest.updateEnabledRulesets({enableRulesetIds:['ruleset_status','ruleset_3']});
   const enabled = await browser.declarativeNetRequest.getEnabledRulesets();
   await browser.declarativeNetRequest.updateEnabledRulesets({disableRulesetIds:['ruleset_status','ruleset_3']});
   const rules = await browser.declarativeNetRequest.getDynamicRules();
-  await report({test:'background',promises:promises.testDefault,callbacks:callbacks.testDefault,enabled,rules:rules.map(r=>r.id)});
+  await report({test:'background',promises:promises.testDefault,callbacks:callbacks.testDefault,notificationsGranted,enabled,rules:rules.map(r=>r.id)});
 })().catch(error=>report({error:String(error)}));
 `);
 await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
@@ -104,6 +105,10 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   const report = result => browser.runtime.sendMessage({action:'smokeReport',result});
   await new Promise(resolve => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',resolve,{once:true}) : resolve());
   const fonts=await RoValraFirefoxFontsReady;
+  const draco=await DracoDecoderModule();
+  const decoder=new draco.Decoder();
+  const dracoReady=typeof decoder.DecodeBufferToMesh==='function';
+  draco.destroy(decoder);
   await document.fonts.load('24px "Material Icons Outlined"','bookmark_border');
   await document.fonts.load('24px "Material Icons"','bookmark');
   const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
@@ -155,7 +160,7 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   const globe=await ${globeFixtureSource()};
   await report({test:'content',event:document.documentElement.dataset.eventValue,session:session.firefoxSmokeKey,changed,
     response,launches,invalid,workerReady,publicSync,blockedHost,
-    fonts,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,serverEventsBefore,serverEvents,iconsBefore,icons,globe,
+    fonts,dracoReady,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,serverEventsBefore,serverEvents,iconsBefore,icons,globe,
     contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
 })().catch(error=>browser.runtime.sendMessage({action:'smokeReport',result:{error:String(error),stack:error.stack}}));
 `);
@@ -230,14 +235,14 @@ try {
   if (consoleErrors.some(message => /Invalid rule|TypeError:|ReferenceError:|SyntaxError:|DataCloneError:/.test(message))) {
     throw new Error('Firefox reported a script or declarative rule failure');
   }
-  if (!bg || !content || results.some(r => r.error) || bg.promises !== 42 || bg.callbacks !== 43 ||
+  if (!bg || !content || results.some(r => r.error) || bg.promises !== 42 || bg.callbacks !== 43 || bg.notificationsGranted !== false ||
       content.event !== 'readable' || content.session !== 123 || content.changed !== 123 ||
       !content.launches.every(r => r.success) || content.invalid.success || page.launches?.length !== 7 ||
       page.launches[6].method !== 'navigateToDeepLink' ||
       !page.interceptor || JSON.stringify(content.workerReady?.values) !== '[2,3,4]' ||
       !page.pageFetchBlocked || content.publicSync?.setting?.value!=='they/them' ||
       !content.publicSync.bearerReceived || content.publicSync.cookieReceived || content.blockedHost.ok ||
-      !content.fonts?.every(f=>f.loaded) || content.bookmarkWidth<20 || content.bookmarkWidth>28 || !content.htmlSafe ||
+      !content.dracoReady || !content.fonts?.every(f=>f.loaded) || content.bookmarkWidth<20 || content.bookmarkWidth>28 || !content.htmlSafe ||
       consoleErrors.some(message=>/Receiving end does not exist|font-src/.test(message))) throw new Error('Firefox smoke checks failed');
   console.log('Firefox smoke checks passed. Authenticated Roblox features still require manual testing.');
 } finally {

@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.15
+ * rovalra v2.6.18
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -99,6 +99,154 @@
     overrideTopbarSidebar: !1
   });
 
+  // src/content/core/themeVariables.js
+  var THEME_VARIABLE_GROUPS = [
+    {
+      key: "surfaces",
+      label: "Surfaces",
+      tokens: [
+        { key: "surface-0", label: "Page Background" },
+        { key: "surface-100", label: "Surface 100" },
+        { key: "surface-200", label: "Surface 200" },
+        { key: "surface-300", label: "Surface 300" },
+        { key: "common-navigation-bar", label: "Navigation Bar" },
+        { key: "over-media-0", label: "Over Media 0" },
+        { key: "over-media-100", label: "Over Media 100" },
+        { key: "over-media-200", label: "Over Media 200" },
+        { key: "over-media-300", label: "Over Media 300" },
+        { key: "common-backdrop", label: "Backdrop" }
+      ]
+    },
+    {
+      key: "content",
+      label: "Text",
+      tokens: [
+        { key: "content-emphasis", label: "Emphasis Text" },
+        { key: "content-default", label: "Default Text" },
+        { key: "content-muted", label: "Muted Text" },
+        { key: "content-link", label: "Link Text" }
+      ]
+    },
+    {
+      key: "strokes",
+      label: "Strokes & Shifts",
+      tokens: [
+        { key: "stroke-default", label: "Stroke Default" },
+        { key: "stroke-emphasis", label: "Stroke Emphasis" },
+        { key: "stroke-muted", label: "Stroke Muted" },
+        { key: "common-heavy-divider", label: "Heavy Divider" },
+        { key: "shift-100", label: "Shift 100" },
+        { key: "shift-200", label: "Shift 200" },
+        { key: "shift-300", label: "Shift 300" },
+        { key: "shift-400", label: "Shift 400" }
+      ]
+    },
+    {
+      key: "system",
+      label: "System",
+      tokens: [
+        { key: "system-emphasis", label: "Emphasis" },
+        { key: "system-contrast", label: "Contrast" },
+        { key: "system-alert", label: "Alert" },
+        { key: "system-success", label: "Success" },
+        { key: "system-warning", label: "Warning" },
+        { key: "system-neutral", label: "Neutral" }
+      ]
+    },
+    {
+      key: "actions",
+      label: "Buttons",
+      tokens: [
+        { key: "action-emphasis-background", label: "Primary Background" },
+        { key: "action-emphasis-foreground", label: "Primary Text" },
+        { key: "action-standard-background", label: "Standard Background" },
+        { key: "action-standard-foreground", label: "Standard Text" },
+        {
+          key: "action-soft-emphasis-background",
+          label: "Soft Background"
+        },
+        { key: "action-soft-emphasis-foreground", label: "Soft Text" },
+        { key: "action-subtle-border", label: "Subtle Border" },
+        { key: "action-alert-foreground", label: "Alert Text" },
+        {
+          key: "action-over-media-background",
+          label: "Over Media Background"
+        },
+        { key: "action-over-media-foreground", label: "Over Media Text" }
+      ]
+    }
+  ], THEME_VARIABLE_KEYS = THEME_VARIABLE_GROUPS.flatMap(
+    (group) => group.tokens.map((token) => token.key)
+  ), THEME_VARIABLE_KEY_SET = new Set(THEME_VARIABLE_KEYS), ROBLOX_THEME_PRESETS = [
+    { label: "Classic", value: "classic" },
+    { label: "Circuit Rush", value: "circuit-rush" },
+    { label: "Cosmic Dust", value: "cosmic-dust" },
+    { label: "Electric Lime", value: "electric-lime" },
+    { label: "Hyper Plum", value: "hyper-plum" },
+    { label: "Inferno Blast", value: "inferno-blast" },
+    { label: "Kinetic Energy", value: "kinetic-energy" },
+    { label: "Lava Glow", value: "lava-glow" },
+    { label: "Nebula Drift", value: "nebula-drift" },
+    { label: "Nitro Frost", value: "nitro-frost" },
+    { label: "Pixel Pop", value: "pixel-pop" },
+    { label: "Polar Freeze", value: "polar-freeze" },
+    { label: "Quantum Pulse", value: "quantum-pulse" },
+    { label: "Star Burst", value: "star-burst" },
+    { label: "Super Charge", value: "super-charge" }
+  ], PRESET_VALUES = new Set(
+    ROBLOX_THEME_PRESETS.map((preset) => preset.value)
+  );
+  function getPresetClasses(preset) {
+    return PRESET_VALUES.has(preset) ? [`theme-${preset}`, `${preset}-theme`] : [];
+  }
+  __name(getPresetClasses, "getPresetClasses");
+  var ALL_PRESET_CLASSES = ROBLOX_THEME_PRESETS.flatMap(
+    (preset) => getPresetClasses(preset.value)
+  ), DEFAULT_THEME_VARIABLES = Object.freeze({
+    preset: "",
+    themeId: "",
+    dark: Object.freeze({}),
+    light: Object.freeze({})
+  }), HEXA_COLOR_PATTERN = /^#[0-9a-f]{8}$/i, THEME_ID_PATTERN = /^[a-z0-9-]{1,40}$/;
+  function sanitizeModeValues(values) {
+    let result = {};
+    if (!values || typeof values != "object") return result;
+    for (let [key, value] of Object.entries(values))
+      THEME_VARIABLE_KEY_SET.has(key) && (typeof value != "string" || !HEXA_COLOR_PATTERN.test(value) || (result[key] = value.toLowerCase()));
+    return result;
+  }
+  __name(sanitizeModeValues, "sanitizeModeValues");
+  function sanitizeThemeVariables(value) {
+    let config = value && typeof value == "object" ? value : {};
+    return {
+      preset: PRESET_VALUES.has(config.preset) ? config.preset : "",
+      themeId: typeof config.themeId == "string" && THEME_ID_PATTERN.test(config.themeId) ? config.themeId : "",
+      dark: sanitizeModeValues(config.dark),
+      light: sanitizeModeValues(config.light)
+    };
+  }
+  __name(sanitizeThemeVariables, "sanitizeThemeVariables");
+  function getThemeLook(value) {
+    let { preset, dark, light } = sanitizeThemeVariables(value);
+    return { preset, dark, light };
+  }
+  __name(getThemeLook, "getThemeLook");
+  var BUILT_IN_THEMES = [
+    {
+      id: "builtin-very-dark",
+      nameKey: "veryDark",
+      name: "Very dark theme",
+      theme: getThemeLook({
+        dark: {
+          "surface-0": "#000000ff",
+          "surface-100": "#000000ff",
+          "surface-200": "#000000ff",
+          "surface-300": "#131316ff"
+        }
+      })
+    }
+  ];
+
   // src/content/core/locale/translationProgress.js
   var localeResources = /* @__PURE__ */ new Map();
   function flattenTranslationKeys(value, prefix = "", keys = []) {
@@ -154,6 +302,21 @@
               value: "en"
             },
             {
+              label: languageLabel("Russian (\u0420\u0443\u0441\u0441\u043A\u0438\u0439)", "ru"),
+              value: "ru"
+            },
+            {
+              label: languageLabel("German (Deutsch)", "de"),
+              value: "de"
+            },
+            {
+              label: languageLabel(
+                "Brazilian Portuguese (Portugu\xEAs (Brasil))",
+                "pt"
+              ),
+              value: "pt"
+            },
+            {
               label: languageLabel("French (Fran\xE7ais)", "fr"),
               value: "fr"
             },
@@ -173,12 +336,12 @@
               value: "id"
             },
             {
-              label: languageLabel("Russian (\u0420\u0443\u0441\u0441\u043A\u0438\u0439)", "ru"),
-              value: "ru"
-            },
-            {
               label: languageLabel("Spanish (Espa\xF1ol)", "es"),
               value: "es"
+            },
+            {
+              label: languageLabel("French (Fran\xE7ais)", "fr"),
+              value: "fr"
             },
             {
               label: languageLabel(
@@ -197,6 +360,10 @@
             {
               label: languageLabel("Arabic (\u0639\u0631\u0628\u064A)", "ar"),
               value: "ar"
+            },
+            {
+              label: languageLabel("Vietnamese (Ti\u1EBFng Vi\u1EC7t)", "vi"),
+              value: "vi"
             },
             { label: "Automatic", value: "auto" }
           ],
@@ -223,7 +390,7 @@
           type: "checkbox",
           default: !1
         },
-        SaveLotsRobuxEnabled: {
+        SaveLotsRobuxEnabledv1: {
           label: "Save 10%-40% Robux on Purchases",
           description: [
             "This adds a button allowing you to save 40% on items on the marketplace.",
@@ -354,6 +521,12 @@
           type: "checkbox",
           default: !0,
           contributors: ["4866259395", "447170745"]
+        },
+        ownedItemPriceEnabled: {
+          label: "Price on Owned Item Pages",
+          description: "Shows the price of an item on its item page even when you already own it.",
+          type: "checkbox",
+          default: !0
         },
         itemTradingEnabled: {
           label: "Item Trading Info",
@@ -507,7 +680,16 @@
           label: "Improved Events",
           description: "This allows you to view past events on experiences and how many are going.",
           type: "checkbox",
-          default: !0
+          default: !0,
+          childSettings: {
+            eventsTabEnabled: {
+              label: "Separate Events Tab",
+              description: "Moves experience events from About to their own tab.",
+              type: "checkbox",
+              default: !1,
+              contributors: ["127238"]
+            }
+          }
         },
         EnableGameTrailer: {
           label: "Experience Trailer",
@@ -622,7 +804,8 @@
           label: "Hidden Badges",
           description: [
             "Adds a Hidden Badges tab to experience pages.",
-            "This only shows hidden badges of a game that you obtained."
+            "This will show all badges normally hidden on the games page.",
+            "Hidden badges information powered by [Rolimon's](https://www.rolimons.com/)"
           ],
           type: "checkbox",
           default: !0,
@@ -635,6 +818,16 @@
           ],
           type: "checkbox",
           default: !0
+        },
+        badgeSortEnabled: {
+          label: "Badge Sorting",
+          description: [
+            "Adds a Sort dropdown to experience badge sections.",
+            "Sort by recently updated, newest, oldest, most or least won, won yesterday, rarity, or name."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: ["3050364170"]
         },
         badgeOwnershipEnabled: {
           label: "Dim Unowned Badges",
@@ -653,6 +846,24 @@
           type: "checkbox",
           default: !0,
           contributors: [476449201]
+        },
+        freeBadgeQuotaEnabled: {
+          label: "Free Badge Quota",
+          description: [
+            "Shows how many badges an experience can still create for free today in its stats.",
+            "Roblox lets each experience create 5 free badges every 24 hours."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["3050364170"]
+        },
+        gameStatTimestampsEnabled: {
+          label: "Detailed Created / Updated Dates",
+          description: [
+            "Replaces the Created and Updated dates on experience pages with exact, clickable timestamps."
+          ],
+          type: "checkbox",
+          default: !0
         },
         updateHistoryEnabled: {
           label: "Update History",
@@ -943,8 +1154,7 @@
               type: "checkbox",
               default: !1,
               donatorTier: 1,
-              donatorReason: "Donator Tier 1 is required to display your app theme on your own profile",
-              dependsOn: ["FreeRobloxPlusThemesEnabledv3"]
+              donatorReason: "Donator Tier 1 is required to display your app theme on your own profile"
             }
           },
           contributors: ["650766686"],
@@ -1131,7 +1341,8 @@
           ],
           contributors: ["447170745", "3602693727"],
           type: "checkbox",
-          default: !0
+          default: !0,
+          storageKey: "rovalra_group_filters_view"
         },
         trustedConnectionsEnabledv3: {
           label: "Trusted Friends",
@@ -1182,7 +1393,8 @@
           label: "Show Community Joined Date",
           description: "Shows when a user joined a community on their profile.",
           type: "checkbox",
-          default: !0
+          default: !0,
+          contributors: ["447170745", "3050364170"]
         },
         showFriendedFromEnabled: {
           label: "Show Friended From",
@@ -1757,6 +1969,16 @@
           type: "checkbox",
           default: !0,
           contributors: ["587159802"]
+        },
+        groupFundsPillEnabled: {
+          label: "Community Funds Pill",
+          description: [
+            "Shows a community's funds as a pill on its page if your role can see them, even when they aren't public.",
+            "Clicking it opens the revenue summary."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["74884"]
         }
       }
     },
@@ -2094,7 +2316,7 @@
               default: !1
             }
           },
-          contributors: ["1564574922"]
+          contributors: ["1564574922", "476449201"]
         },
         PlusPrivateServerTooltipEnabled: {
           label: "Roblox Plus Free Server Tooltip",
@@ -2106,16 +2328,6 @@
           contributors: ["447170745", "546872490"],
           locked: "Roblox made their own version of this.",
           isPermanent: !0
-        },
-        FreeRobloxPlusThemesEnabledv3: {
-          label: "Free Roblox Plus Themes",
-          description: [
-            "Allows you to use Roblox Plus Themes on the site without Roblox Plus"
-          ],
-          type: "checkbox",
-          default: !0,
-          contributors: ["447170745", "4866259395", "650766686"],
-          dependedBy: ["displayAppThemeOwnProfile"]
         },
         currencyTransferEnabled: {
           label: "Send Robux",
@@ -2258,6 +2470,15 @@
               contributors: ["4632962611"]
             }
           }
+        },
+        hideFriendRequestCountEnabled: {
+          label: "Hide Friend Request Count",
+          description: [
+            "Hides the friend request count beside Friends in the sidebar."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["4632962611"]
         },
         sidebarLayoutEnabled: {
           label: "Sidebar Layout",
@@ -2458,6 +2679,12 @@
               description: "Shows a list of friends that has the best match to what you searched in the search dropdown.",
               type: "checkbox",
               default: !0
+            },
+            itemSearchEnabled: {
+              label: "Quick Item Search",
+              description: "Shows limited items whose Rolimons acronym matches what you searched, like 8BRC for the 8-Bit Royal Crown.",
+              type: "checkbox",
+              default: !0
             }
           }
         },
@@ -2506,6 +2733,29 @@
     Miscellaneous: {
       title: "Miscellaneous",
       settings: {
+        browserNotificationsEnabled: {
+          label: "Browser Notifications",
+          description: "Sends browser notifications for the things you pick below.",
+          type: "checkbox",
+          default: !1,
+          requiredPermissions: ["notifications"],
+          storageKey: ["rovalra_notifications_state"],
+          contributors: ["2239549101"],
+          childSettings: {
+            tradeNotificationsEnabled: {
+              label: "Trades",
+              description: "Notifies you when you get a new trade.",
+              type: "checkbox",
+              default: !0
+            },
+            friendNotificationsEnabled: {
+              label: "Pinned Friends",
+              description: "Notifies you when a pinned friend joins an experience.",
+              type: "checkbox",
+              default: !0
+            }
+          }
+        },
         richRobloxLinksEnabled: {
           label: "Rich Roblox Links",
           description: [
@@ -2555,8 +2805,16 @@
             "This feature sends server IDs and place IDs to RoValra's API when you browse the site.",
             "This data is used for the server uptime and the Total Servers features.",
             "Leaving this feature on will help improve the Server Uptime and Total Servers features.",
-            "**No personal data is sent, not even user ID or username\u2014only the server IDs and the place ID.**",
-            "**No data that could link the server IDs or place IDs to you is sent or logged.**"
+            "This can use extra bandwidth compared to other features, if you are in limited bandwidth it is recommended to turn this off."
+          ],
+          type: "checkbox",
+          default: !0
+        },
+        ServerdataLegacyEnabled: {
+          label: "Use Legacy Server Data Submission",
+          description: [
+            "Sends only server IDs and place IDs.",
+            "Pretty much nerdy experimental development stuff."
           ],
           type: "checkbox",
           default: !0
@@ -2632,6 +2890,13 @@
               description: "Prevents your username from being moved up to a place where it's harder to read because of extensions adding features.",
               type: "checkbox",
               default: !0
+            },
+            themeScrollbarFixEnabled: {
+              label: "Match the scrollbar to your theme",
+              description: "Fixes the page scrollbar showing up light on dark theme, or dark on light theme, and makes it blend in with the page.",
+              type: "checkbox",
+              default: !1,
+              contributors: ["74884"]
             }
           }
         },
@@ -3042,6 +3307,28 @@ Standards{linkEnd}.`,
             }
           }
         },
+        CustomThemeVariablesEnabled: {
+          label: "Custom Theme Colors",
+          description: [
+            "Lets you use any Roblox theme, like Nebula Drift, and change the color variables Roblox uses for its themes.",
+            "Picking a Roblox Plus theme applies it for free without requiring Roblox Plus. Any colors you change are layered on top of it, for both dark and light mode."
+          ],
+          type: "checkbox",
+          default: !1,
+          childSettings: {
+            customThemeVariables: {
+              label: "Roblox Plus Themes",
+              type: "themeVariables",
+              default: DEFAULT_THEME_VARIABLES
+            },
+            customThemeVariableSaved: {
+              label: "Saved Themes",
+              type: "savedThemeVariables",
+              default: [],
+              hidden: !0
+            }
+          }
+        },
         customRobloxBannerEnabled: {
           label: "Roblox Logo Customization",
           description: [
@@ -3156,6 +3443,91 @@ Standards{linkEnd}.`,
               step: 10,
               default: 100,
               hidden: !0
+            }
+          }
+        },
+        cursorBuddyEnabled: {
+          label: "Cursor Buddy",
+          description: [
+            "A cute little buddy follows your cursor around Roblox."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["476449201"],
+          childSettings: {
+            cursorBuddyCompanion: {
+              label: "Buddy",
+              type: "select",
+              options: [
+                { label: "Oneko", value: "cat" },
+                { label: "Kitten", value: "kitten" }
+              ],
+              default: "cat"
+            },
+            cursorBuddySize: {
+              label: "Size",
+              description: "Choose how big your buddy looks.",
+              type: "input",
+              inputType: "number",
+              min: 24,
+              max: 128,
+              step: 1,
+              default: 32
+            },
+            cursorBuddyFollowSpeed: {
+              label: "Follow Speed",
+              description: "Choose how quickly your buddy follows your cursor.",
+              type: "input",
+              inputType: "number",
+              min: 40,
+              max: 600,
+              step: 10,
+              default: 240
+            }
+          }
+        },
+        customScrollbarEnabled: {
+          label: "Customize Scroll Bar",
+          description: ["Make Roblox scrollbars look the way you want."],
+          type: "checkbox",
+          default: !1,
+          contributors: ["476449201"],
+          childSettings: {
+            customScrollbarHide: {
+              label: "Hide Scroll Bar",
+              description: "Hide the scrollbar entirely.",
+              type: "checkbox",
+              default: !1
+            },
+            customScrollbarWidth: {
+              label: "Width",
+              description: "Set the scrollbar width in pixels (1-24).",
+              type: "input",
+              inputType: "number",
+              min: 1,
+              max: 24,
+              default: 8
+            },
+            customScrollbarRadius: {
+              label: "Border Radius",
+              description: "Set the scrollbar corner radius in pixels (0-24).",
+              type: "input",
+              inputType: "number",
+              min: 0,
+              max: 24,
+              default: 8
+            },
+            customScrollbarThumbColor: {
+              label: "Thumb Color",
+              description: "Set the color of the moving scrollbar thumb.",
+              type: "color",
+              default: "#4f545c"
+            },
+            customScrollbarTrackColor: {
+              label: "Track Color",
+              description: "Set the background color of the scrollbar.",
+              type: "color",
+              default: "#202124"
             }
           }
         },
@@ -3538,7 +3910,6 @@ Standards{linkEnd}.`,
   // src/background/settingsCompat.ts
   var settingDeprecations = {
     EnableGameTrailer: void 0,
-    trustedConnectionsEnabled: void 0,
     currencyTransferEnabled: void 0
   }, CONFIG = Object.freeze({
     COUNT_REPLACED_IF_INACTIVE: !0,
@@ -3709,6 +4080,177 @@ Standards{linkEnd}.`,
     }), result;
   }
   __name(updateGameBookmarks, "updateGameBookmarks");
+
+  // src/background/notifications.js
+  var STATE_KEY = "rovalra_notifications_state", PINNED_KEY = "rovalra_pinned_friends", ICON_URL = "public/Assets/icon-128.png", ROLIMONS_URL = "https://apis.rovalra.com/v1/rolimons/limiteds";
+  var SETTING_DEFAULTS = {
+    browserNotificationsEnabled: !1,
+    tradeNotificationsEnabled: !0,
+    friendNotificationsEnabled: !0
+  }, api, interval = null, rolimons = { items: null, fetchedAt: 0 };
+  async function hasPermission() {
+    return chrome.permissions.contains({ permissions: ["notifications"] });
+  }
+  __name(hasPermission, "hasPermission");
+  async function getEnabled() {
+    let settings = await chrome.storage.local.get(SETTING_DEFAULTS), on = settings.browserNotificationsEnabled && await hasPermission();
+    return {
+      trades: on && settings.tradeNotificationsEnabled,
+      friends: on && settings.friendNotificationsEnabled
+    };
+  }
+  __name(getEnabled, "getEnabled");
+  async function getStrings() {
+    let { rovalraLanguage, rovalra_autolang } = await chrome.storage.local.get(["rovalraLanguage", "rovalra_autolang"]), lang = rovalraLanguage === "auto" ? rovalra_autolang : rovalraLanguage, load = /* @__PURE__ */ __name(async (code) => (await (await fetch(
+      chrome.runtime.getURL(`public/Assets/locales/${code}.json`)
+    )).json()).notifications || {}, "load"), en = await load("en");
+    return !lang || lang === "en" ? en : { ...en, ...await load(lang).catch(() => ({})) };
+  }
+  __name(getStrings, "getStrings");
+  function format(text, values) {
+    return text.replace(/\{\{(\w+)\}\}/g, (_, key) => values[key] ?? "");
+  }
+  __name(format, "format");
+  function notify(id, title, message) {
+    chrome.notifications.create(id, {
+      type: "basic",
+      iconUrl: chrome.runtime.getURL(ICON_URL),
+      title,
+      message
+    });
+  }
+  __name(notify, "notify");
+  async function getJson(options) {
+    let res = await api(options);
+    return res.ok ? res.json() : null;
+  }
+  __name(getJson, "getJson");
+  async function getRolimonsItems() {
+    if (Date.now() - rolimons.fetchedAt > 6e5) {
+      let res = await fetch(ROLIMONS_URL, { credentials: "omit" }).catch(
+        () => null
+      ), json = res?.ok ? await res.json() : null;
+      json?.items && (rolimons = { items: json.items, fetchedAt: Date.now() });
+    }
+    return rolimons.items || {};
+  }
+  __name(getRolimonsItems, "getRolimonsItems");
+  function getOfferTotals(offer, items, robux) {
+    return (offer?.items || []).reduce(
+      (totals, item) => {
+        let data = items[item.itemTarget?.targetId], rap = Number(data?.rap || item.recentAveragePrice) || 0;
+        return totals.rap += rap, totals.value += Number(data?.default_price ?? rap) || 0, totals;
+      },
+      { value: robux, rap: robux }
+    );
+  }
+  __name(getOfferTotals, "getOfferTotals");
+  async function getTradeDiff(tradeId, partnerId) {
+    let trade = await getJson({
+      subdomain: "trades",
+      endpoint: `/v2/trades/${tradeId}`
+    });
+    if (!trade) return null;
+    let items = await getRolimonsItems(), partnerIsA = String(trade.participantAOffer?.user?.id) === String(partnerId), mine = partnerIsA ? trade.participantBOffer : trade.participantAOffer, theirs = partnerIsA ? trade.participantAOffer : trade.participantBOffer, give = getOfferTotals(mine, items, Number(mine?.robux) || 0), get = getOfferTotals(
+      theirs,
+      items,
+      Math.floor((Number(theirs?.robux) || 0) * 0.7)
+    );
+    return { value: get.value - give.value, rap: get.rap - give.rap };
+  }
+  __name(getTradeDiff, "getTradeDiff");
+  function signed(number) {
+    return `${number < 0 ? "-" : "+"}${Math.abs(number).toLocaleString("en-US")}`;
+  }
+  __name(signed, "signed");
+  async function checkTrades(seen, strings) {
+    let data = await getJson({
+      subdomain: "trades",
+      endpoint: "/v1/trades/Inbound?limit=10&sortOrder=Desc"
+    });
+    if (!data?.data) return seen;
+    let ids = data.data.map((trade) => trade.id);
+    if (seen)
+      for (let trade of data.data) {
+        if (seen.includes(trade.id)) continue;
+        let from = format(strings.tradeFrom, {
+          name: trade.user.displayName || trade.user.name
+        }), diff = await getTradeDiff(trade.id, trade.user.id).catch(
+          () => null
+        ), stats = diff ? format(strings.tradeStats, {
+          value: signed(diff.value),
+          rap: signed(diff.rap)
+        }) : "";
+        notify(
+          `rovalra-trade-${trade.id}`,
+          strings.newTrade,
+          stats ? `${from}
+${stats}` : from
+        );
+      }
+    return [.../* @__PURE__ */ new Set([...ids, ...seen || []])].slice(0, 50);
+  }
+  __name(checkTrades, "checkTrades");
+  async function checkFriends(previous, strings) {
+    let { [PINNED_KEY]: pinned = [] } = await chrome.storage.local.get(PINNED_KEY);
+    if (!pinned.length) return {};
+    let data = await getJson({
+      subdomain: "presence",
+      endpoint: "/v1/presence/users",
+      method: "POST",
+      body: { userIds: pinned.map(Number) }
+    });
+    if (!data?.userPresences) return previous;
+    let playing = {}, joined = [];
+    for (let presence of data.userPresences)
+      presence.userPresenceType !== 2 || !presence.rootPlaceId || (playing[presence.userId] = presence.rootPlaceId, previous && previous[presence.userId] !== presence.rootPlaceId && joined.push(presence));
+    if (!joined.length) return playing;
+    let users = await getJson({
+      subdomain: "users",
+      endpoint: "/v1/users",
+      method: "POST",
+      body: {
+        userIds: joined.map((p) => p.userId),
+        excludeBannedUsers: !1
+      }
+    }), names = Object.fromEntries(
+      (users?.data || []).map((u) => [u.id, u.displayName || u.name])
+    );
+    for (let presence of joined)
+      notify(
+        `rovalra-game-${presence.rootPlaceId}-${presence.userId}`,
+        format(strings.friendPlaying, {
+          name: names[presence.userId] || presence.userId
+        }),
+        presence.lastLocation || strings.unknownGame
+      );
+    return playing;
+  }
+  __name(checkFriends, "checkFriends");
+  async function check() {
+    let enabled = await getEnabled(), { [STATE_KEY]: state2 = {} } = await chrome.storage.local.get(STATE_KEY), strings = await getStrings();
+    enabled.trades ? state2.trades = await checkTrades(state2.trades, strings) : delete state2.trades, enabled.friends ? state2.friends = await checkFriends(state2.friends, strings) : delete state2.friends, await chrome.storage.local.set({ [STATE_KEY]: state2 });
+  }
+  __name(check, "check");
+  function onClicked(id) {
+    let [, type, placeId] = id.split("-"), url = type === "trade" ? "https://www.roblox.com/trades" : `https://www.roblox.com/games/${placeId}`;
+    chrome.tabs.create({ url }), chrome.notifications.clear(id);
+  }
+  __name(onClicked, "onClicked");
+  async function syncNotifications() {
+    await hasPermission() && !chrome.notifications.onClicked.hasListener(onClicked) && chrome.notifications.onClicked.addListener(onClicked);
+    let { trades, friends } = await getEnabled(), enabled = trades || friends;
+    enabled && !interval ? (interval = setInterval(() => check().catch(() => {
+    }), 6e4), check().catch(() => {
+    })) : !enabled && interval && (clearInterval(interval), interval = null, chrome.storage.local.remove(STATE_KEY));
+  }
+  __name(syncNotifications, "syncNotifications");
+  function setupNotifications(callApi) {
+    api = callApi, chrome.storage.onChanged.addListener((changes, namespace) => {
+      namespace === "local" && Object.keys(SETTING_DEFAULTS).some((key) => key in changes) && syncNotifications();
+    }), chrome.permissions.onAdded.addListener(syncNotifications), chrome.permissions.onRemoved.addListener(syncNotifications), syncNotifications();
+  }
+  __name(setupNotifications, "setupNotifications");
 
   // src/background/background.js
   var state = {
@@ -3955,9 +4497,16 @@ Standards{linkEnd}.`,
       method = "GET",
       body = null,
       headers = {},
-      fullUrl = null
+      fullUrl = null,
+      isRovalraApi = !1
     } = options, url;
-    if (fullUrl) {
+    if (isRovalraApi) {
+      if (subdomain !== "apis")
+        throw new Error(
+          "Unsupported RoValra subdomain for background fetch"
+        );
+      url = `https://apis.rovalra.com${endpoint}`;
+    } else if (fullUrl) {
       let parsedUrl = new URL(fullUrl);
       if (parsedUrl.hostname !== "setup.rbxcdn.com")
         throw new Error("Unsupported fullUrl host for background fetch");
@@ -3967,7 +4516,7 @@ Standards{linkEnd}.`,
     let separator = url.includes("?") ? "&" : "?";
     endpoint?.includes("/player-hydration-service/v1/players/signed") || (url += `${separator}_RoValraRequest=`);
     let fetchOptions = { method, headers: { ...headers } };
-    body && (typeof body == "object" ? (fetchOptions.headers["Content-Type"] = "application/json", fetchOptions.body = JSON.stringify(body)) : fetchOptions.body = body), method !== "GET" && method !== "HEAD" && state.csrfTokenCache && (fetchOptions.headers["X-CSRF-TOKEN"] = state.csrfTokenCache);
+    isRovalraApi && (fetchOptions.credentials = "omit"), body && (typeof body == "object" ? (fetchOptions.headers["Content-Type"] = "application/json", fetchOptions.body = JSON.stringify(body)) : fetchOptions.body = body), !isRovalraApi && method !== "GET" && method !== "HEAD" && state.csrfTokenCache && (fetchOptions.headers["X-CSRF-TOKEN"] = state.csrfTokenCache);
     let rateLimitKey = new URL(url).origin, cooldownUntil = rateLimitCooldowns.get(rateLimitKey) || 0;
     cooldownUntil > Date.now() ? await sleep(cooldownUntil - Date.now()) : rateLimitCooldowns.delete(rateLimitKey);
     let response = await fetch(url, fetchOptions);
@@ -3981,7 +4530,7 @@ Standards{linkEnd}.`,
         )
       );
     }
-    if (response.status === 403 && method !== "GET" && method !== "HEAD") {
+    if (!isRovalraApi && response.status === 403 && method !== "GET" && method !== "HEAD") {
       let newCsrf = response.headers.get("x-csrf-token");
       newCsrf && (state.csrfTokenCache = newCsrf, fetchOptions.headers["X-CSRF-TOKEN"] = newCsrf, response = await fetch(url, fetchOptions));
     }
@@ -5249,4 +5798,5 @@ Standards{linkEnd}.`,
   setupContextMenuListener();
   updateBannedUserListener();
   updatePrivateGameListener();
+  setupNotifications(callRobloxApiBackground);
 })();

@@ -1,4 +1,8 @@
 // These functions replace the string-injection launcher in the upstream bundle.
+function toSafeId(value) {
+  const id = Number.parseInt(value, 10);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
 function executeLaunchScript(method, args = [], fallbackUrl = null) {
   return browser.runtime.sendMessage({
     action: "rovalraFirefoxLaunch", method, args, fallbackUrl,
@@ -7,13 +11,19 @@ function executeLaunchScript(method, args = [], fallbackUrl = null) {
   }).catch((error) => console.error("RoValra Launcher:", error));
 }
 function launchGame(placeId, jobId = null) {
+  placeId = toSafeId(placeId);
+  if (!placeId) return;
   return runLaunch(placeId, "joinGameInstance", jobId
     ? [Number(placeId), String(jobId)] : [Number(placeId)]);
 }
 function launchPrivateGame(placeId, accessCode, linkCode) {
+  placeId = toSafeId(placeId);
+  if (!placeId) return;
   return runLaunch(placeId, "joinPrivateGame", [Number(placeId), accessCode, linkCode]);
 }
 function launchMultiplayerGame(placeId, launchData = {}) {
+  placeId = toSafeId(placeId);
+  if (!placeId) return;
   window.__rovalra_skipNextLaunch = true;
   return runLaunch(placeId, "joinMultiplayerGame", [Number(placeId), false, false, null, null, { launchData }]);
 }
@@ -24,7 +34,7 @@ function runLaunch(placeId, method, args) {
   }).then(() => executeLaunchScript(method, args));
 }
 function followUser(userId) {
-  const id = Number.parseInt(userId, 10);
+  const id = toSafeId(userId);
   if (!id) return;
   const url = `https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestFollowUser&userId=${id}&is30=false`;
   const launch = () => executeLaunchScript("followPlayerIntoGame", [id],
@@ -36,17 +46,20 @@ function followUser(userId) {
     }).then(launch);
 }
 function openWebChat(userId) {
-  const id = Number.parseInt(userId, 10);
+  const id = toSafeId(userId);
   if (!id) return;
   return executeLaunchScript("navigateToDeepLink", [`roblox://navigation/chat?userId=${id}`]);
 }
 async function launchStudioForGame(placeId) {
+  placeId = toSafeId(placeId);
+  if (!placeId) return;
   try {
     const games = await callRobloxApiJson({
       subdomain: "games", endpoint: `/v1/games/multiget-place-details?placeIds=${placeId}`,
     });
-    if (!games?.[0]?.universeId) throw new Error("Universe ID unavailable");
-    return executeLaunchScript("editGameInStudio", [Number(placeId), games[0].universeId],
+    const universeId = toSafeId(games?.[0]?.universeId);
+    if (!universeId) throw new Error("Universe ID unavailable");
+    return executeLaunchScript("editGameInStudio", [Number(placeId), universeId],
       `roblox-studio:launchmode:edit+task:EditPlace+placeId:${Number(placeId)}`);
   } catch (error) {
     console.error("RoValra Launcher: Studio fallback", error);

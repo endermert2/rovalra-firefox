@@ -43,7 +43,7 @@ export function globeFixtureSource() {
     const getAssets=()=>({rovalraIcon:browser.runtime.getURL('public/Assets/RoValraLogo.png'),
       globeInitializer:browser.runtime.getURL('public/Assets/data/globe_initializer.js'),
       mapDark:browser.runtime.getURL('public/Assets/data/map_dark.png')});
-    const detectTheme2=()=> 'dark',ts2=()=> 'RoValra Region Selector',setupGlobePointerEvents=()=>{},
+    const detectTheme2=()=> 'dark',ts=()=> 'RoValra Region Selector',setupGlobePointerEvents=()=>{},
       buildServerCountsMap=()=>({DE:2});
     async function injectScript(src) {
       const response=await browser.runtime.sendMessage({action:'rovalraFirefoxMainScript',

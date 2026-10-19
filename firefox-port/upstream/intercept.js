@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.15
+ * rovalra v2.6.18
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -166,37 +166,45 @@ const AccessoryAssetTypes = [
       (sort) => homeExtraSortKeys.add(getHomeSortKey(sort))
     ), refreshHomeExtraSorts();
   }), document.addEventListener("rovalra-home-rendered", refreshHomeExtraSorts);
+  function getHomeSortDispatch() {
+    const visited = /* @__PURE__ */ new Set();
+    for (const card of document.querySelectorAll(
+      "#HomeContainer a.game-card-link"
+    )) {
+      const fiberKey = Object.keys(card).find(
+        (key) => key.startsWith("__reactFiber$")
+      );
+      for (let fiber = card[fiberKey]; fiber && !visited.has(fiber); fiber = fiber.return) {
+        visited.add(fiber);
+        for (let hook = fiber.memoizedState; hook; hook = hook.next)
+          if (hook.memoizedState?.pageType === "Home" && Array.isArray(hook.memoizedState.sorts) && typeof hook.queue?.dispatch == "function")
+            return hook.queue.dispatch;
+      }
+    }
+  }
+  __name(getHomeSortDispatch, "getHomeSortDispatch");
   function refreshHomeExtraSorts() {
-    const card = document.querySelector("#HomeContainer a.game-card-link");
-    if (!card) return;
-    const fiberKey = Object.keys(card).find(
-      (key) => key.startsWith("__reactFiber$")
-    );
-    for (let fiber = card[fiberKey]; fiber; fiber = fiber.return)
-      for (let hook = fiber.memoizedState; hook; hook = hook.next)
-        if (!(hook.memoizedState?.pageType !== "Home" || !Array.isArray(hook.memoizedState.sorts) || typeof hook.queue?.dispatch != "function")) {
-          hook.queue.dispatch((current) => {
-            if (current?.pageType !== "Home" || !Array.isArray(current.sorts))
-              return current;
-            const data = {
-              ...current,
-              sorts: current.sorts.filter(
-                (sort) => !homeExtraSortKeys.has(getHomeSortKey(sort))
-              ),
-              games: [...current.games || []],
-              contentMetadata: {
-                ...current.contentMetadata,
-                Game: { ...current.contentMetadata?.Game }
-              }
-            }, currentKeys = new Set(data.sorts.map(getHomeSortKey));
-            for (const sort of homeKnownSorts) {
-              const key = getHomeSortKey(sort);
-              homeLayoutHidden.includes(key) && !currentKeys.has(key) && !homeExtraSortKeys.has(key) && data.sorts.push(sort);
-            }
-            return addHomeExtraSorts(data), reorderHomeSorts(data), dispatchHomeLayoutCategories(data), hideHomeSorts(data), data;
-          });
-          return;
+    const dispatch = getHomeSortDispatch();
+    dispatch && dispatch((current) => {
+      if (current?.pageType !== "Home" || !Array.isArray(current.sorts))
+        return current;
+      const data = {
+        ...current,
+        sorts: current.sorts.filter(
+          (sort) => !homeExtraSortKeys.has(getHomeSortKey(sort))
+        ),
+        games: [...current.games || []],
+        contentMetadata: {
+          ...current.contentMetadata,
+          Game: { ...current.contentMetadata?.Game }
         }
+      }, currentKeys = new Set(data.sorts.map(getHomeSortKey));
+      for (const sort of homeKnownSorts) {
+        const key = getHomeSortKey(sort);
+        homeLayoutHidden.includes(key) && !currentKeys.has(key) && !homeExtraSortKeys.has(key) && data.sorts.push(sort);
+      }
+      return addHomeExtraSorts(data), reorderHomeSorts(data), dispatchHomeLayoutCategories(data), hideHomeSorts(data), data;
+    });
   }
   __name(refreshHomeExtraSorts, "refreshHomeExtraSorts");
   function waitForHomeLayoutState() {

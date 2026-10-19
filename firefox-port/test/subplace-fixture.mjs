@@ -25,7 +25,7 @@ export function subplaceFixtureSource(fixed) {
     const getServerUptime=()=>null,getServerUptimeIsEstimate=()=>false,getServerVersion=()=>null,
       getServerRegion=()=>null,getPlaceIdFromUrl=()=> '111',normalizeRegionName=value=>value||'',
       getLocationFromDataCenterId=()=>null;
-    const t2=async(key)=>key,ts2=key=>key,displayLanguageMatch=async()=>{};
+    const t2=async(key)=>key,ts=key=>key,displayLanguageMatch=async()=>{};
     const launchGame=(place,id)=>joins.push([String(place),id]);
     const fetchThumbnails=async(items)=>new Map(items.map(item=>[item.id,{imageUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='}]));
     const displayUptime=(el,value)=>{el.dataset.testUptime=String(value);},

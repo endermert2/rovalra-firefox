@@ -38,7 +38,7 @@ export function serverEventsFixtureSource(fixed) {
     const getServerUptime=()=>null,getServerUptimeIsEstimate=()=>false,getServerVersion=()=>null,getServerRegion=()=>null,
       getPlaceIdFromUrl=()=> '85547073091480',getPlaceIdFromUrl6=getPlaceIdFromUrl,normalizeRegionName=value=>value||'',
       getLocationFromDataCenterId=()=>null,findServerListContainer=()=>host;
-    const t2=async(key)=>key,ts2=key=>key,launchGame=noop,displayLanguageMatch=async()=>{};
+    const t2=async(key)=>key,ts=key=>key,launchGame=noop,displayLanguageMatch=async()=>{};
     const displayUptime=noop,displayPlaceVersion=noop,displayRegion=noop,displayServerFullStatus=noop,displayPurchaseGameStatus=noop;
     const displayMessageInContainer=message=>{host.textContent=message;};
     const fetchServerDetails=async()=>({servers:[]});

@@ -38,7 +38,7 @@ export function repairServers(source,contracts) {
   }
   replace('fetchServerUptime',text=>{
     text=once(text,'!response.servers || response.servers.length === 0','!Array.isArray(response?.servers)');
-    return once(text,', !getServerRegion(id) && !serverStatuses[id] && displayServerFullStatus(el4)','');
+    return once(text,', !getServerRegion(id) && !serverStatuses[id] && displayServerFullStatus(el5)','');
   });
   replace('fetchAndDisplayRegion',text=>{
     text=once(text,'serverStatuses[serverId] = "inactive"','serverStatuses[serverId] = "unconfirmed"');
