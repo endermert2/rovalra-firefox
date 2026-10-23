@@ -1,5 +1,9 @@
 # RoValra 2.6.18 updater repair
 
+The subsequent [October 23 audit repair](AUDIT-REPAIR-2026-10-23.md) supersedes
+the package names and upload steps below. The current port is 2.6.18.13 with
+DOMPurify 3.4.17; the reviewed upstream compatibility changes here are retained.
+
 The scheduled workflow stopped at `New upstream permission notifications; review required`.
 The new upstream feature uses optional browser notifications for incoming trades
 and pinned friends joining games. The Firefox port is now **2.6.18.12**, based on

@@ -2,10 +2,14 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.18.12: upstream release 2.6.18 plus adapter revision 12.
+The current version is 2.6.18.13: upstream release 2.6.18 plus adapter revision 13.
+
+The [October 23 audit repair](AUDIT-REPAIR-2026-10-23.md) updates the bundled
+DOMPurify to 3.4.17 and pins the workflow to Ubuntu 24.04 during GitHub's runner
+migration. Use its upload steps for the current package.
 
 The [2.6.18 updater repair](UPSTREAM-REPAIR-2.6.18.md) reviews optional notifications,
-launcher validation and the mesh decoder split, with current GitHub upload steps. The [October 6 audit repair](AUDIT-REPAIR-2026-10-06.md)
+launcher validation and the mesh decoder split. The [October 6 audit repair](AUDIT-REPAIR-2026-10-06.md)
 is retained: source-map-js stays at 1.2.2 in the lockfile.
 
 See [the visual repair](VISUAL-REPAIR-2.6.14.110.md) for the Quick Play SVG icons,
@@ -16,7 +20,7 @@ The [October updater repair](UPDATER-REPAIR-2026-10-04.md) remains included.
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.18.12-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.18.13-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -81,7 +85,7 @@ and the adapter for distribution under the existing license. It requires a prior
 ## October 2026 updater repair
 
 The dependency audit now passes with zero vulnerabilities. The port uses Mozilla's
-standalone validator and DOMPurify 3.4.16. Upstream hotfix tags retain their full
+standalone validator and DOMPurify 3.4.17. Upstream hotfix tags retain their full
 identity even when the packaged manifest omits the hotfix. See
 [the current repair checklist](UPDATER-REPAIR-2026-10-04.md).
 

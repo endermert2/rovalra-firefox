@@ -19,12 +19,12 @@
   "devDependencies": {
     "acorn": "8.18.0",
     "acorn-walk": "8.3.5",
+    "addons-linter": "10.13.0",
+    "dompurify": "3.4.17",
     "esbuild": "0.28.2",
     "fflate": "0.8.3",
     "geckodriver": "6.1.1",
-    "selenium-webdriver": "4.49.0",
-    "addons-linter": "10.13.0",
-    "dompurify": "3.4.16"
+    "selenium-webdriver": "4.49.0"
   },
   "overrides": {
     "adm-zip": "0.6.1"

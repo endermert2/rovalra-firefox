@@ -6,10 +6,11 @@ Mozilla developer account, API keys, or signing service.
 
 You can install the local XPI immediately. Completing this guide lets Firefox
 receive future adapted releases automatically through its normal add-on updater.
-The new local port is 2.6.18.12. Upload its repaired adapter source and start a new
+The new local port is 2.6.18.13. Upload its repaired adapter source and start a new
 run to publish it through the existing update feed. Both the dependency audit
-repair and the reviewed notification, launcher and decoder changes for upstream 2.6.18 are included.
-See [the 2.6.18 updater repair guide](UPSTREAM-REPAIR-2.6.18.md) for current upload steps.
+repair (DOMPurify 3.4.17) and the reviewed notification, launcher and decoder
+changes for upstream 2.6.18 are included. The workflow is pinned to Ubuntu 24.04.
+See [the October 23 audit repair guide](AUDIT-REPAIR-2026-10-23.md) for current upload steps.
 [REPAIR-NOTES.md](REPAIR-NOTES.md) records the earlier updater diagnosis.
 
 ## 1. How the pieces fit together
@@ -59,7 +60,7 @@ original extension comes from. Only `releaseRepository` names your own repositor
 Do not change the add-on ID after installation; Firefox uses it to associate updates
 and settings with this extension.
 
-The current adapter revision is 12, producing version **2.6.18.12** from upstream
+The current adapter revision is 13, producing version **2.6.18.13** from upstream
 2.6.18. Three-part releases append the revision as before; hotfix releases use
 `hotfix × 100 + revision` as their fourth component. Revisions must be 1–99.
 A compatibility fix for the same upstream version must
@@ -159,7 +160,7 @@ reach that branch.
 1. In **Firefox Developer Edition**, open `about:config` and set
    `xpinstall.signatures.required` to **false**.
 2. Download the unsigned XPI from your first release. Alternatively, use the local
-   `firefox-port/build/rovalra-firefox-2.6.18.12-unsigned.xpi` prepared here; it contains
+   `firefox-port/build/rovalra-firefox-2.6.18.13-unsigned.xpi` prepared here; it contains
    the same configured update address.
 3. Open `about:addons`, click the gear, choose **Install Add-on From File**, and
    select the XPI. Accept the installation and grant Roblox access if asked.

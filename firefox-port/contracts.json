@@ -75,7 +75,7 @@
     "chrome.webRequest.onBeforeRedirect.hasListener",
     "chrome.webRequest.onBeforeRedirect.removeListener"
   ],
-  "sanitizerSha256": "2c90a9b46d6463f26038a29b686e82bc91de01fdac9d5229e7cfe3b360134ea2",
+  "sanitizerSha256": "cd37898f9782adf54820c413191b5691803f0f137c799d6edcfd38523b4c2c31",
   "serverFunctions": {
     "enhanceServer": "4cf56927071efab87c93ab28d423a648eccb3f10902a5256d4675f9bd5c33f92",
     "processUptimeBatch": "ab003e580e552478e9d4c9012ee06258554fe33af5df444dd3e56fbc3db12e63",
