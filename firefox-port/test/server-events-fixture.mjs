@@ -30,7 +30,7 @@ export function serverEventsFixtureSource(fixed) {
       isServerRegionEnabled=true,isPlaceVersionEnabled=true,isFullServerIDEnabled=false,isFullServerIndicatorsEnabled=true;
     const CLASSES={CONTAINER:'event-details',INFO_ROW:'event-row',Inactive:'event-inactive'},ORDERS={Status:1},
       STYLES3={row:'',icon:'',text:'',container:'',containerFriends:''};
-    const purify=DOMPurify,console={error:(...args)=>errors.push(args.map(String).join(' ')),warn:()=>{}};
+    const purify_default=DOMPurify,console={error:(...args)=>errors.push(args.map(String).join(' ')),warn:()=>{}};
     const serverNetworkInfo=new Map();
     const noop=()=>{},__name=fn=>fn,injectStyles4=noop,resetServerRow=noop,markJoinButtonFull=noop,cleanupServerUI=noop,attachCleanupObserver=noop,enableAvatarLinks=noop,
       displayPerformance=noop,displayIpAndDcId=noop,addCopyJoinLinkButton=noop,addTooltip=noop,

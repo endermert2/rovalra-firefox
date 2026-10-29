@@ -34,6 +34,18 @@ test('lint policy recognizes sanitizer aliases but rejects unsanitized warnings'
   assert.throws(()=>inspectHtmlWarnings({'content.js':Buffer.from(source+'p=unsafe;')},warnings,''),/reassigned/);
 });
 
+test('the upstream sanitizer alias keeps its options and runs only once',()=>{
+  const source='var purify_default=DOMPurify; el.innerHTML=purify_default.sanitize(input,{ADD_TAGS:["icon"]});';
+  const result=hardenHTML(source),calls=[];
+  const context={el:{},input:'markup',DOMPurify:{sanitize:(value,options)=>{calls.push(options);return 'clean';}}};
+  vm.runInNewContext(result.source,context);
+  assert.equal(context.el.innerHTML,'clean');
+  assert.equal(calls.length,1);
+  assert.deepEqual(Array.from(calls[0].ADD_TAGS),['icon']);
+  const warning={file:'content.js',code:'UNSAFE_VAR_ASSIGNMENT',line:1,column:result.source.indexOf('el.innerHTML')+1};
+  assert.equal(inspectHtmlWarnings({'content.js':Buffer.from(result.source)},[warning],'').unexpected.length,0);
+});
+
 test('an arbitrary template tag and modified sanitizer are not automatically exempt',()=>{
   const source='el.innerHTML=fake`<b>${input}</b>`;';
   const warning={file:'content.js',code:'UNSAFE_VAR_ASSIGNMENT',line:1,column:1};

@@ -17,7 +17,7 @@ export function subplaceFixtureSource(fixed) {
       isServerRegionEnabled=true,isPlaceVersionEnabled=true,isFullServerIDEnabled=false,isFullServerIndicatorsEnabled=true;
     const CLASSES={CONTAINER:'fixture-details',INFO_ROW:'fixture-row',Inactive:'fixture-inactive'},ORDERS={Status:1},
       STYLES3={row:'',icon:'',text:'',container:'',containerFriends:''};
-    const purify=DOMPurify,console={error:(...args)=>errors.push(args.map(String).join(' '))};
+    const purify_default=DOMPurify,console={error:(...args)=>errors.push(args.map(String).join(' '))};
     const setTimeout=(fn,ms)=>globalThis.setTimeout(()=>{try {Promise.resolve(fn()).catch(e=>errors.push(String(e)));}catch(e){errors.push(String(e));}},ms);
     const serverNetworkInfo=new Map();
     const noop=()=>{},__name=fn=>fn,injectStyles4=noop,resetServerRow=noop,markJoinButtonFull=noop,cleanupServerUI=noop,attachCleanupObserver=noop,enableAvatarLinks=noop,

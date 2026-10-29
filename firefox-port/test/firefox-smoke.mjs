@@ -103,6 +103,21 @@ browser.runtime.onMessage.addListener((message) => {
 await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
 (async () => {
   const report = result => browser.runtime.sendMessage({action:'smokeReport',result});
+  // 2.6.20 uses these APIs for its debug overlay and IndexedDB listeners.
+  const runtimeListener = () => false;
+  chrome.runtime.onMessage.addListener(runtimeListener);
+  const listenerAdded = chrome.runtime.onMessage.hasListener(runtimeListener);
+  chrome.runtime.onMessage.removeListener(runtimeListener);
+  const localBytes = await RoValraFirefoxStorage.local.getBytesInUse(null);
+  const reviewedApis = chrome.runtime.id === browser.runtime.id && Boolean(chrome.runtime.id) &&
+    listenerAdded && !chrome.runtime.onMessage.hasListener(runtimeListener) &&
+    Number.isFinite(localBytes) && localBytes >= 0;
+  const dbRequest = (action, extra = {}) => browser.runtime.sendMessage({action, store:'firefoxSmoke', key:'probe', ...extra});
+  const dbSet = await dbRequest('indexedDbSet', {value:{retained:true}});
+  const dbGet = await dbRequest('indexedDbGet');
+  const dbRemove = await dbRequest('indexedDbRemove');
+  const dbEmpty = await dbRequest('indexedDbGet');
+  const indexedDbWorks = !dbSet.error && dbGet.value?.retained === true && !dbRemove.error && dbEmpty.value === null;
   await new Promise(resolve => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',resolve,{once:true}) : resolve());
   const fonts=await RoValraFirefoxFontsReady;
   const draco=await DracoDecoderModule();
@@ -159,7 +174,7 @@ await fs.writeFile(path.join(fixture, 'smoke-content.js'), `
   const iconsBefore=${iconsFixtureSource(false)},icons=${iconsFixtureSource(true)};
   const globe=await ${globeFixtureSource()};
   await report({test:'content',event:document.documentElement.dataset.eventValue,session:session.firefoxSmokeKey,changed,
-    response,launches,invalid,workerReady,publicSync,blockedHost,
+    response,launches,invalid,workerReady,publicSync,blockedHost,reviewedApis,indexedDbWorks,
     fonts,dracoReady,bookmarkWidth,htmlSafe,subplacesBefore,subplaces,serverEventsBefore,serverEvents,iconsBefore,icons,globe,
     contentLoaded:typeof RoValraFirefoxStorage !== 'undefined'});
 })().catch(error=>browser.runtime.sendMessage({action:'smokeReport',result:{error:String(error),stack:error.stack}}));
@@ -236,7 +251,7 @@ try {
     throw new Error('Firefox reported a script or declarative rule failure');
   }
   if (!bg || !content || results.some(r => r.error) || bg.promises !== 42 || bg.callbacks !== 43 || bg.notificationsGranted !== false ||
-      content.event !== 'readable' || content.session !== 123 || content.changed !== 123 ||
+      content.event !== 'readable' || content.session !== 123 || content.changed !== 123 || !content.reviewedApis || !content.indexedDbWorks ||
       !content.launches.every(r => r.success) || content.invalid.success || page.launches?.length !== 7 ||
       page.launches[6].method !== 'navigateToDeepLink' ||
       !page.interceptor || JSON.stringify(content.workerReady?.values) !== '[2,3,4]' ||

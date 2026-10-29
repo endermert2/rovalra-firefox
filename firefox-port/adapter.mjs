@@ -216,7 +216,7 @@ export async function adaptFiles(input, config, upstreamVersion) {
   content = edits(content, changes);
   // Use the pinned, current sanitizer for the existing upstream sanitization too.
   content = replaceFunction(content, 'createDOMPurify', 'function createDOMPurify() { return DOMPurify; }', contracts);
-  content = replaceOnce(content, 'purify = createDOMPurify();', 'purify = DOMPurify;');
+  content = replaceOnce(content, 'purify_default = createDOMPurify();', 'purify_default = DOMPurify;');
   const html = hardenHTML(content);
   content = html.source;
   // These preloads and the Google stylesheet depend on the page's CSP. The

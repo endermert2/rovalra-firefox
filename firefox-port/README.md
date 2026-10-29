@@ -2,11 +2,12 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.6.18.13: upstream release 2.6.18 plus adapter revision 13.
+The current version is 2.6.20.14: upstream release 2.6.20 plus adapter revision 14.
 
-The [October 23 audit repair](AUDIT-REPAIR-2026-10-23.md) updates the bundled
-DOMPurify to 3.4.17 and pins the workflow to Ubuntu 24.04 during GitHub's runner
-migration. Use its upload steps for the current package.
+The [October 29 repair](UPSTREAM-REPAIR-2.6.20.md) updates fast-uri and undici
+in the build lockfile and reviews upstream 2.6.20 compatibility. Use its upload
+steps for the current package. DOMPurify remains pinned to 3.4.17 and the
+workflow remains on Ubuntu 24.04.
 
 The [2.6.18 updater repair](UPSTREAM-REPAIR-2.6.18.md) reviews optional notifications,
 launcher validation and the mesh decoder split. The [October 6 audit repair](AUDIT-REPAIR-2026-10-06.md)
@@ -20,7 +21,7 @@ The [October updater repair](UPDATER-REPAIR-2026-10-04.md) remains included.
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.6.18.13-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.6.20.14-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -84,7 +85,9 @@ and the adapter for distribution under the existing license. It requires a prior
 
 ## October 2026 updater repair
 
-The dependency audit now passes with zero vulnerabilities. The port uses Mozilla's
+The dependency audit passes its moderate-or-higher threshold. Two low-severity
+findings remain in the validator's deepmerge dependency chain, with no patched
+release currently available; see the October 29 repair guide. The port uses Mozilla's
 standalone validator and DOMPurify 3.4.17. Upstream hotfix tags retain their full
 identity even when the packaged manifest omits the hotfix. See
 [the current repair checklist](UPDATER-REPAIR-2026-10-04.md).
@@ -139,7 +142,7 @@ functions are unrelated to the removed Firefox browser launcher.
 
 `npm test` covers archive safety, patch contracts, manifest conversion, Roblox
 launcher argument preservation, unsigned update-manifest construction, outfit-hook ordering and failure fallback,
-storage-listener removal, adaptation of the reviewed 2.6.18 input, notification permission gating, decoder
+storage-listener removal, adaptation of the reviewed 2.6.20 input, notification permission gating, decoder
 script ordering, launcher ID validation, and hotfix version ordering.
 `npm run verify` runs Mozilla's standalone addons-linter; this does not contact its signing
 service. Raw HTML warnings remain in `build/lint.json`. Each warning is now checked against

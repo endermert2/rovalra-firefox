@@ -7,7 +7,8 @@ import vm from 'node:vm';
 // in the Firefox background bundle, without contacting Roblox or displaying OS UI.
 const background=await fs.readFile(new URL('../upstream/background.js',import.meta.url),'utf8');
 const start=background.indexOf('// src/background/notifications.js');
-const end=background.indexOf('// src/background/background.js',start);
+// Stop at the next bundled module; upstream can insert dependencies here.
+const end=background.indexOf('\n  // ',start);
 assert(start>=0 && end>start,'Upstream notification module layout changed');
 const source=background.slice(start,end);
 

@@ -11,7 +11,7 @@ export function hardenHTML(source) {
     if(ancestors.some(a=>a.type==='FunctionDeclaration' && a.id?.name==='createDOMPurify'))return;
     if(node.type==='Literal' || (node.type==='TemplateLiteral' && !node.expressions.length))return;
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' && node.callee.property.name==='sanitize' &&
-      ['purify','dompurify_default','DOMPurify'].includes(node.callee.object.name))return;
+      ['purify','purify_default','dompurify_default','DOMPurify'].includes(node.callee.object.name))return;
     if(node.type==='TaggedTemplateExpression' && node.tag.name==='safeHtml')return;
     changes.push({start:node.start,end:node.start,text:'DOMPurify.sanitize('},
       {start:node.end,end:node.end,text:options});

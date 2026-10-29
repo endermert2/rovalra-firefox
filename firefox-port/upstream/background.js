@@ -1,12 +1,4684 @@
 /*!
- * rovalra v2.6.18
+ * rovalra v2.6.20
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
  */
 (() => {
+  var __create = Object.create;
   var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __getProtoOf = Object.getPrototypeOf, __hasOwnProp = Object.prototype.hasOwnProperty;
   var __name = (target, value) => __defProp(target, "name", { value, configurable: !0 });
+  var __commonJS = (cb, mod) => function() {
+    try {
+      return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+    } catch (e) {
+      throw mod = 0, e;
+    }
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from == "object" || typeof from == "function")
+      for (let key of __getOwnPropNames(from))
+        !__hasOwnProp.call(to, key) && key !== except && __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    return to;
+  };
+  var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+    // If the importer is in node compatibility mode or this is not an ESM
+    // file that has been converted to a CommonJS file using a Babel-
+    // compatible transform (i.e. "__esModule" has not been set), then set
+    // "default" to the CommonJS "module.exports" for node compatibility.
+    isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: !0 }) : target,
+    mod
+  ));
+
+  // node_modules/dexie/dist/dexie.js
+  var require_dexie = __commonJS({
+    "node_modules/dexie/dist/dexie.js"(exports, module) {
+      (function(global2, factory) {
+        typeof exports == "object" && typeof module < "u" ? module.exports = factory() : typeof define == "function" && define.amd ? define(factory) : (global2 = typeof globalThis < "u" ? globalThis : global2 || self, global2.Dexie = factory());
+      })(exports, (function() {
+        "use strict";
+        var extendStatics = /* @__PURE__ */ __name(function(d, b) {
+          return extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
+            d2.__proto__ = b2;
+          } || function(d2, b2) {
+            for (var p in b2) Object.prototype.hasOwnProperty.call(b2, p) && (d2[p] = b2[p]);
+          }, extendStatics(d, b);
+        }, "extendStatics");
+        function __extends(d, b) {
+          if (typeof b != "function" && b !== null)
+            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
+          extendStatics(d, b);
+          function __() {
+            this.constructor = d;
+          }
+          __name(__, "__"), d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+        }
+        __name(__extends, "__extends");
+        var __assign = /* @__PURE__ */ __name(function() {
+          return __assign = Object.assign || /* @__PURE__ */ __name(function(t) {
+            for (var s, i = 1, n = arguments.length; i < n; i++) {
+              s = arguments[i];
+              for (var p in s) Object.prototype.hasOwnProperty.call(s, p) && (t[p] = s[p]);
+            }
+            return t;
+          }, "__assign"), __assign.apply(this, arguments);
+        }, "__assign");
+        function __spreadArray(to, from, pack) {
+          if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++)
+            (ar || !(i in from)) && (ar || (ar = Array.prototype.slice.call(from, 0, i)), ar[i] = from[i]);
+          return to.concat(ar || Array.prototype.slice.call(from));
+        }
+        __name(__spreadArray, "__spreadArray"), typeof SuppressedError == "function" && SuppressedError;
+        var _global = typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : typeof window < "u" ? window : global, keys = Object.keys, isArray = Array.isArray;
+        typeof Promise < "u" && !_global.Promise && (_global.Promise = Promise);
+        function extend(obj, extension) {
+          return typeof extension != "object" || keys(extension).forEach(function(key) {
+            obj[key] = extension[key];
+          }), obj;
+        }
+        __name(extend, "extend");
+        var getProto = Object.getPrototypeOf, _hasOwn = {}.hasOwnProperty;
+        function hasOwn(obj, prop) {
+          return _hasOwn.call(obj, prop);
+        }
+        __name(hasOwn, "hasOwn");
+        function props(proto, extension) {
+          typeof extension == "function" && (extension = extension(getProto(proto))), (typeof Reflect > "u" ? keys : Reflect.ownKeys)(extension).forEach(function(key) {
+            setProp(proto, key, extension[key]);
+          });
+        }
+        __name(props, "props");
+        var defineProperty = Object.defineProperty;
+        function setProp(obj, prop, functionOrGetSet, options) {
+          defineProperty(obj, prop, extend(functionOrGetSet && hasOwn(functionOrGetSet, "get") && typeof functionOrGetSet.get == "function" ? {
+            get: functionOrGetSet.get,
+            set: functionOrGetSet.set,
+            configurable: !0
+          } : { value: functionOrGetSet, configurable: !0, writable: !0 }, options));
+        }
+        __name(setProp, "setProp");
+        function derive(Child) {
+          return {
+            from: /* @__PURE__ */ __name(function(Parent) {
+              return Child.prototype = Object.create(Parent.prototype), setProp(Child.prototype, "constructor", Child), {
+                extend: props.bind(null, Child.prototype)
+              };
+            }, "from")
+          };
+        }
+        __name(derive, "derive");
+        var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+        function getPropertyDescriptor(obj, prop) {
+          var pd = getOwnPropertyDescriptor(obj, prop), proto;
+          return pd || (proto = getProto(obj)) && getPropertyDescriptor(proto, prop);
+        }
+        __name(getPropertyDescriptor, "getPropertyDescriptor");
+        var _slice = [].slice;
+        function slice(args, start, end) {
+          return _slice.call(args, start, end);
+        }
+        __name(slice, "slice");
+        function override(origFunc, overridedFactory) {
+          return overridedFactory(origFunc);
+        }
+        __name(override, "override");
+        function assert(b) {
+          if (!b)
+            throw new Error("Assertion Failed");
+        }
+        __name(assert, "assert");
+        function asap$1(fn) {
+          _global.setImmediate ? setImmediate(fn) : setTimeout(fn, 0);
+        }
+        __name(asap$1, "asap$1");
+        function arrayToObject(array, extractor) {
+          return array.reduce(function(result, item, i) {
+            var nameAndValue = extractor(item, i);
+            return nameAndValue && (result[nameAndValue[0]] = nameAndValue[1]), result;
+          }, {});
+        }
+        __name(arrayToObject, "arrayToObject");
+        function getByKeyPath(obj, keyPath) {
+          if (typeof keyPath == "string" && hasOwn(obj, keyPath))
+            return obj[keyPath];
+          if (!keyPath)
+            return obj;
+          if (typeof keyPath != "string") {
+            for (var rv = [], i = 0, l = keyPath.length; i < l; ++i) {
+              var val = getByKeyPath(obj, keyPath[i]);
+              rv.push(val);
+            }
+            return rv;
+          }
+          var period = keyPath.indexOf(".");
+          if (period !== -1) {
+            var innerObj = obj[keyPath.substr(0, period)];
+            return innerObj == null ? void 0 : getByKeyPath(innerObj, keyPath.substr(period + 1));
+          }
+        }
+        __name(getByKeyPath, "getByKeyPath");
+        function setByKeyPath(obj, keyPath, value) {
+          if (!(!obj || keyPath === void 0) && !("isFrozen" in Object && Object.isFrozen(obj)))
+            if (typeof keyPath != "string" && "length" in keyPath) {
+              assert(typeof value != "string" && "length" in value);
+              for (var i = 0, l = keyPath.length; i < l; ++i)
+                setByKeyPath(obj, keyPath[i], value[i]);
+            } else {
+              var period = keyPath.indexOf(".");
+              if (period !== -1) {
+                var currentKeyPath = keyPath.substr(0, period), remainingKeyPath = keyPath.substr(period + 1);
+                if (remainingKeyPath === "")
+                  value === void 0 ? isArray(obj) && !isNaN(parseInt(currentKeyPath)) ? obj.splice(currentKeyPath, 1) : delete obj[currentKeyPath] : obj[currentKeyPath] = value;
+                else {
+                  var innerObj = obj[currentKeyPath];
+                  if (!innerObj || !hasOwn(obj, currentKeyPath)) {
+                    if (value === void 0)
+                      return;
+                    innerObj = obj[currentKeyPath] = {};
+                  }
+                  setByKeyPath(innerObj, remainingKeyPath, value);
+                }
+              } else
+                value === void 0 ? isArray(obj) && !isNaN(parseInt(keyPath)) ? obj.splice(keyPath, 1) : delete obj[keyPath] : obj[keyPath] = value;
+            }
+        }
+        __name(setByKeyPath, "setByKeyPath");
+        function delByKeyPath(obj, keyPath) {
+          typeof keyPath == "string" ? setByKeyPath(obj, keyPath, void 0) : "length" in keyPath && [].map.call(keyPath, function(kp) {
+            setByKeyPath(obj, kp, void 0);
+          });
+        }
+        __name(delByKeyPath, "delByKeyPath");
+        function shallowClone(obj) {
+          var rv = {};
+          for (var m in obj)
+            hasOwn(obj, m) && (rv[m] = obj[m]);
+          return rv;
+        }
+        __name(shallowClone, "shallowClone");
+        var concat = [].concat;
+        function flatten(a) {
+          return concat.apply([], a);
+        }
+        __name(flatten, "flatten");
+        var intrinsicTypeNames = "BigUint64Array,BigInt64Array,Array,Boolean,String,Date,RegExp,Blob,File,FileList,FileSystemFileHandle,FileSystemDirectoryHandle,ArrayBuffer,DataView,Uint8ClampedArray,ImageBitmap,ImageData,Map,Set,CryptoKey".split(",").concat(flatten([8, 16, 32, 64].map(function(num) {
+          return ["Int", "Uint", "Float"].map(function(t) {
+            return t + num + "Array";
+          });
+        }))).filter(function(t) {
+          return _global[t];
+        }), intrinsicTypes = new Set(intrinsicTypeNames.map(function(t) {
+          return _global[t];
+        }));
+        function cloneSimpleObjectTree(o) {
+          var rv = {};
+          for (var k in o)
+            if (hasOwn(o, k)) {
+              var v = o[k];
+              rv[k] = !v || typeof v != "object" || intrinsicTypes.has(v.constructor) ? v : cloneSimpleObjectTree(v);
+            }
+          return rv;
+        }
+        __name(cloneSimpleObjectTree, "cloneSimpleObjectTree");
+        var circularRefs = null;
+        function deepClone(any) {
+          circularRefs = /* @__PURE__ */ new WeakMap();
+          var rv = innerDeepClone(any);
+          return circularRefs = null, rv;
+        }
+        __name(deepClone, "deepClone");
+        function innerDeepClone(x) {
+          if (!x || typeof x != "object")
+            return x;
+          var rv = circularRefs.get(x);
+          if (rv)
+            return rv;
+          if (isArray(x)) {
+            rv = [], circularRefs.set(x, rv);
+            for (var i = 0, l = x.length; i < l; ++i)
+              rv.push(innerDeepClone(x[i]));
+          } else if (intrinsicTypes.has(x.constructor))
+            rv = x;
+          else {
+            var proto = getProto(x);
+            rv = proto === Object.prototype ? {} : Object.create(proto), circularRefs.set(x, rv);
+            for (var prop in x)
+              hasOwn(x, prop) && (rv[prop] = innerDeepClone(x[prop]));
+          }
+          return rv;
+        }
+        __name(innerDeepClone, "innerDeepClone");
+        var toString = {}.toString;
+        function toStringTag(o) {
+          return toString.call(o).slice(8, -1);
+        }
+        __name(toStringTag, "toStringTag");
+        var iteratorSymbol = typeof Symbol < "u" ? Symbol.iterator : "@@iterator", getIteratorOf = typeof iteratorSymbol == "symbol" ? function(x) {
+          var i;
+          return x != null && (i = x[iteratorSymbol]) && i.apply(x);
+        } : function() {
+          return null;
+        };
+        function delArrayItem(a, x) {
+          var i = a.indexOf(x);
+          return i >= 0 && a.splice(i, 1), i >= 0;
+        }
+        __name(delArrayItem, "delArrayItem");
+        var NO_CHAR_ARRAY = {};
+        function getArrayOf(arrayLike) {
+          var i, a, x, it;
+          if (arguments.length === 1) {
+            if (isArray(arrayLike))
+              return arrayLike.slice();
+            if (this === NO_CHAR_ARRAY && typeof arrayLike == "string")
+              return [arrayLike];
+            if (it = getIteratorOf(arrayLike)) {
+              for (a = []; x = it.next(), !x.done; )
+                a.push(x.value);
+              return a;
+            }
+            if (arrayLike == null)
+              return [arrayLike];
+            if (i = arrayLike.length, typeof i == "number") {
+              for (a = new Array(i); i--; )
+                a[i] = arrayLike[i];
+              return a;
+            }
+            return [arrayLike];
+          }
+          for (i = arguments.length, a = new Array(i); i--; )
+            a[i] = arguments[i];
+          return a;
+        }
+        __name(getArrayOf, "getArrayOf");
+        var isAsyncFunction = typeof Symbol < "u" ? function(fn) {
+          return fn[Symbol.toStringTag] === "AsyncFunction";
+        } : function() {
+          return !1;
+        }, dexieErrorNames = [
+          "Modify",
+          "Bulk",
+          "OpenFailed",
+          "VersionChange",
+          "Schema",
+          "Upgrade",
+          "InvalidTable",
+          "MissingAPI",
+          "NoSuchDatabase",
+          "InvalidArgument",
+          "SubTransaction",
+          "Unsupported",
+          "Internal",
+          "DatabaseClosed",
+          "PrematureCommit",
+          "ForeignAwait"
+        ], idbDomErrorNames = [
+          "Unknown",
+          "Constraint",
+          "Data",
+          "TransactionInactive",
+          "ReadOnly",
+          "Version",
+          "NotFound",
+          "InvalidState",
+          "InvalidAccess",
+          "Abort",
+          "Timeout",
+          "QuotaExceeded",
+          "Syntax",
+          "DataClone"
+        ], errorList = dexieErrorNames.concat(idbDomErrorNames), defaultTexts = {
+          VersionChanged: "Database version changed by other database connection",
+          DatabaseClosed: "Database has been closed",
+          Abort: "Transaction aborted",
+          TransactionInactive: "Transaction has already completed or failed",
+          MissingAPI: "IndexedDB API missing. Please visit https://tinyurl.com/y2uuvskb"
+        };
+        function DexieError(name, msg) {
+          this.name = name, this.message = msg;
+        }
+        __name(DexieError, "DexieError"), derive(DexieError).from(Error).extend({
+          toString: /* @__PURE__ */ __name(function() {
+            return this.name + ": " + this.message;
+          }, "toString")
+        });
+        function getMultiErrorMessage(msg, failures) {
+          return msg + ". Errors: " + Object.keys(failures).map(function(key) {
+            return failures[key].toString();
+          }).filter(function(v, i, s) {
+            return s.indexOf(v) === i;
+          }).join(`
+`);
+        }
+        __name(getMultiErrorMessage, "getMultiErrorMessage");
+        function ModifyError(msg, failures, successCount, failedKeys) {
+          this.failures = failures, this.failedKeys = failedKeys, this.successCount = successCount, this.message = getMultiErrorMessage(msg, failures);
+        }
+        __name(ModifyError, "ModifyError"), derive(ModifyError).from(DexieError);
+        function BulkError(msg, failures) {
+          this.name = "BulkError", this.failures = Object.keys(failures).map(function(pos) {
+            return failures[pos];
+          }), this.failuresByPos = failures, this.message = getMultiErrorMessage(msg, this.failures);
+        }
+        __name(BulkError, "BulkError"), derive(BulkError).from(DexieError);
+        var errnames = errorList.reduce(function(obj, name) {
+          return obj[name] = name + "Error", obj;
+        }, {}), BaseException = DexieError, exceptions = errorList.reduce(function(obj, name) {
+          var fullName = name + "Error";
+          function DexieError2(msgOrInner, inner) {
+            this.name = fullName, msgOrInner ? typeof msgOrInner == "string" ? (this.message = "".concat(msgOrInner).concat(inner ? `
+ ` + inner : ""), this.inner = inner || null) : typeof msgOrInner == "object" && (this.message = "".concat(msgOrInner.name, " ").concat(msgOrInner.message), this.inner = msgOrInner) : (this.message = defaultTexts[name] || fullName, this.inner = null);
+          }
+          return __name(DexieError2, "DexieError"), derive(DexieError2).from(BaseException), obj[name] = DexieError2, obj;
+        }, {});
+        exceptions.Syntax = SyntaxError, exceptions.Type = TypeError, exceptions.Range = RangeError;
+        var exceptionMap = idbDomErrorNames.reduce(function(obj, name) {
+          return obj[name + "Error"] = exceptions[name], obj;
+        }, {});
+        function mapError(domError, message) {
+          if (!domError || domError instanceof DexieError || domError instanceof TypeError || domError instanceof SyntaxError || !domError.name || !exceptionMap[domError.name])
+            return domError;
+          var rv = new exceptionMap[domError.name](message || domError.message, domError);
+          return "stack" in domError && setProp(rv, "stack", {
+            get: /* @__PURE__ */ __name(function() {
+              return this.inner.stack;
+            }, "get")
+          }), rv;
+        }
+        __name(mapError, "mapError");
+        var fullNameExceptions = errorList.reduce(function(obj, name) {
+          return ["Syntax", "Type", "Range"].indexOf(name) === -1 && (obj[name + "Error"] = exceptions[name]), obj;
+        }, {});
+        fullNameExceptions.ModifyError = ModifyError, fullNameExceptions.DexieError = DexieError, fullNameExceptions.BulkError = BulkError;
+        function nop() {
+        }
+        __name(nop, "nop");
+        function mirror(val) {
+          return val;
+        }
+        __name(mirror, "mirror");
+        function pureFunctionChain(f1, f2) {
+          return f1 == null || f1 === mirror ? f2 : function(val) {
+            return f2(f1(val));
+          };
+        }
+        __name(pureFunctionChain, "pureFunctionChain");
+        function callBoth(on1, on2) {
+          return function() {
+            on1.apply(this, arguments), on2.apply(this, arguments);
+          };
+        }
+        __name(callBoth, "callBoth");
+        function hookCreatingChain(f1, f2) {
+          return f1 === nop ? f2 : function() {
+            var res = f1.apply(this, arguments);
+            res !== void 0 && (arguments[0] = res);
+            var onsuccess = this.onsuccess, onerror = this.onerror;
+            this.onsuccess = null, this.onerror = null;
+            var res2 = f2.apply(this, arguments);
+            return onsuccess && (this.onsuccess = this.onsuccess ? callBoth(onsuccess, this.onsuccess) : onsuccess), onerror && (this.onerror = this.onerror ? callBoth(onerror, this.onerror) : onerror), res2 !== void 0 ? res2 : res;
+          };
+        }
+        __name(hookCreatingChain, "hookCreatingChain");
+        function hookDeletingChain(f1, f2) {
+          return f1 === nop ? f2 : function() {
+            f1.apply(this, arguments);
+            var onsuccess = this.onsuccess, onerror = this.onerror;
+            this.onsuccess = this.onerror = null, f2.apply(this, arguments), onsuccess && (this.onsuccess = this.onsuccess ? callBoth(onsuccess, this.onsuccess) : onsuccess), onerror && (this.onerror = this.onerror ? callBoth(onerror, this.onerror) : onerror);
+          };
+        }
+        __name(hookDeletingChain, "hookDeletingChain");
+        function hookUpdatingChain(f1, f2) {
+          return f1 === nop ? f2 : function() {
+            var res = f1.apply(this, arguments), modifications = arguments[0];
+            extend(modifications, res);
+            var onsuccess = this.onsuccess, onerror = this.onerror;
+            this.onsuccess = null, this.onerror = null;
+            var res2 = f2.apply(this, arguments);
+            return onsuccess && (this.onsuccess = this.onsuccess ? callBoth(onsuccess, this.onsuccess) : onsuccess), onerror && (this.onerror = this.onerror ? callBoth(onerror, this.onerror) : onerror), res === void 0 ? res2 === void 0 ? void 0 : res2 : extend(res, res2);
+          };
+        }
+        __name(hookUpdatingChain, "hookUpdatingChain");
+        function reverseStoppableEventChain(f1, f2) {
+          return f1 === nop ? f2 : function() {
+            return f2.apply(this, arguments) === !1 ? !1 : f1.apply(this, arguments);
+          };
+        }
+        __name(reverseStoppableEventChain, "reverseStoppableEventChain");
+        function promisableChain(f1, f2) {
+          return f1 === nop ? f2 : function() {
+            var res = f1.apply(this, arguments);
+            if (res && typeof res.then == "function") {
+              for (var thiz = this, i = arguments.length, args = new Array(i); i--; )
+                args[i] = arguments[i];
+              return res.then(function() {
+                return f2.apply(thiz, args);
+              });
+            }
+            return f2.apply(this, arguments);
+          };
+        }
+        __name(promisableChain, "promisableChain");
+        var debug = typeof location < "u" && /^(http|https):\/\/(localhost|127\.0\.0\.1)/.test(location.href);
+        function setDebug(value, filter) {
+          debug = value;
+        }
+        __name(setDebug, "setDebug");
+        var INTERNAL = {}, ZONE_ECHO_LIMIT = 100, _a$1 = typeof Promise > "u" ? [] : (function() {
+          var globalP = Promise.resolve();
+          if (typeof crypto > "u" || !crypto.subtle)
+            return [globalP, getProto(globalP), globalP];
+          var nativeP = crypto.subtle.digest("SHA-512", new Uint8Array([0]));
+          return [nativeP, getProto(nativeP), globalP];
+        })(), resolvedNativePromise = _a$1[0], nativePromiseProto = _a$1[1], resolvedGlobalPromise = _a$1[2], nativePromiseThen = nativePromiseProto && nativePromiseProto.then, NativePromise = resolvedNativePromise && resolvedNativePromise.constructor, patchGlobalPromise = !!resolvedGlobalPromise;
+        function schedulePhysicalTick() {
+          queueMicrotask(physicalTick);
+        }
+        __name(schedulePhysicalTick, "schedulePhysicalTick");
+        var asap = /* @__PURE__ */ __name(function(callback, args) {
+          microtickQueue.push([callback, args]), needsNewPhysicalTick && (schedulePhysicalTick(), needsNewPhysicalTick = !1);
+        }, "asap"), isOutsideMicroTick = !0, needsNewPhysicalTick = !0, unhandledErrors = [], rejectingErrors = [], rejectionMapper = mirror, globalPSD = {
+          id: "global",
+          global: !0,
+          ref: 0,
+          unhandleds: [],
+          onunhandled: nop,
+          pgp: !1,
+          env: {},
+          finalize: nop
+        }, PSD = globalPSD, microtickQueue = [], numScheduledCalls = 0, tickFinalizers = [];
+        function DexiePromise(fn) {
+          if (typeof this != "object")
+            throw new TypeError("Promises must be constructed via new");
+          this._listeners = [], this._lib = !1;
+          var psd = this._PSD = PSD;
+          if (typeof fn != "function") {
+            if (fn !== INTERNAL)
+              throw new TypeError("Not a function");
+            this._state = arguments[1], this._value = arguments[2], this._state === !1 && handleRejection(this, this._value);
+            return;
+          }
+          this._state = null, this._value = null, ++psd.ref, executePromiseTask(this, fn);
+        }
+        __name(DexiePromise, "DexiePromise");
+        var thenProp = {
+          get: /* @__PURE__ */ __name(function() {
+            var psd = PSD, microTaskId = totalEchoes;
+            function then(onFulfilled, onRejected) {
+              var _this = this, possibleAwait = !psd.global && (psd !== PSD || microTaskId !== totalEchoes), cleanup2 = possibleAwait && !decrementExpectedAwaits(), rv = new DexiePromise(function(resolve, reject) {
+                propagateToListener(_this, new Listener(nativeAwaitCompatibleWrap(onFulfilled, psd, possibleAwait, cleanup2), nativeAwaitCompatibleWrap(onRejected, psd, possibleAwait, cleanup2), resolve, reject, psd));
+              });
+              return this._consoleTask && (rv._consoleTask = this._consoleTask), rv;
+            }
+            return __name(then, "then"), then.prototype = INTERNAL, then;
+          }, "get"),
+          set: /* @__PURE__ */ __name(function(value) {
+            setProp(this, "then", value && value.prototype === INTERNAL ? thenProp : {
+              get: /* @__PURE__ */ __name(function() {
+                return value;
+              }, "get"),
+              set: thenProp.set
+            });
+          }, "set")
+        };
+        props(DexiePromise.prototype, {
+          then: thenProp,
+          _then: /* @__PURE__ */ __name(function(onFulfilled, onRejected) {
+            propagateToListener(this, new Listener(null, null, onFulfilled, onRejected, PSD));
+          }, "_then"),
+          catch: /* @__PURE__ */ __name(function(onRejected) {
+            if (arguments.length === 1)
+              return this.then(null, onRejected);
+            var type2 = arguments[0], handler = arguments[1];
+            return typeof type2 == "function" ? this.then(null, function(err) {
+              return err instanceof type2 ? handler(err) : PromiseReject(err);
+            }) : this.then(null, function(err) {
+              return err && err.name === type2 ? handler(err) : PromiseReject(err);
+            });
+          }, "catch"),
+          finally: /* @__PURE__ */ __name(function(onFinally) {
+            return this.then(function(value) {
+              return DexiePromise.resolve(onFinally()).then(function() {
+                return value;
+              });
+            }, function(err) {
+              return DexiePromise.resolve(onFinally()).then(function() {
+                return PromiseReject(err);
+              });
+            });
+          }, "finally"),
+          timeout: /* @__PURE__ */ __name(function(ms, msg) {
+            var _this = this;
+            return ms < 1 / 0 ? new DexiePromise(function(resolve, reject) {
+              var handle = setTimeout(function() {
+                return reject(new exceptions.Timeout(msg));
+              }, ms);
+              _this.then(resolve, reject).finally(clearTimeout.bind(null, handle));
+            }) : this;
+          }, "timeout")
+        }), typeof Symbol < "u" && Symbol.toStringTag && setProp(DexiePromise.prototype, Symbol.toStringTag, "Dexie.Promise"), globalPSD.env = snapShot();
+        function Listener(onFulfilled, onRejected, resolve, reject, zone) {
+          this.onFulfilled = typeof onFulfilled == "function" ? onFulfilled : null, this.onRejected = typeof onRejected == "function" ? onRejected : null, this.resolve = resolve, this.reject = reject, this.psd = zone;
+        }
+        __name(Listener, "Listener"), props(DexiePromise, {
+          all: /* @__PURE__ */ __name(function() {
+            var values = getArrayOf.apply(null, arguments).map(onPossibleParallellAsync);
+            return new DexiePromise(function(resolve, reject) {
+              values.length === 0 && resolve([]);
+              var remaining = values.length;
+              values.forEach(function(a, i) {
+                return DexiePromise.resolve(a).then(function(x) {
+                  values[i] = x, --remaining || resolve(values);
+                }, reject);
+              });
+            });
+          }, "all"),
+          resolve: /* @__PURE__ */ __name(function(value) {
+            if (value instanceof DexiePromise)
+              return value;
+            if (value && typeof value.then == "function")
+              return new DexiePromise(function(resolve, reject) {
+                value.then(resolve, reject);
+              });
+            var rv = new DexiePromise(INTERNAL, !0, value);
+            return rv;
+          }, "resolve"),
+          reject: PromiseReject,
+          race: /* @__PURE__ */ __name(function() {
+            var values = getArrayOf.apply(null, arguments).map(onPossibleParallellAsync);
+            return new DexiePromise(function(resolve, reject) {
+              values.map(function(value) {
+                return DexiePromise.resolve(value).then(resolve, reject);
+              });
+            });
+          }, "race"),
+          PSD: {
+            get: /* @__PURE__ */ __name(function() {
+              return PSD;
+            }, "get"),
+            set: /* @__PURE__ */ __name(function(value) {
+              return PSD = value;
+            }, "set")
+          },
+          totalEchoes: { get: /* @__PURE__ */ __name(function() {
+            return totalEchoes;
+          }, "get") },
+          newPSD: newScope,
+          usePSD,
+          scheduler: {
+            get: /* @__PURE__ */ __name(function() {
+              return asap;
+            }, "get"),
+            set: /* @__PURE__ */ __name(function(value) {
+              asap = value;
+            }, "set")
+          },
+          rejectionMapper: {
+            get: /* @__PURE__ */ __name(function() {
+              return rejectionMapper;
+            }, "get"),
+            set: /* @__PURE__ */ __name(function(value) {
+              rejectionMapper = value;
+            }, "set")
+          },
+          follow: /* @__PURE__ */ __name(function(fn, zoneProps) {
+            return new DexiePromise(function(resolve, reject) {
+              return newScope(function(resolve2, reject2) {
+                var psd = PSD;
+                psd.unhandleds = [], psd.onunhandled = reject2, psd.finalize = callBoth(function() {
+                  var _this = this;
+                  run_at_end_of_this_or_next_physical_tick(function() {
+                    _this.unhandleds.length === 0 ? resolve2() : reject2(_this.unhandleds[0]);
+                  });
+                }, psd.finalize), fn();
+              }, zoneProps, resolve, reject);
+            });
+          }, "follow")
+        }), NativePromise && (NativePromise.allSettled && setProp(DexiePromise, "allSettled", function() {
+          var possiblePromises = getArrayOf.apply(null, arguments).map(onPossibleParallellAsync);
+          return new DexiePromise(function(resolve) {
+            possiblePromises.length === 0 && resolve([]);
+            var remaining = possiblePromises.length, results = new Array(remaining);
+            possiblePromises.forEach(function(p, i) {
+              return DexiePromise.resolve(p).then(function(value) {
+                return results[i] = { status: "fulfilled", value };
+              }, function(reason) {
+                return results[i] = { status: "rejected", reason };
+              }).then(function() {
+                return --remaining || resolve(results);
+              });
+            });
+          });
+        }), NativePromise.any && typeof AggregateError < "u" && setProp(DexiePromise, "any", function() {
+          var possiblePromises = getArrayOf.apply(null, arguments).map(onPossibleParallellAsync);
+          return new DexiePromise(function(resolve, reject) {
+            possiblePromises.length === 0 && reject(new AggregateError([]));
+            var remaining = possiblePromises.length, failures = new Array(remaining);
+            possiblePromises.forEach(function(p, i) {
+              return DexiePromise.resolve(p).then(function(value) {
+                return resolve(value);
+              }, function(failure) {
+                failures[i] = failure, --remaining || reject(new AggregateError(failures));
+              });
+            });
+          });
+        }), NativePromise.withResolvers && (DexiePromise.withResolvers = NativePromise.withResolvers));
+        function executePromiseTask(promise, fn) {
+          try {
+            fn(function(value) {
+              if (promise._state === null) {
+                if (value === promise)
+                  throw new TypeError("A promise cannot be resolved with itself.");
+                var shouldExecuteTick = promise._lib && beginMicroTickScope();
+                value && typeof value.then == "function" ? executePromiseTask(promise, function(resolve, reject) {
+                  value instanceof DexiePromise ? value._then(resolve, reject) : value.then(resolve, reject);
+                }) : (promise._state = !0, promise._value = value, propagateAllListeners(promise)), shouldExecuteTick && endMicroTickScope();
+              }
+            }, handleRejection.bind(null, promise));
+          } catch (ex) {
+            handleRejection(promise, ex);
+          }
+        }
+        __name(executePromiseTask, "executePromiseTask");
+        function handleRejection(promise, reason) {
+          if (rejectingErrors.push(reason), promise._state === null) {
+            var shouldExecuteTick = promise._lib && beginMicroTickScope();
+            reason = rejectionMapper(reason), promise._state = !1, promise._value = reason, addPossiblyUnhandledError(promise), propagateAllListeners(promise), shouldExecuteTick && endMicroTickScope();
+          }
+        }
+        __name(handleRejection, "handleRejection");
+        function propagateAllListeners(promise) {
+          var listeners = promise._listeners;
+          promise._listeners = [];
+          for (var i = 0, len = listeners.length; i < len; ++i)
+            propagateToListener(promise, listeners[i]);
+          var psd = promise._PSD;
+          --psd.ref || psd.finalize(), numScheduledCalls === 0 && (++numScheduledCalls, asap(function() {
+            --numScheduledCalls === 0 && finalizePhysicalTick();
+          }, []));
+        }
+        __name(propagateAllListeners, "propagateAllListeners");
+        function propagateToListener(promise, listener) {
+          if (promise._state === null) {
+            promise._listeners.push(listener);
+            return;
+          }
+          var cb = promise._state ? listener.onFulfilled : listener.onRejected;
+          if (cb === null)
+            return (promise._state ? listener.resolve : listener.reject)(promise._value);
+          ++listener.psd.ref, ++numScheduledCalls, asap(callListener, [cb, promise, listener]);
+        }
+        __name(propagateToListener, "propagateToListener");
+        function callListener(cb, promise, listener) {
+          try {
+            var ret, value = promise._value;
+            !promise._state && rejectingErrors.length && (rejectingErrors = []), ret = debug && promise._consoleTask ? promise._consoleTask.run(function() {
+              return cb(value);
+            }) : cb(value), !promise._state && rejectingErrors.indexOf(value) === -1 && markErrorAsHandled(promise), listener.resolve(ret);
+          } catch (e) {
+            listener.reject(e);
+          } finally {
+            --numScheduledCalls === 0 && finalizePhysicalTick(), --listener.psd.ref || listener.psd.finalize();
+          }
+        }
+        __name(callListener, "callListener");
+        function physicalTick() {
+          usePSD(globalPSD, function() {
+            beginMicroTickScope() && endMicroTickScope();
+          });
+        }
+        __name(physicalTick, "physicalTick");
+        function beginMicroTickScope() {
+          var wasRootExec = isOutsideMicroTick;
+          return isOutsideMicroTick = !1, needsNewPhysicalTick = !1, wasRootExec;
+        }
+        __name(beginMicroTickScope, "beginMicroTickScope");
+        function endMicroTickScope() {
+          var callbacks, i, l;
+          do
+            for (; microtickQueue.length > 0; )
+              for (callbacks = microtickQueue, microtickQueue = [], l = callbacks.length, i = 0; i < l; ++i) {
+                var item = callbacks[i];
+                item[0].apply(null, item[1]);
+              }
+          while (microtickQueue.length > 0);
+          isOutsideMicroTick = !0, needsNewPhysicalTick = !0;
+        }
+        __name(endMicroTickScope, "endMicroTickScope");
+        function finalizePhysicalTick() {
+          var unhandledErrs = unhandledErrors;
+          unhandledErrors = [], unhandledErrs.forEach(function(p) {
+            p._PSD.onunhandled.call(null, p._value, p);
+          });
+          for (var finalizers = tickFinalizers.slice(0), i = finalizers.length; i; )
+            finalizers[--i]();
+        }
+        __name(finalizePhysicalTick, "finalizePhysicalTick");
+        function run_at_end_of_this_or_next_physical_tick(fn) {
+          function finalizer() {
+            fn(), tickFinalizers.splice(tickFinalizers.indexOf(finalizer), 1);
+          }
+          __name(finalizer, "finalizer"), tickFinalizers.push(finalizer), ++numScheduledCalls, asap(function() {
+            --numScheduledCalls === 0 && finalizePhysicalTick();
+          }, []);
+        }
+        __name(run_at_end_of_this_or_next_physical_tick, "run_at_end_of_this_or_next_physical_tick");
+        function addPossiblyUnhandledError(promise) {
+          unhandledErrors.some(function(p) {
+            return p._value === promise._value;
+          }) || unhandledErrors.push(promise);
+        }
+        __name(addPossiblyUnhandledError, "addPossiblyUnhandledError");
+        function markErrorAsHandled(promise) {
+          for (var i = unhandledErrors.length; i; )
+            if (unhandledErrors[--i]._value === promise._value) {
+              unhandledErrors.splice(i, 1);
+              return;
+            }
+        }
+        __name(markErrorAsHandled, "markErrorAsHandled");
+        function PromiseReject(reason) {
+          return new DexiePromise(INTERNAL, !1, reason);
+        }
+        __name(PromiseReject, "PromiseReject");
+        function wrap(fn, errorCatcher) {
+          var psd = PSD;
+          return function() {
+            var wasRootExec = beginMicroTickScope(), outerScope = PSD;
+            try {
+              return switchToZone(psd, !0), fn.apply(this, arguments);
+            } catch (e) {
+              errorCatcher && errorCatcher(e);
+            } finally {
+              switchToZone(outerScope, !1), wasRootExec && endMicroTickScope();
+            }
+          };
+        }
+        __name(wrap, "wrap");
+        var task = { awaits: 0, echoes: 0, id: 0 }, taskCounter = 0, zoneStack = [], zoneEchoes = 0, totalEchoes = 0, zone_id_counter = 0;
+        function newScope(fn, props2, a1, a2) {
+          var parent = PSD, psd = Object.create(parent);
+          psd.parent = parent, psd.ref = 0, psd.global = !1, psd.id = ++zone_id_counter, globalPSD.env, psd.env = patchGlobalPromise ? {
+            Promise: DexiePromise,
+            PromiseProp: {
+              value: DexiePromise,
+              configurable: !0,
+              writable: !0
+            },
+            all: DexiePromise.all,
+            race: DexiePromise.race,
+            allSettled: DexiePromise.allSettled,
+            any: DexiePromise.any,
+            resolve: DexiePromise.resolve,
+            reject: DexiePromise.reject
+          } : {}, props2 && extend(psd, props2), ++parent.ref, psd.finalize = function() {
+            --this.parent.ref || this.parent.finalize();
+          };
+          var rv = usePSD(psd, fn, a1, a2);
+          return psd.ref === 0 && psd.finalize(), rv;
+        }
+        __name(newScope, "newScope");
+        function incrementExpectedAwaits() {
+          return task.id || (task.id = ++taskCounter), ++task.awaits, task.echoes += ZONE_ECHO_LIMIT, task.id;
+        }
+        __name(incrementExpectedAwaits, "incrementExpectedAwaits");
+        function decrementExpectedAwaits() {
+          return task.awaits ? (--task.awaits === 0 && (task.id = 0), task.echoes = task.awaits * ZONE_ECHO_LIMIT, !0) : !1;
+        }
+        __name(decrementExpectedAwaits, "decrementExpectedAwaits"), ("" + nativePromiseThen).indexOf("[native code]") === -1 && (incrementExpectedAwaits = decrementExpectedAwaits = nop);
+        function onPossibleParallellAsync(possiblePromise) {
+          return task.echoes && possiblePromise && possiblePromise.constructor === NativePromise ? (incrementExpectedAwaits(), possiblePromise.then(function(x) {
+            return decrementExpectedAwaits(), x;
+          }, function(e) {
+            return decrementExpectedAwaits(), rejection(e);
+          })) : possiblePromise;
+        }
+        __name(onPossibleParallellAsync, "onPossibleParallellAsync");
+        function zoneEnterEcho(targetZone) {
+          ++totalEchoes, (!task.echoes || --task.echoes === 0) && (task.echoes = task.awaits = task.id = 0), zoneStack.push(PSD), switchToZone(targetZone, !0);
+        }
+        __name(zoneEnterEcho, "zoneEnterEcho");
+        function zoneLeaveEcho() {
+          var zone = zoneStack[zoneStack.length - 1];
+          zoneStack.pop(), switchToZone(zone, !1);
+        }
+        __name(zoneLeaveEcho, "zoneLeaveEcho");
+        function switchToZone(targetZone, bEnteringZone) {
+          var currentZone = PSD;
+          if ((bEnteringZone ? task.echoes && (!zoneEchoes++ || targetZone !== PSD) : zoneEchoes && (!--zoneEchoes || targetZone !== PSD)) && queueMicrotask(bEnteringZone ? zoneEnterEcho.bind(null, targetZone) : zoneLeaveEcho), targetZone !== PSD && (PSD = targetZone, currentZone === globalPSD && (globalPSD.env = snapShot()), patchGlobalPromise)) {
+            var GlobalPromise = globalPSD.env.Promise, targetEnv = targetZone.env;
+            (currentZone.global || targetZone.global) && (Object.defineProperty(_global, "Promise", targetEnv.PromiseProp), GlobalPromise.all = targetEnv.all, GlobalPromise.race = targetEnv.race, GlobalPromise.resolve = targetEnv.resolve, GlobalPromise.reject = targetEnv.reject, targetEnv.allSettled && (GlobalPromise.allSettled = targetEnv.allSettled), targetEnv.any && (GlobalPromise.any = targetEnv.any));
+          }
+        }
+        __name(switchToZone, "switchToZone");
+        function snapShot() {
+          var GlobalPromise = _global.Promise;
+          return patchGlobalPromise ? {
+            Promise: GlobalPromise,
+            PromiseProp: Object.getOwnPropertyDescriptor(_global, "Promise"),
+            all: GlobalPromise.all,
+            race: GlobalPromise.race,
+            allSettled: GlobalPromise.allSettled,
+            any: GlobalPromise.any,
+            resolve: GlobalPromise.resolve,
+            reject: GlobalPromise.reject
+          } : {};
+        }
+        __name(snapShot, "snapShot");
+        function usePSD(psd, fn, a1, a2, a3) {
+          var outerScope = PSD;
+          try {
+            return switchToZone(psd, !0), fn(a1, a2, a3);
+          } finally {
+            switchToZone(outerScope, !1);
+          }
+        }
+        __name(usePSD, "usePSD");
+        function nativeAwaitCompatibleWrap(fn, zone, possibleAwait, cleanup2) {
+          return typeof fn != "function" ? fn : function() {
+            var outerZone = PSD;
+            possibleAwait && incrementExpectedAwaits(), switchToZone(zone, !0);
+            try {
+              return fn.apply(this, arguments);
+            } finally {
+              switchToZone(outerZone, !1), cleanup2 && queueMicrotask(decrementExpectedAwaits);
+            }
+          };
+        }
+        __name(nativeAwaitCompatibleWrap, "nativeAwaitCompatibleWrap");
+        function execInGlobalContext(cb) {
+          Promise === NativePromise && task.echoes === 0 ? zoneEchoes === 0 ? cb() : enqueueNativeMicroTask(cb) : setTimeout(cb, 0);
+        }
+        __name(execInGlobalContext, "execInGlobalContext");
+        var rejection = DexiePromise.reject;
+        function tempTransaction(db2, mode, storeNames, fn) {
+          if (!db2.idbdb || !db2._state.openComplete && !PSD.letThrough && !db2._vip) {
+            if (db2._state.openComplete)
+              return rejection(new exceptions.DatabaseClosed(db2._state.dbOpenError));
+            if (!db2._state.isBeingOpened) {
+              if (!db2._state.autoOpen)
+                return rejection(new exceptions.DatabaseClosed());
+              db2.open().catch(nop);
+            }
+            return db2._state.dbReadyPromise.then(function() {
+              return tempTransaction(db2, mode, storeNames, fn);
+            });
+          } else {
+            var trans = db2._createTransaction(mode, storeNames, db2._dbSchema);
+            try {
+              trans.create(), db2._state.PR1398_maxLoop = 3;
+            } catch (ex) {
+              return ex.name === errnames.InvalidState && db2.isOpen() && --db2._state.PR1398_maxLoop > 0 ? (console.warn("Dexie: Need to reopen db"), db2.close({ disableAutoOpen: !1 }), db2.open().then(function() {
+                return tempTransaction(db2, mode, storeNames, fn);
+              })) : rejection(ex);
+            }
+            return trans._promise(mode, function(resolve, reject) {
+              return newScope(function() {
+                return PSD.trans = trans, fn(resolve, reject, trans);
+              });
+            }).then(function(result) {
+              if (mode === "readwrite")
+                try {
+                  trans.idbtrans.commit();
+                } catch {
+                }
+              return mode === "readonly" ? result : trans._completion.then(function() {
+                return result;
+              });
+            });
+          }
+        }
+        __name(tempTransaction, "tempTransaction");
+        var DEXIE_VERSION = "4.4.7", maxString = "\uFFFF", minKey = -1 / 0, INVALID_KEY_ARGUMENT = "Invalid key provided. Keys must be of type string, number, Date or Array<string | number | Date>.", STRING_EXPECTED = "String expected.", DEFAULT_MAX_CONNECTIONS = 1e3, DBNAMES_DB = "__dbnames", READONLY = "readonly", READWRITE = "readwrite";
+        function combine(filter1, filter2) {
+          return filter1 ? filter2 ? function() {
+            return filter1.apply(this, arguments) && filter2.apply(this, arguments);
+          } : filter1 : filter2;
+        }
+        __name(combine, "combine");
+        var AnyRange = {
+          type: 3,
+          lower: -1 / 0,
+          lowerOpen: !1,
+          upper: [[]],
+          upperOpen: !1
+        };
+        function workaroundForUndefinedPrimKey(keyPath) {
+          return typeof keyPath == "string" && !/\./.test(keyPath) ? function(obj) {
+            return obj[keyPath] === void 0 && keyPath in obj && (obj = deepClone(obj), delete obj[keyPath]), obj;
+          } : function(obj) {
+            return obj;
+          };
+        }
+        __name(workaroundForUndefinedPrimKey, "workaroundForUndefinedPrimKey");
+        function Entity2() {
+          throw exceptions.Type("Entity instances must never be new:ed. Instances are generated by the framework bypassing the constructor.");
+        }
+        __name(Entity2, "Entity");
+        function cmp2(a, b) {
+          try {
+            var ta = type(a), tb = type(b);
+            if (ta !== tb)
+              return ta === "Array" ? 1 : tb === "Array" ? -1 : ta === "binary" ? 1 : tb === "binary" ? -1 : ta === "string" ? 1 : tb === "string" ? -1 : ta === "Date" ? 1 : tb !== "Date" ? NaN : -1;
+            switch (ta) {
+              case "number":
+              case "Date":
+              case "string":
+                return a > b ? 1 : a < b ? -1 : 0;
+              case "binary":
+                return compareUint8Arrays(getUint8Array(a), getUint8Array(b));
+              case "Array":
+                return compareArrays(a, b);
+            }
+          } catch {
+          }
+          return NaN;
+        }
+        __name(cmp2, "cmp");
+        function compareArrays(a, b) {
+          for (var al = a.length, bl = b.length, l = al < bl ? al : bl, i = 0; i < l; ++i) {
+            var res = cmp2(a[i], b[i]);
+            if (res !== 0)
+              return res;
+          }
+          return al === bl ? 0 : al < bl ? -1 : 1;
+        }
+        __name(compareArrays, "compareArrays");
+        function compareUint8Arrays(a, b) {
+          for (var al = a.length, bl = b.length, l = al < bl ? al : bl, i = 0; i < l; ++i)
+            if (a[i] !== b[i])
+              return a[i] < b[i] ? -1 : 1;
+          return al === bl ? 0 : al < bl ? -1 : 1;
+        }
+        __name(compareUint8Arrays, "compareUint8Arrays");
+        function type(x) {
+          var t = typeof x;
+          if (t !== "object")
+            return t;
+          if (ArrayBuffer.isView(x))
+            return "binary";
+          var tsTag = toStringTag(x);
+          return tsTag === "ArrayBuffer" ? "binary" : tsTag;
+        }
+        __name(type, "type");
+        function getUint8Array(a) {
+          return a instanceof Uint8Array ? a : ArrayBuffer.isView(a) ? new Uint8Array(a.buffer, a.byteOffset, a.byteLength) : new Uint8Array(a);
+        }
+        __name(getUint8Array, "getUint8Array");
+        function builtInDeletionTrigger(table, keys2, res) {
+          var yProps = table.schema.yProps;
+          return yProps ? (keys2 && res.numFailures > 0 && (keys2 = keys2.filter(function(_, i) {
+            return !res.failures[i];
+          })), Promise.all(yProps.map(function(_a2) {
+            var updatesTable = _a2.updatesTable;
+            return keys2 ? table.db.table(updatesTable).where("k").anyOf(keys2).delete() : table.db.table(updatesTable).clear();
+          })).then(function() {
+            return res;
+          })) : res;
+        }
+        __name(builtInDeletionTrigger, "builtInDeletionTrigger");
+        var PropModification2 = (function() {
+          function PropModification3(spec) {
+            this["@@propmod"] = spec;
+          }
+          return __name(PropModification3, "PropModification"), PropModification3.prototype.execute = function(value) {
+            var _a2, spec = this["@@propmod"];
+            if (spec.add !== void 0) {
+              var term = spec.add;
+              if (isArray(term))
+                return __spreadArray(__spreadArray([], isArray(value) ? value : [], !0), term, !0).sort();
+              if (typeof term == "number")
+                return (Number(value) || 0) + term;
+              if (typeof term == "bigint")
+                try {
+                  return BigInt(value) + term;
+                } catch {
+                  return BigInt(0) + term;
+                }
+              throw new TypeError("Invalid term ".concat(term));
+            }
+            if (spec.remove !== void 0) {
+              var subtrahend_1 = spec.remove;
+              if (isArray(subtrahend_1))
+                return isArray(value) ? value.filter(function(item) {
+                  return !subtrahend_1.includes(item);
+                }).sort() : [];
+              if (typeof subtrahend_1 == "number")
+                return Number(value) - subtrahend_1;
+              if (typeof subtrahend_1 == "bigint")
+                try {
+                  return BigInt(value) - subtrahend_1;
+                } catch {
+                  return BigInt(0) - subtrahend_1;
+                }
+              throw new TypeError("Invalid subtrahend ".concat(subtrahend_1));
+            }
+            var prefixToReplace = (_a2 = spec.replacePrefix) === null || _a2 === void 0 ? void 0 : _a2[0];
+            return prefixToReplace && typeof value == "string" && value.startsWith(prefixToReplace) ? spec.replacePrefix[1] + value.substring(prefixToReplace.length) : value;
+          }, PropModification3;
+        })();
+        function applyUpdateSpec(obj, changes) {
+          for (var keyPaths = keys(changes), numKeys = keyPaths.length, anythingModified = !1, i = 0; i < numKeys; ++i) {
+            var keyPath = keyPaths[i], value = changes[keyPath], origValue = getByKeyPath(obj, keyPath);
+            value instanceof PropModification2 ? (setByKeyPath(obj, keyPath, value.execute(origValue)), anythingModified = !0) : origValue !== value && (setByKeyPath(obj, keyPath, value), anythingModified = !0);
+          }
+          return anythingModified;
+        }
+        __name(applyUpdateSpec, "applyUpdateSpec");
+        var Table = (function() {
+          function Table2() {
+          }
+          return __name(Table2, "Table"), Table2.prototype._trans = function(mode, fn, writeLocked) {
+            var trans = this._tx || PSD.trans, tableName = this.name, task2 = debug && typeof console < "u" && console.createTask && console.createTask("Dexie: ".concat(mode === "readonly" ? "read" : "write", " ").concat(this.name));
+            function checkTableInTransaction(resolve, reject, trans2) {
+              if (!trans2.schema[tableName])
+                throw new exceptions.NotFound("Table " + tableName + " not part of transaction");
+              return fn(trans2.idbtrans, trans2);
+            }
+            __name(checkTableInTransaction, "checkTableInTransaction");
+            var wasRootExec = beginMicroTickScope();
+            try {
+              var p = trans && trans.db._novip === this.db._novip ? trans === PSD.trans ? trans._promise(mode, checkTableInTransaction, writeLocked) : newScope(function() {
+                return trans._promise(mode, checkTableInTransaction, writeLocked);
+              }, { trans, transless: PSD.transless || PSD }) : tempTransaction(this.db, mode, [this.name], checkTableInTransaction);
+              return task2 && (p._consoleTask = task2, p = p.catch(function(err) {
+                return console.trace(err), rejection(err);
+              })), p;
+            } finally {
+              wasRootExec && endMicroTickScope();
+            }
+          }, Table2.prototype.get = function(keyOrCrit, cb) {
+            var _this = this;
+            return keyOrCrit && keyOrCrit.constructor === Object ? this.where(keyOrCrit).first(cb) : keyOrCrit == null ? rejection(new exceptions.Type("Invalid argument to Table.get()")) : this._trans("readonly", function(trans) {
+              return _this.core.get({ trans, key: keyOrCrit }).then(function(res) {
+                return _this.hook.reading.fire(res);
+              });
+            }).then(cb);
+          }, Table2.prototype.where = function(indexOrCrit) {
+            if (typeof indexOrCrit == "string")
+              return new this.db.WhereClause(this, indexOrCrit);
+            if (isArray(indexOrCrit))
+              return new this.db.WhereClause(this, "[".concat(indexOrCrit.join("+"), "]"));
+            var keyPaths = keys(indexOrCrit);
+            if (keyPaths.length === 1)
+              return this.where(keyPaths[0]).equals(indexOrCrit[keyPaths[0]]);
+            var compoundIndex = this.schema.indexes.concat(this.schema.primKey).filter(function(ix) {
+              if (ix.compound && keyPaths.every(function(keyPath) {
+                return ix.keyPath.indexOf(keyPath) >= 0;
+              })) {
+                for (var i = 0; i < keyPaths.length; ++i)
+                  if (keyPaths.indexOf(ix.keyPath[i]) === -1)
+                    return !1;
+                return !0;
+              }
+              return !1;
+            }).sort(function(a, b) {
+              return a.keyPath.length - b.keyPath.length;
+            })[0];
+            if (compoundIndex && this.db._maxKey !== maxString) {
+              var keyPathsInValidOrder = compoundIndex.keyPath.slice(0, keyPaths.length);
+              return this.where(keyPathsInValidOrder).equals(keyPathsInValidOrder.map(function(kp) {
+                return indexOrCrit[kp];
+              }));
+            }
+            !compoundIndex && debug && console.warn("The query ".concat(JSON.stringify(indexOrCrit), " on ").concat(this.name, " would benefit from a ") + "compound index [".concat(keyPaths.join("+"), "]"));
+            var idxByName = this.schema.idxByName;
+            function equals(a, b) {
+              return cmp2(a, b) === 0;
+            }
+            __name(equals, "equals");
+            var _a2 = keyPaths.reduce(function(_a3, keyPath) {
+              var prevIndex = _a3[0], prevFilterFn = _a3[1], index = idxByName[keyPath], value = indexOrCrit[keyPath];
+              return [
+                prevIndex || index,
+                prevIndex || !index ? combine(prevFilterFn, index && index.multi ? function(x) {
+                  var prop = getByKeyPath(x, keyPath);
+                  return isArray(prop) && prop.some(function(item) {
+                    return equals(value, item);
+                  });
+                } : function(x) {
+                  return equals(value, getByKeyPath(x, keyPath));
+                }) : prevFilterFn
+              ];
+            }, [null, null]), idx = _a2[0], filterFunction = _a2[1];
+            return idx ? this.where(idx.name).equals(indexOrCrit[idx.keyPath]).filter(filterFunction) : compoundIndex ? this.filter(filterFunction) : this.where(keyPaths).equals("");
+          }, Table2.prototype.filter = function(filterFunction) {
+            return this.toCollection().and(filterFunction);
+          }, Table2.prototype.count = function(thenShortcut) {
+            return this.toCollection().count(thenShortcut);
+          }, Table2.prototype.offset = function(offset) {
+            return this.toCollection().offset(offset);
+          }, Table2.prototype.limit = function(numRows) {
+            return this.toCollection().limit(numRows);
+          }, Table2.prototype.each = function(callback) {
+            return this.toCollection().each(callback);
+          }, Table2.prototype.toArray = function(thenShortcut) {
+            return this.toCollection().toArray(thenShortcut);
+          }, Table2.prototype.toCollection = function() {
+            return new this.db.Collection(new this.db.WhereClause(this));
+          }, Table2.prototype.orderBy = function(index) {
+            return new this.db.Collection(new this.db.WhereClause(this, isArray(index) ? "[".concat(index.join("+"), "]") : index));
+          }, Table2.prototype.reverse = function() {
+            return this.toCollection().reverse();
+          }, Table2.prototype.mapToClass = function(constructor) {
+            var _a2 = this, db2 = _a2.db, tableName = _a2.name;
+            this.schema.mappedClass = constructor, constructor.prototype instanceof Entity2 && (constructor = (function(_super) {
+              __extends(class_1, _super);
+              function class_1() {
+                return _super !== null && _super.apply(this, arguments) || this;
+              }
+              return __name(class_1, "class_1"), Object.defineProperty(class_1.prototype, "db", {
+                get: /* @__PURE__ */ __name(function() {
+                  return db2;
+                }, "get"),
+                enumerable: !1,
+                configurable: !0
+              }), class_1.prototype.table = function() {
+                return tableName;
+              }, class_1;
+            })(constructor));
+            for (var inheritedProps = /* @__PURE__ */ new Set(), proto = constructor.prototype; proto; proto = getProto(proto))
+              Object.getOwnPropertyNames(proto).forEach(function(propName) {
+                return inheritedProps.add(propName);
+              });
+            var readHook = /* @__PURE__ */ __name(function(obj) {
+              if (!obj)
+                return obj;
+              var res = Object.create(constructor.prototype);
+              for (var m in obj)
+                if (!inheritedProps.has(m))
+                  try {
+                    res[m] = obj[m];
+                  } catch {
+                  }
+              return res;
+            }, "readHook");
+            return this.schema.readHook && this.hook.reading.unsubscribe(this.schema.readHook), this.schema.readHook = readHook, this.hook("reading", readHook), constructor;
+          }, Table2.prototype.defineClass = function() {
+            function Class(content) {
+              extend(this, content);
+            }
+            return __name(Class, "Class"), this.mapToClass(Class);
+          }, Table2.prototype.add = function(obj, key) {
+            var _this = this, _a2 = this.schema.primKey, auto = _a2.auto, keyPath = _a2.keyPath, objToAdd = obj;
+            return keyPath && auto && (objToAdd = workaroundForUndefinedPrimKey(keyPath)(obj)), this._trans("readwrite", function(trans) {
+              return _this.core.mutate({
+                trans,
+                type: "add",
+                keys: key != null ? [key] : null,
+                values: [objToAdd]
+              });
+            }).then(function(res) {
+              return res.numFailures ? DexiePromise.reject(res.failures[0]) : res.lastResult;
+            }).then(function(lastResult) {
+              if (keyPath)
+                try {
+                  setByKeyPath(obj, keyPath, lastResult);
+                } catch {
+                }
+              return lastResult;
+            });
+          }, Table2.prototype.upsert = function(key, modifications) {
+            var _this = this, keyPath = this.schema.primKey.keyPath;
+            return this._trans("readwrite", function(trans) {
+              return _this.core.get({ trans, key }).then(function(existing) {
+                var obj = existing ?? {};
+                return applyUpdateSpec(obj, modifications), keyPath && setByKeyPath(obj, keyPath, key), _this.core.mutate({
+                  trans,
+                  type: "put",
+                  values: [obj],
+                  keys: [key],
+                  upsert: !0,
+                  updates: { keys: [key], changeSpecs: [modifications] }
+                }).then(function(res) {
+                  return res.numFailures ? DexiePromise.reject(res.failures[0]) : !!existing;
+                });
+              });
+            });
+          }, Table2.prototype.update = function(keyOrObject, modifications) {
+            if (typeof keyOrObject == "object" && !isArray(keyOrObject)) {
+              var key = getByKeyPath(keyOrObject, this.schema.primKey.keyPath);
+              return key === void 0 ? rejection(new exceptions.InvalidArgument("Given object does not contain its primary key")) : this.where(":id").equals(key).modify(modifications);
+            } else
+              return this.where(":id").equals(keyOrObject).modify(modifications);
+          }, Table2.prototype.put = function(obj, key) {
+            var _this = this, _a2 = this.schema.primKey, auto = _a2.auto, keyPath = _a2.keyPath, objToAdd = obj;
+            return keyPath && auto && (objToAdd = workaroundForUndefinedPrimKey(keyPath)(obj)), this._trans("readwrite", function(trans) {
+              return _this.core.mutate({
+                trans,
+                type: "put",
+                values: [objToAdd],
+                keys: key != null ? [key] : null
+              });
+            }).then(function(res) {
+              return res.numFailures ? DexiePromise.reject(res.failures[0]) : res.lastResult;
+            }).then(function(lastResult) {
+              if (keyPath)
+                try {
+                  setByKeyPath(obj, keyPath, lastResult);
+                } catch {
+                }
+              return lastResult;
+            });
+          }, Table2.prototype.delete = function(key) {
+            var _this = this;
+            return this._trans("readwrite", function(trans) {
+              return _this.core.mutate({ trans, type: "delete", keys: [key] }).then(function(res) {
+                return builtInDeletionTrigger(_this, [key], res);
+              }).then(function(res) {
+                return res.numFailures ? DexiePromise.reject(res.failures[0]) : void 0;
+              });
+            });
+          }, Table2.prototype.clear = function() {
+            var _this = this;
+            return this._trans("readwrite", function(trans) {
+              return _this.core.mutate({ trans, type: "deleteRange", range: AnyRange }).then(function(res) {
+                return builtInDeletionTrigger(_this, null, res);
+              });
+            }).then(function(res) {
+              return res.numFailures ? DexiePromise.reject(res.failures[0]) : void 0;
+            });
+          }, Table2.prototype.bulkGet = function(keys2) {
+            var _this = this;
+            return this._trans("readonly", function(trans) {
+              return _this.core.getMany({
+                keys: keys2,
+                trans
+              }).then(function(result) {
+                return result.map(function(res) {
+                  return _this.hook.reading.fire(res);
+                });
+              });
+            });
+          }, Table2.prototype.bulkAdd = function(objects, keysOrOptions, options) {
+            var _this = this, keys2 = Array.isArray(keysOrOptions) ? keysOrOptions : void 0;
+            options = options || (keys2 ? void 0 : keysOrOptions);
+            var wantResults = options ? options.allKeys : void 0;
+            return this._trans("readwrite", function(trans) {
+              var _a2 = _this.schema.primKey, auto = _a2.auto, keyPath = _a2.keyPath;
+              if (keyPath && keys2)
+                throw new exceptions.InvalidArgument("bulkAdd(): keys argument invalid on tables with inbound keys");
+              if (keys2 && keys2.length !== objects.length)
+                throw new exceptions.InvalidArgument("Arguments objects and keys must have the same length");
+              var numObjects = objects.length, objectsToAdd = keyPath && auto ? objects.map(workaroundForUndefinedPrimKey(keyPath)) : objects;
+              return _this.core.mutate({
+                trans,
+                type: "add",
+                keys: keys2,
+                values: objectsToAdd,
+                wantResults
+              }).then(function(_a3) {
+                var numFailures = _a3.numFailures, results = _a3.results, lastResult = _a3.lastResult, failures = _a3.failures, result = wantResults ? results : lastResult;
+                if (numFailures === 0)
+                  return result;
+                throw new BulkError("".concat(_this.name, ".bulkAdd(): ").concat(numFailures, " of ").concat(numObjects, " operations failed"), failures);
+              });
+            });
+          }, Table2.prototype.bulkPut = function(objects, keysOrOptions, options) {
+            var _this = this, keys2 = Array.isArray(keysOrOptions) ? keysOrOptions : void 0;
+            options = options || (keys2 ? void 0 : keysOrOptions);
+            var wantResults = options ? options.allKeys : void 0;
+            return this._trans("readwrite", function(trans) {
+              var _a2 = _this.schema.primKey, auto = _a2.auto, keyPath = _a2.keyPath;
+              if (keyPath && keys2)
+                throw new exceptions.InvalidArgument("bulkPut(): keys argument invalid on tables with inbound keys");
+              if (keys2 && keys2.length !== objects.length)
+                throw new exceptions.InvalidArgument("Arguments objects and keys must have the same length");
+              var numObjects = objects.length, objectsToPut = keyPath && auto ? objects.map(workaroundForUndefinedPrimKey(keyPath)) : objects;
+              return _this.core.mutate({
+                trans,
+                type: "put",
+                keys: keys2,
+                values: objectsToPut,
+                wantResults
+              }).then(function(_a3) {
+                var numFailures = _a3.numFailures, results = _a3.results, lastResult = _a3.lastResult, failures = _a3.failures, result = wantResults ? results : lastResult;
+                if (numFailures === 0)
+                  return result;
+                throw new BulkError("".concat(_this.name, ".bulkPut(): ").concat(numFailures, " of ").concat(numObjects, " operations failed"), failures);
+              });
+            });
+          }, Table2.prototype.bulkUpdate = function(keysAndChanges) {
+            var _this = this, keys2 = keysAndChanges.map(function(entry) {
+              return entry.key;
+            }), changeSpecs = keysAndChanges.map(function(entry) {
+              return entry.changes;
+            }), offsetMap = [];
+            return this._trans("readwrite", function(trans) {
+              var coreTable = _this.core;
+              return coreTable.getMany({ trans, keys: keys2, cache: "clone" }).then(function(objs) {
+                var _a2 = coreTable.schema.primaryKey, outbound = _a2.outbound, extractKey = _a2.extractKey, resultKeys = [], resultObjs = [];
+                keysAndChanges.forEach(function(_a3, idx) {
+                  var key = _a3.key, changes = _a3.changes, obj = objs[idx];
+                  if (obj) {
+                    for (var _i = 0, _b = Object.keys(changes); _i < _b.length; _i++) {
+                      var keyPath = _b[_i];
+                      setByKeyPath(obj, keyPath, changes[keyPath]);
+                    }
+                    if (!outbound && cmp2(extractKey(obj), key) !== 0)
+                      throw new exceptions.Constraint("Cannot update primary key in bulkUpdate()");
+                    offsetMap.push(idx), resultKeys.push(key), resultObjs.push(obj);
+                  }
+                });
+                var numEntries = resultKeys.length;
+                return coreTable.mutate({
+                  trans,
+                  type: "put",
+                  keys: resultKeys,
+                  values: resultObjs,
+                  updates: {
+                    keys: keys2,
+                    changeSpecs
+                  }
+                }).then(function(_a3) {
+                  var numFailures = _a3.numFailures, failures = _a3.failures;
+                  if (numFailures === 0)
+                    return numEntries;
+                  for (var _i = 0, _b = Object.keys(failures); _i < _b.length; _i++) {
+                    var offset = _b[_i], mappedOffset = offsetMap[Number(offset)];
+                    if (mappedOffset != null) {
+                      var failure = failures[offset];
+                      delete failures[offset], failures[mappedOffset] = failure;
+                    }
+                  }
+                  throw new BulkError("".concat(_this.name, ".bulkUpdate(): ").concat(numFailures, " of ").concat(numEntries, " operations failed"), failures);
+                });
+              });
+            });
+          }, Table2.prototype.bulkDelete = function(keys2) {
+            var _this = this, numKeys = keys2.length;
+            return this._trans("readwrite", function(trans) {
+              return _this.core.mutate({ trans, type: "delete", keys: keys2 }).then(function(res) {
+                return builtInDeletionTrigger(_this, keys2, res);
+              });
+            }).then(function(_a2) {
+              var numFailures = _a2.numFailures, lastResult = _a2.lastResult, failures = _a2.failures;
+              if (numFailures === 0)
+                return lastResult;
+              throw new BulkError("".concat(_this.name, ".bulkDelete(): ").concat(numFailures, " of ").concat(numKeys, " operations failed"), failures);
+            });
+          }, Table2;
+        })();
+        function Events(ctx) {
+          var evs = {}, rv = /* @__PURE__ */ __name(function(eventName, subscriber) {
+            if (subscriber) {
+              for (var i2 = arguments.length, args = new Array(i2 - 1); --i2; )
+                args[i2 - 1] = arguments[i2];
+              return evs[eventName].subscribe.apply(null, args), ctx;
+            } else if (typeof eventName == "string")
+              return evs[eventName];
+          }, "rv");
+          rv.addEventType = add3;
+          for (var i = 1, l = arguments.length; i < l; ++i)
+            add3(arguments[i]);
+          return rv;
+          function add3(eventName, chainFunction, defaultFunction) {
+            if (typeof eventName == "object")
+              return addConfiguredEvents(eventName);
+            chainFunction || (chainFunction = reverseStoppableEventChain), defaultFunction || (defaultFunction = nop);
+            var context = {
+              subscribers: [],
+              fire: defaultFunction,
+              subscribe: /* @__PURE__ */ __name(function(cb) {
+                context.subscribers.indexOf(cb) === -1 && (context.subscribers.push(cb), context.fire = chainFunction(context.fire, cb));
+              }, "subscribe"),
+              unsubscribe: /* @__PURE__ */ __name(function(cb) {
+                context.subscribers = context.subscribers.filter(function(fn) {
+                  return fn !== cb;
+                }), context.fire = context.subscribers.reduce(chainFunction, defaultFunction);
+              }, "unsubscribe")
+            };
+            return evs[eventName] = rv[eventName] = context, context;
+          }
+          function addConfiguredEvents(cfg) {
+            keys(cfg).forEach(function(eventName) {
+              var args = cfg[eventName];
+              if (isArray(args))
+                add3(eventName, cfg[eventName][0], cfg[eventName][1]);
+              else if (args === "asap")
+                var context = add3(eventName, mirror, /* @__PURE__ */ __name(function() {
+                  for (var i2 = arguments.length, args2 = new Array(i2); i2--; )
+                    args2[i2] = arguments[i2];
+                  context.subscribers.forEach(function(fn) {
+                    asap$1(/* @__PURE__ */ __name(function() {
+                      fn.apply(null, args2);
+                    }, "fireEvent"));
+                  });
+                }, "fire"));
+              else
+                throw new exceptions.InvalidArgument("Invalid event config");
+            });
+          }
+        }
+        __name(Events, "Events");
+        function makeClassConstructor(prototype, constructor) {
+          return derive(constructor).from({ prototype }), constructor;
+        }
+        __name(makeClassConstructor, "makeClassConstructor");
+        function createTableConstructor(db2) {
+          return makeClassConstructor(Table.prototype, /* @__PURE__ */ __name(function(name, tableSchema, trans) {
+            this.db = db2, this._tx = trans, this.name = name, this.schema = tableSchema, this.hook = db2._allTables[name] ? db2._allTables[name].hook : Events(null, {
+              creating: [hookCreatingChain, nop],
+              reading: [pureFunctionChain, mirror],
+              updating: [hookUpdatingChain, nop],
+              deleting: [hookDeletingChain, nop]
+            });
+          }, "Table"));
+        }
+        __name(createTableConstructor, "createTableConstructor");
+        function isPlainKeyRange(ctx, ignoreLimitFilter) {
+          return !(ctx.filter || ctx.algorithm || ctx.or) && (ignoreLimitFilter ? ctx.justLimit : !ctx.replayFilter);
+        }
+        __name(isPlainKeyRange, "isPlainKeyRange");
+        function addFilter(ctx, fn) {
+          ctx.filter = combine(ctx.filter, fn);
+        }
+        __name(addFilter, "addFilter");
+        function addReplayFilter(ctx, factory, isLimitFilter) {
+          var curr = ctx.replayFilter;
+          ctx.replayFilter = curr ? function() {
+            return combine(curr(), factory());
+          } : factory, ctx.justLimit = isLimitFilter && !curr;
+        }
+        __name(addReplayFilter, "addReplayFilter");
+        function addMatchFilter(ctx, fn) {
+          ctx.isMatch = combine(ctx.isMatch, fn);
+        }
+        __name(addMatchFilter, "addMatchFilter");
+        function getIndexOrStore(ctx, coreSchema) {
+          if (ctx.isPrimKey)
+            return coreSchema.primaryKey;
+          var index = coreSchema.getIndexByKeyPath(ctx.index);
+          if (!index)
+            throw new exceptions.Schema("KeyPath " + ctx.index + " on object store " + coreSchema.name + " is not indexed");
+          return index;
+        }
+        __name(getIndexOrStore, "getIndexOrStore");
+        function openCursor(ctx, coreTable, trans) {
+          var index = getIndexOrStore(ctx, coreTable.schema);
+          return coreTable.openCursor({
+            trans,
+            values: !ctx.keysOnly,
+            reverse: ctx.dir === "prev",
+            unique: !!ctx.unique,
+            query: {
+              index,
+              range: ctx.range
+            }
+          });
+        }
+        __name(openCursor, "openCursor");
+        function iter(ctx, fn, coreTrans, coreTable) {
+          var filter = ctx.replayFilter ? combine(ctx.filter, ctx.replayFilter()) : ctx.filter;
+          if (ctx.or) {
+            var set_1 = {}, union = /* @__PURE__ */ __name(function(item, cursor, advance) {
+              if (!filter || filter(cursor, advance, function(result) {
+                return cursor.stop(result);
+              }, function(err) {
+                return cursor.fail(err);
+              })) {
+                var primaryKey = cursor.primaryKey, key = "" + primaryKey;
+                key === "[object ArrayBuffer]" && (key = "" + new Uint8Array(primaryKey)), hasOwn(set_1, key) || (set_1[key] = !0, fn(item, cursor, advance));
+              }
+            }, "union");
+            return Promise.all([
+              ctx.or._iterate(union, coreTrans),
+              iterate(openCursor(ctx, coreTable, coreTrans), ctx.algorithm, union, !ctx.keysOnly && ctx.valueMapper)
+            ]);
+          } else
+            return iterate(openCursor(ctx, coreTable, coreTrans), combine(ctx.algorithm, filter), fn, !ctx.keysOnly && ctx.valueMapper);
+        }
+        __name(iter, "iter");
+        function iterate(cursorPromise, filter, fn, valueMapper) {
+          var mappedFn = valueMapper ? function(x, c, a) {
+            return fn(valueMapper(x), c, a);
+          } : fn, wrappedFn = wrap(mappedFn);
+          return cursorPromise.then(function(cursor) {
+            if (cursor)
+              return cursor.start(function() {
+                var c = /* @__PURE__ */ __name(function() {
+                  return cursor.continue();
+                }, "c");
+                (!filter || filter(cursor, function(advancer) {
+                  return c = advancer;
+                }, function(val) {
+                  cursor.stop(val), c = nop;
+                }, function(e) {
+                  cursor.fail(e), c = nop;
+                })) && wrappedFn(cursor.value, cursor, function(advancer) {
+                  return c = advancer;
+                }), c();
+              });
+          });
+        }
+        __name(iterate, "iterate");
+        var Collection = (function() {
+          function Collection2() {
+          }
+          return __name(Collection2, "Collection"), Collection2.prototype._read = function(fn, cb) {
+            var ctx = this._ctx;
+            return ctx.error ? ctx.table._trans(null, rejection.bind(null, ctx.error)) : ctx.table._trans("readonly", fn).then(cb);
+          }, Collection2.prototype._write = function(fn) {
+            var ctx = this._ctx;
+            return ctx.error ? ctx.table._trans(null, rejection.bind(null, ctx.error)) : ctx.table._trans("readwrite", fn, "locked");
+          }, Collection2.prototype._addAlgorithm = function(fn) {
+            var ctx = this._ctx;
+            ctx.algorithm = combine(ctx.algorithm, fn);
+          }, Collection2.prototype._iterate = function(fn, coreTrans) {
+            return iter(this._ctx, fn, coreTrans, this._ctx.table.core);
+          }, Collection2.prototype.clone = function(props2) {
+            var rv = Object.create(this.constructor.prototype), ctx = Object.create(this._ctx);
+            return props2 && extend(ctx, props2), rv._ctx = ctx, rv;
+          }, Collection2.prototype.raw = function() {
+            return this._ctx.valueMapper = null, this;
+          }, Collection2.prototype.each = function(fn) {
+            var ctx = this._ctx;
+            return this._read(function(trans) {
+              return iter(ctx, fn, trans, ctx.table.core);
+            });
+          }, Collection2.prototype.count = function(cb) {
+            var _this = this;
+            return this._read(function(trans) {
+              var ctx = _this._ctx, coreTable = ctx.table.core;
+              if (isPlainKeyRange(ctx, !0))
+                return coreTable.count({
+                  trans,
+                  query: {
+                    index: getIndexOrStore(ctx, coreTable.schema),
+                    range: ctx.range
+                  }
+                }).then(function(count2) {
+                  return Math.min(count2, ctx.limit);
+                });
+              var count = 0;
+              return iter(ctx, function() {
+                return ++count, !1;
+              }, trans, coreTable).then(function() {
+                return count;
+              });
+            }).then(cb);
+          }, Collection2.prototype.sortBy = function(keyPath, cb) {
+            var parts = keyPath.split(".").reverse(), lastPart = parts[0], lastIndex = parts.length - 1;
+            function getval(obj, i) {
+              return i ? getval(obj[parts[i]], i - 1) : obj[lastPart];
+            }
+            __name(getval, "getval");
+            var order = this._ctx.dir === "next" ? 1 : -1;
+            function sorter(a, b) {
+              var aVal = getval(a, lastIndex), bVal = getval(b, lastIndex);
+              return cmp2(aVal, bVal) * order;
+            }
+            return __name(sorter, "sorter"), this.toArray(function(a) {
+              return a.slice().sort(sorter);
+            }).then(cb);
+          }, Collection2.prototype.toArray = function(cb) {
+            var _this = this;
+            return this._read(function(trans) {
+              var ctx = _this._ctx;
+              if (isPlainKeyRange(ctx, !0) && ctx.limit > 0) {
+                var valueMapper_1 = ctx.valueMapper, index = getIndexOrStore(ctx, ctx.table.core.schema);
+                return ctx.table.core.query({
+                  trans,
+                  limit: ctx.limit,
+                  values: !0,
+                  direction: ctx.dir === "prev" ? "prev" : void 0,
+                  query: {
+                    index,
+                    range: ctx.range
+                  }
+                }).then(function(_a2) {
+                  var result = _a2.result;
+                  return valueMapper_1 ? result.map(valueMapper_1) : result;
+                });
+              } else {
+                var a_1 = [];
+                return iter(ctx, function(item) {
+                  return a_1.push(item);
+                }, trans, ctx.table.core).then(function() {
+                  return a_1;
+                });
+              }
+            }, cb);
+          }, Collection2.prototype.offset = function(offset) {
+            var ctx = this._ctx;
+            return offset <= 0 ? this : (ctx.offset += offset, isPlainKeyRange(ctx) ? addReplayFilter(ctx, function() {
+              var offsetLeft = offset;
+              return function(cursor, advance) {
+                return offsetLeft === 0 ? !0 : offsetLeft === 1 ? (--offsetLeft, !1) : (advance(function() {
+                  cursor.advance(offsetLeft), offsetLeft = 0;
+                }), !1);
+              };
+            }) : addReplayFilter(ctx, function() {
+              var offsetLeft = offset;
+              return function() {
+                return --offsetLeft < 0;
+              };
+            }), this);
+          }, Collection2.prototype.limit = function(numRows) {
+            return this._ctx.limit = Math.min(this._ctx.limit, numRows), addReplayFilter(this._ctx, function() {
+              var rowsLeft = numRows;
+              return function(cursor, advance, resolve) {
+                return --rowsLeft <= 0 && advance(resolve), rowsLeft >= 0;
+              };
+            }, !0), this;
+          }, Collection2.prototype.until = function(filterFunction, bIncludeStopEntry) {
+            return addFilter(this._ctx, function(cursor, advance, resolve) {
+              return filterFunction(cursor.value) ? (advance(resolve), bIncludeStopEntry) : !0;
+            }), this;
+          }, Collection2.prototype.first = function(cb) {
+            return this.limit(1).toArray(function(a) {
+              return a[0];
+            }).then(cb);
+          }, Collection2.prototype.last = function(cb) {
+            return this.reverse().first(cb);
+          }, Collection2.prototype.filter = function(filterFunction) {
+            return addFilter(this._ctx, function(cursor) {
+              return filterFunction(cursor.value);
+            }), addMatchFilter(this._ctx, filterFunction), this;
+          }, Collection2.prototype.and = function(filter) {
+            return this.filter(filter);
+          }, Collection2.prototype.or = function(indexName) {
+            return new this.db.WhereClause(this._ctx.table, indexName, this);
+          }, Collection2.prototype.reverse = function() {
+            return this._ctx.dir = this._ctx.dir === "prev" ? "next" : "prev", this._ondirectionchange && this._ondirectionchange(this._ctx.dir), this;
+          }, Collection2.prototype.desc = function() {
+            return this.reverse();
+          }, Collection2.prototype.eachKey = function(cb) {
+            var ctx = this._ctx;
+            return ctx.keysOnly = !ctx.isMatch, this.each(function(val, cursor) {
+              cb(cursor.key, cursor);
+            });
+          }, Collection2.prototype.eachUniqueKey = function(cb) {
+            return this._ctx.unique = "unique", this.eachKey(cb);
+          }, Collection2.prototype.eachPrimaryKey = function(cb) {
+            var ctx = this._ctx;
+            return ctx.keysOnly = !ctx.isMatch, this.each(function(val, cursor) {
+              cb(cursor.primaryKey, cursor);
+            });
+          }, Collection2.prototype.keys = function(cb) {
+            var ctx = this._ctx;
+            ctx.keysOnly = !ctx.isMatch;
+            var a = [];
+            return this.each(function(item, cursor) {
+              a.push(cursor.key);
+            }).then(function() {
+              return a;
+            }).then(cb);
+          }, Collection2.prototype.primaryKeys = function(cb) {
+            var ctx = this._ctx;
+            if (isPlainKeyRange(ctx, !0) && ctx.limit > 0)
+              return this._read(function(trans) {
+                var index = getIndexOrStore(ctx, ctx.table.core.schema);
+                return ctx.table.core.query({
+                  trans,
+                  values: !1,
+                  limit: ctx.limit,
+                  direction: ctx.dir === "prev" ? "prev" : void 0,
+                  query: {
+                    index,
+                    range: ctx.range
+                  }
+                });
+              }).then(function(_a2) {
+                var result = _a2.result;
+                return result;
+              }).then(cb);
+            ctx.keysOnly = !ctx.isMatch;
+            var a = [];
+            return this.each(function(item, cursor) {
+              a.push(cursor.primaryKey);
+            }).then(function() {
+              return a;
+            }).then(cb);
+          }, Collection2.prototype.uniqueKeys = function(cb) {
+            return this._ctx.unique = "unique", this.keys(cb);
+          }, Collection2.prototype.firstKey = function(cb) {
+            return this.limit(1).keys(function(a) {
+              return a[0];
+            }).then(cb);
+          }, Collection2.prototype.lastKey = function(cb) {
+            return this.reverse().firstKey(cb);
+          }, Collection2.prototype.distinct = function() {
+            var ctx = this._ctx, idx = ctx.index && ctx.table.schema.idxByName[ctx.index];
+            if (!idx || !idx.multi)
+              return this;
+            var set2 = {};
+            return addFilter(this._ctx, function(cursor) {
+              var strKey = cursor.primaryKey.toString(), found = hasOwn(set2, strKey);
+              return set2[strKey] = !0, !found;
+            }), this;
+          }, Collection2.prototype.modify = function(changes) {
+            var _this = this, ctx = this._ctx;
+            return this._write(function(trans) {
+              var modifyer;
+              typeof changes == "function" ? modifyer = changes : modifyer = /* @__PURE__ */ __name(function(item) {
+                return applyUpdateSpec(item, changes);
+              }, "modifyer");
+              var coreTable = ctx.table.core, _a2 = coreTable.schema.primaryKey, outbound = _a2.outbound, extractKey = _a2.extractKey, limit = 200, modifyChunkSize = _this.db._options.modifyChunkSize;
+              modifyChunkSize && (typeof modifyChunkSize == "object" ? limit = modifyChunkSize[coreTable.name] || modifyChunkSize["*"] || 200 : limit = modifyChunkSize);
+              var totalFailures = [], successCount = 0, failedKeys = [], applyMutateResult = /* @__PURE__ */ __name(function(expectedCount, res) {
+                var failures = res.failures, numFailures = res.numFailures;
+                successCount += expectedCount - numFailures;
+                for (var _i = 0, _a3 = keys(failures); _i < _a3.length; _i++) {
+                  var pos = _a3[_i];
+                  totalFailures.push(failures[pos]);
+                }
+              }, "applyMutateResult"), isUnconditionalDelete = changes === deleteCallback;
+              return _this.clone().primaryKeys().then(function(keys2) {
+                var criteria = isPlainKeyRange(ctx) && ctx.limit === 1 / 0 && (typeof changes != "function" || isUnconditionalDelete) && {
+                  index: ctx.index,
+                  range: ctx.range
+                }, nextChunk = /* @__PURE__ */ __name(function(offset) {
+                  var count = Math.min(limit, keys2.length - offset), keysInChunk = keys2.slice(offset, offset + count);
+                  return (isUnconditionalDelete ? Promise.resolve([]) : coreTable.getMany({
+                    trans,
+                    keys: keysInChunk,
+                    cache: "immutable"
+                  })).then(function(values) {
+                    var addValues = [], putValues = [], putKeys = outbound ? [] : null, deleteKeys = isUnconditionalDelete ? keysInChunk : [];
+                    if (!isUnconditionalDelete)
+                      for (var i = 0; i < count; ++i) {
+                        var origValue = values[i], ctx_1 = {
+                          value: deepClone(origValue),
+                          primKey: keys2[offset + i]
+                        };
+                        modifyer.call(ctx_1, ctx_1.value, ctx_1) !== !1 && (ctx_1.value == null ? deleteKeys.push(keys2[offset + i]) : !outbound && cmp2(extractKey(origValue), extractKey(ctx_1.value)) !== 0 ? (deleteKeys.push(keys2[offset + i]), addValues.push(ctx_1.value)) : (putValues.push(ctx_1.value), outbound && putKeys.push(keys2[offset + i])));
+                      }
+                    return Promise.resolve(addValues.length > 0 && coreTable.mutate({ trans, type: "add", values: addValues }).then(function(res) {
+                      for (var pos in res.failures)
+                        deleteKeys.splice(parseInt(pos), 1);
+                      applyMutateResult(addValues.length, res);
+                    })).then(function() {
+                      return (putValues.length > 0 || criteria && typeof changes == "object") && coreTable.mutate({
+                        trans,
+                        type: "put",
+                        keys: putKeys,
+                        values: putValues,
+                        criteria,
+                        changeSpec: typeof changes != "function" && changes,
+                        isAdditionalChunk: offset > 0
+                      }).then(function(res) {
+                        return applyMutateResult(putValues.length, res);
+                      });
+                    }).then(function() {
+                      return (deleteKeys.length > 0 || criteria && isUnconditionalDelete) && coreTable.mutate({
+                        trans,
+                        type: "delete",
+                        keys: deleteKeys,
+                        criteria,
+                        isAdditionalChunk: offset > 0
+                      }).then(function(res) {
+                        return builtInDeletionTrigger(ctx.table, deleteKeys, res);
+                      }).then(function(res) {
+                        return applyMutateResult(deleteKeys.length, res);
+                      });
+                    }).then(function() {
+                      return keys2.length > offset + count && nextChunk(offset + limit);
+                    });
+                  });
+                }, "nextChunk");
+                return nextChunk(0).then(function() {
+                  if (totalFailures.length > 0)
+                    throw new ModifyError("Error modifying one or more objects", totalFailures, successCount, failedKeys);
+                  return keys2.length;
+                });
+              });
+            });
+          }, Collection2.prototype.delete = function() {
+            var ctx = this._ctx, range = ctx.range;
+            return isPlainKeyRange(ctx) && !ctx.table.schema.yProps && (ctx.isPrimKey || range.type === 3) ? this._write(function(trans) {
+              var primaryKey = ctx.table.core.schema.primaryKey, coreRange = range;
+              return ctx.table.core.count({ trans, query: { index: primaryKey, range: coreRange } }).then(function(count) {
+                return ctx.table.core.mutate({ trans, type: "deleteRange", range: coreRange }).then(function(_a2) {
+                  var failures = _a2.failures, numFailures = _a2.numFailures;
+                  if (numFailures)
+                    throw new ModifyError("Could not delete some values", Object.keys(failures).map(function(pos) {
+                      return failures[pos];
+                    }), count - numFailures);
+                  return count - numFailures;
+                });
+              });
+            }) : this.modify(deleteCallback);
+          }, Collection2;
+        })(), deleteCallback = /* @__PURE__ */ __name(function(value, ctx) {
+          return ctx.value = null;
+        }, "deleteCallback");
+        function createCollectionConstructor(db2) {
+          return makeClassConstructor(Collection.prototype, /* @__PURE__ */ __name(function(whereClause, keyRangeGenerator) {
+            this.db = db2;
+            var keyRange = AnyRange, error = null;
+            if (keyRangeGenerator)
+              try {
+                keyRange = keyRangeGenerator();
+              } catch (ex) {
+                error = ex;
+              }
+            var whereCtx = whereClause._ctx, table = whereCtx.table, readingHook = table.hook.reading.fire;
+            this._ctx = {
+              table,
+              index: whereCtx.index,
+              isPrimKey: !whereCtx.index || table.schema.primKey.keyPath && whereCtx.index === table.schema.primKey.name,
+              range: keyRange,
+              keysOnly: !1,
+              dir: "next",
+              unique: "",
+              algorithm: null,
+              filter: null,
+              replayFilter: null,
+              justLimit: !0,
+              isMatch: null,
+              offset: 0,
+              limit: 1 / 0,
+              error,
+              or: whereCtx.or,
+              valueMapper: readingHook !== mirror ? readingHook : null
+            };
+          }, "Collection"));
+        }
+        __name(createCollectionConstructor, "createCollectionConstructor");
+        function simpleCompare(a, b) {
+          return a < b ? -1 : a === b ? 0 : 1;
+        }
+        __name(simpleCompare, "simpleCompare");
+        function simpleCompareReverse(a, b) {
+          return a > b ? -1 : a === b ? 0 : 1;
+        }
+        __name(simpleCompareReverse, "simpleCompareReverse");
+        function fail(collectionOrWhereClause, err, T) {
+          var collection = collectionOrWhereClause instanceof WhereClause ? new collectionOrWhereClause.Collection(collectionOrWhereClause) : collectionOrWhereClause;
+          return collection._ctx.error = T ? new T(err) : new TypeError(err), collection;
+        }
+        __name(fail, "fail");
+        function emptyCollection(whereClause) {
+          var collection = new whereClause.Collection(whereClause, function() {
+            return rangeEqual("");
+          });
+          return collection._addAlgorithm(function() {
+            return !1;
+          }), collection;
+        }
+        __name(emptyCollection, "emptyCollection");
+        function upperFactory(dir) {
+          return dir === "next" ? function(s) {
+            return s.toUpperCase();
+          } : function(s) {
+            return s.toLowerCase();
+          };
+        }
+        __name(upperFactory, "upperFactory");
+        function lowerFactory(dir) {
+          return dir === "next" ? function(s) {
+            return s.toLowerCase();
+          } : function(s) {
+            return s.toUpperCase();
+          };
+        }
+        __name(lowerFactory, "lowerFactory");
+        function nextCasing(key, lowerKey, upperNeedle, lowerNeedle, cmp3, dir) {
+          for (var length = Math.min(key.length, lowerNeedle.length), llp = -1, i = 0; i < length; ++i) {
+            var lwrKeyChar = lowerKey[i];
+            if (lwrKeyChar !== lowerNeedle[i])
+              return cmp3(key[i], upperNeedle[i]) < 0 ? key.substr(0, i) + upperNeedle[i] + upperNeedle.substr(i + 1) : cmp3(key[i], lowerNeedle[i]) < 0 ? key.substr(0, i) + lowerNeedle[i] + upperNeedle.substr(i + 1) : llp >= 0 ? key.substr(0, llp) + lowerKey[llp] + upperNeedle.substr(llp + 1) : null;
+            cmp3(key[i], lwrKeyChar) < 0 && (llp = i);
+          }
+          return length < lowerNeedle.length && dir === "next" ? key + upperNeedle.substr(key.length) : length < key.length && dir === "prev" ? key.substr(0, upperNeedle.length) : llp < 0 ? null : key.substr(0, llp) + lowerNeedle[llp] + upperNeedle.substr(llp + 1);
+        }
+        __name(nextCasing, "nextCasing");
+        function addIgnoreCaseAlgorithm(whereClause, match, needles, suffix) {
+          var upper, lower, compare, upperNeedles, lowerNeedles, direction, nextKeySuffix, needlesLen = needles.length;
+          if (!needles.every(function(s) {
+            return typeof s == "string";
+          }))
+            return fail(whereClause, STRING_EXPECTED);
+          function initDirection(dir) {
+            upper = upperFactory(dir), lower = lowerFactory(dir), compare = dir === "next" ? simpleCompare : simpleCompareReverse;
+            var needleBounds = needles.map(function(needle) {
+              return { lower: lower(needle), upper: upper(needle) };
+            }).sort(function(a, b) {
+              return compare(a.lower, b.lower);
+            });
+            upperNeedles = needleBounds.map(function(nb) {
+              return nb.upper;
+            }), lowerNeedles = needleBounds.map(function(nb) {
+              return nb.lower;
+            }), direction = dir, nextKeySuffix = dir === "next" ? "" : suffix;
+          }
+          __name(initDirection, "initDirection"), initDirection("next");
+          var c = new whereClause.Collection(whereClause, function() {
+            return createRange(upperNeedles[0], lowerNeedles[needlesLen - 1] + suffix);
+          });
+          c._ondirectionchange = function(direction2) {
+            initDirection(direction2);
+          };
+          var firstPossibleNeedle = 0;
+          return c._addAlgorithm(function(cursor, advance, resolve) {
+            var key = cursor.key;
+            if (typeof key != "string")
+              return !1;
+            var lowerKey = lower(key);
+            if (match(lowerKey, lowerNeedles, firstPossibleNeedle))
+              return !0;
+            for (var lowestPossibleCasing = null, i = firstPossibleNeedle; i < needlesLen; ++i) {
+              var casing = nextCasing(key, lowerKey, upperNeedles[i], lowerNeedles[i], compare, direction);
+              casing === null && lowestPossibleCasing === null ? firstPossibleNeedle = i + 1 : (lowestPossibleCasing === null || compare(lowestPossibleCasing, casing) > 0) && (lowestPossibleCasing = casing);
+            }
+            return advance(lowestPossibleCasing !== null ? function() {
+              cursor.continue(lowestPossibleCasing + nextKeySuffix);
+            } : resolve), !1;
+          }), c;
+        }
+        __name(addIgnoreCaseAlgorithm, "addIgnoreCaseAlgorithm");
+        function createRange(lower, upper, lowerOpen, upperOpen) {
+          return {
+            type: 2,
+            lower,
+            upper,
+            lowerOpen,
+            upperOpen
+          };
+        }
+        __name(createRange, "createRange");
+        function rangeEqual(value) {
+          return {
+            type: 1,
+            lower: value,
+            upper: value
+          };
+        }
+        __name(rangeEqual, "rangeEqual");
+        var WhereClause = (function() {
+          function WhereClause2() {
+          }
+          return __name(WhereClause2, "WhereClause"), Object.defineProperty(WhereClause2.prototype, "Collection", {
+            get: /* @__PURE__ */ __name(function() {
+              return this._ctx.table.db.Collection;
+            }, "get"),
+            enumerable: !1,
+            configurable: !0
+          }), WhereClause2.prototype.between = function(lower, upper, includeLower, includeUpper) {
+            includeLower = includeLower !== !1, includeUpper = includeUpper === !0;
+            try {
+              return this._cmp(lower, upper) > 0 || this._cmp(lower, upper) === 0 && (includeLower || includeUpper) && !(includeLower && includeUpper) ? emptyCollection(this) : new this.Collection(this, function() {
+                return createRange(lower, upper, !includeLower, !includeUpper);
+              });
+            } catch {
+              return fail(this, INVALID_KEY_ARGUMENT);
+            }
+          }, WhereClause2.prototype.equals = function(value) {
+            return value == null ? fail(this, INVALID_KEY_ARGUMENT) : new this.Collection(this, function() {
+              return rangeEqual(value);
+            });
+          }, WhereClause2.prototype.above = function(value) {
+            return value == null ? fail(this, INVALID_KEY_ARGUMENT) : new this.Collection(this, function() {
+              return createRange(value, void 0, !0);
+            });
+          }, WhereClause2.prototype.aboveOrEqual = function(value) {
+            return value == null ? fail(this, INVALID_KEY_ARGUMENT) : new this.Collection(this, function() {
+              return createRange(value, void 0, !1);
+            });
+          }, WhereClause2.prototype.below = function(value) {
+            return value == null ? fail(this, INVALID_KEY_ARGUMENT) : new this.Collection(this, function() {
+              return createRange(void 0, value, !1, !0);
+            });
+          }, WhereClause2.prototype.belowOrEqual = function(value) {
+            return value == null ? fail(this, INVALID_KEY_ARGUMENT) : new this.Collection(this, function() {
+              return createRange(void 0, value);
+            });
+          }, WhereClause2.prototype.startsWith = function(str) {
+            return typeof str != "string" ? fail(this, STRING_EXPECTED) : this.between(str, str + maxString, !0, !0);
+          }, WhereClause2.prototype.startsWithIgnoreCase = function(str) {
+            return str === "" ? this.startsWith(str) : addIgnoreCaseAlgorithm(this, function(x, a) {
+              return x.indexOf(a[0]) === 0;
+            }, [str], maxString);
+          }, WhereClause2.prototype.equalsIgnoreCase = function(str) {
+            return addIgnoreCaseAlgorithm(this, function(x, a) {
+              return x === a[0];
+            }, [str], "");
+          }, WhereClause2.prototype.anyOfIgnoreCase = function() {
+            var set2 = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+            return set2.length === 0 ? emptyCollection(this) : addIgnoreCaseAlgorithm(this, function(x, a) {
+              return a.indexOf(x) !== -1;
+            }, set2, "");
+          }, WhereClause2.prototype.startsWithAnyOfIgnoreCase = function() {
+            var set2 = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+            return set2.length === 0 ? emptyCollection(this) : addIgnoreCaseAlgorithm(this, function(x, a) {
+              return a.some(function(n) {
+                return x.indexOf(n) === 0;
+              });
+            }, set2, maxString);
+          }, WhereClause2.prototype.anyOf = function() {
+            var _this = this, set2 = getArrayOf.apply(NO_CHAR_ARRAY, arguments), compare = this._cmp;
+            try {
+              set2.sort(compare);
+            } catch {
+              return fail(this, INVALID_KEY_ARGUMENT);
+            }
+            if (set2.length === 0)
+              return emptyCollection(this);
+            var c = new this.Collection(this, function() {
+              return createRange(set2[0], set2[set2.length - 1]);
+            });
+            c._ondirectionchange = function(direction) {
+              compare = direction === "next" ? _this._ascending : _this._descending, set2.sort(compare);
+            };
+            var i = 0;
+            return c._addAlgorithm(function(cursor, advance, resolve) {
+              for (var key = cursor.key; compare(key, set2[i]) > 0; )
+                if (++i, i === set2.length)
+                  return advance(resolve), !1;
+              return compare(key, set2[i]) === 0 ? !0 : (advance(function() {
+                cursor.continue(set2[i]);
+              }), !1);
+            }), c;
+          }, WhereClause2.prototype.notEqual = function(value) {
+            return this.inAnyRange([
+              [minKey, value],
+              [value, this.db._maxKey]
+            ], { includeLowers: !1, includeUppers: !1 });
+          }, WhereClause2.prototype.noneOf = function() {
+            var set2 = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+            if (set2.length === 0)
+              return new this.Collection(this);
+            try {
+              set2.sort(this._ascending);
+            } catch {
+              return fail(this, INVALID_KEY_ARGUMENT);
+            }
+            var ranges = set2.reduce(function(res, val) {
+              return res ? res.concat([[res[res.length - 1][1], val]]) : [[minKey, val]];
+            }, null);
+            return ranges.push([set2[set2.length - 1], this.db._maxKey]), this.inAnyRange(ranges, {
+              includeLowers: !1,
+              includeUppers: !1
+            });
+          }, WhereClause2.prototype.inAnyRange = function(ranges, options) {
+            var _this = this, cmp3 = this._cmp, ascending = this._ascending, descending = this._descending, min = this._min, max = this._max;
+            if (ranges.length === 0)
+              return emptyCollection(this);
+            if (!ranges.every(function(range) {
+              return range[0] !== void 0 && range[1] !== void 0 && ascending(range[0], range[1]) <= 0;
+            }))
+              return fail(this, "First argument to inAnyRange() must be an Array of two-value Arrays [lower,upper] where upper must not be lower than lower", exceptions.InvalidArgument);
+            var includeLowers = !options || options.includeLowers !== !1, includeUppers = options && options.includeUppers === !0;
+            function addRange2(ranges2, newRange) {
+              for (var i = 0, l = ranges2.length; i < l; ++i) {
+                var range = ranges2[i];
+                if (cmp3(newRange[0], range[1]) < 0 && cmp3(newRange[1], range[0]) > 0) {
+                  range[0] = min(range[0], newRange[0]), range[1] = max(range[1], newRange[1]);
+                  break;
+                }
+              }
+              return i === l && ranges2.push(newRange), ranges2;
+            }
+            __name(addRange2, "addRange");
+            var sortDirection = ascending;
+            function rangeSorter(a, b) {
+              return sortDirection(a[0], b[0]);
+            }
+            __name(rangeSorter, "rangeSorter");
+            var set2;
+            try {
+              set2 = ranges.reduce(addRange2, []), set2.sort(rangeSorter);
+            } catch {
+              return fail(this, INVALID_KEY_ARGUMENT);
+            }
+            var rangePos = 0, keyIsBeyondCurrentEntry = includeUppers ? function(key) {
+              return ascending(key, set2[rangePos][1]) > 0;
+            } : function(key) {
+              return ascending(key, set2[rangePos][1]) >= 0;
+            }, keyIsBeforeCurrentEntry = includeLowers ? function(key) {
+              return descending(key, set2[rangePos][0]) > 0;
+            } : function(key) {
+              return descending(key, set2[rangePos][0]) >= 0;
+            };
+            function keyWithinCurrentRange(key) {
+              return !keyIsBeyondCurrentEntry(key) && !keyIsBeforeCurrentEntry(key);
+            }
+            __name(keyWithinCurrentRange, "keyWithinCurrentRange");
+            var checkKey = keyIsBeyondCurrentEntry, c = new this.Collection(this, function() {
+              return createRange(set2[0][0], set2[set2.length - 1][1], !includeLowers, !includeUppers);
+            });
+            return c._ondirectionchange = function(direction) {
+              direction === "next" ? (checkKey = keyIsBeyondCurrentEntry, sortDirection = ascending) : (checkKey = keyIsBeforeCurrentEntry, sortDirection = descending), set2.sort(rangeSorter);
+            }, c._addAlgorithm(function(cursor, advance, resolve) {
+              for (var key = cursor.key; checkKey(key); )
+                if (++rangePos, rangePos === set2.length)
+                  return advance(resolve), !1;
+              return keyWithinCurrentRange(key) ? !0 : (_this._cmp(key, set2[rangePos][1]) === 0 || _this._cmp(key, set2[rangePos][0]) === 0 || advance(function() {
+                sortDirection === ascending ? cursor.continue(set2[rangePos][0]) : cursor.continue(set2[rangePos][1]);
+              }), !1);
+            }), c;
+          }, WhereClause2.prototype.startsWithAnyOf = function() {
+            var set2 = getArrayOf.apply(NO_CHAR_ARRAY, arguments);
+            return set2.every(function(s) {
+              return typeof s == "string";
+            }) ? set2.length === 0 ? emptyCollection(this) : this.inAnyRange(set2.map(function(str) {
+              return [str, str + maxString];
+            })) : fail(this, "startsWithAnyOf() only works with strings");
+          }, WhereClause2;
+        })();
+        function createWhereClauseConstructor(db2) {
+          return makeClassConstructor(WhereClause.prototype, /* @__PURE__ */ __name(function(table, index, orCollection) {
+            if (this.db = db2, this._ctx = {
+              table,
+              index: index === ":id" ? null : index,
+              or: orCollection
+            }, this._cmp = this._ascending = cmp2, this._descending = function(a, b) {
+              return cmp2(b, a);
+            }, this._max = function(a, b) {
+              return cmp2(a, b) > 0 ? a : b;
+            }, this._min = function(a, b) {
+              return cmp2(a, b) < 0 ? a : b;
+            }, this._IDBKeyRange = db2._deps.IDBKeyRange, !this._IDBKeyRange)
+              throw new exceptions.MissingAPI();
+          }, "WhereClause"));
+        }
+        __name(createWhereClauseConstructor, "createWhereClauseConstructor");
+        function eventRejectHandler(reject) {
+          return wrap(function(event) {
+            return preventDefault(event), reject(event.target.error), !1;
+          });
+        }
+        __name(eventRejectHandler, "eventRejectHandler");
+        function preventDefault(event) {
+          event.stopPropagation && event.stopPropagation(), event.preventDefault && event.preventDefault();
+        }
+        __name(preventDefault, "preventDefault");
+        var DEXIE_STORAGE_MUTATED_EVENT_NAME = "storagemutated", STORAGE_MUTATED_DOM_EVENT_NAME = "x-storagemutated-1", globalEvents = Events(null, DEXIE_STORAGE_MUTATED_EVENT_NAME), Transaction = (function() {
+          function Transaction2() {
+          }
+          return __name(Transaction2, "Transaction"), Transaction2.prototype._lock = function() {
+            return assert(!PSD.global), ++this._reculock, this._reculock === 1 && !PSD.global && (PSD.lockOwnerFor = this), this;
+          }, Transaction2.prototype._unlock = function() {
+            if (assert(!PSD.global), --this._reculock === 0)
+              for (PSD.global || (PSD.lockOwnerFor = null); this._blockedFuncs.length > 0 && !this._locked(); ) {
+                var fnAndPSD = this._blockedFuncs.shift();
+                try {
+                  usePSD(fnAndPSD[1], fnAndPSD[0]);
+                } catch {
+                }
+              }
+            return this;
+          }, Transaction2.prototype._locked = function() {
+            return this._reculock && PSD.lockOwnerFor !== this;
+          }, Transaction2.prototype.create = function(idbtrans) {
+            var _this = this;
+            if (!this.mode)
+              return this;
+            var idbdb = this.db.idbdb, dbOpenError = this.db._state.dbOpenError;
+            if (assert(!this.idbtrans), !idbtrans && !idbdb)
+              switch (dbOpenError && dbOpenError.name) {
+                case "DatabaseClosedError":
+                  throw new exceptions.DatabaseClosed(dbOpenError);
+                case "MissingAPIError":
+                  throw new exceptions.MissingAPI(dbOpenError.message, dbOpenError);
+                default:
+                  throw new exceptions.OpenFailed(dbOpenError);
+              }
+            if (!this.active)
+              throw new exceptions.TransactionInactive();
+            return assert(this._completion._state === null), idbtrans = this.idbtrans = idbtrans || (this.db.core ? this.db.core.transaction(this.storeNames, this.mode, { durability: this.chromeTransactionDurability }) : idbdb.transaction(this.storeNames, this.mode, {
+              durability: this.chromeTransactionDurability
+            })), idbtrans.onerror = wrap(function(ev) {
+              preventDefault(ev), _this._reject(idbtrans.error);
+            }), idbtrans.onabort = wrap(function(ev) {
+              preventDefault(ev), _this.active && _this._reject(new exceptions.Abort(idbtrans.error)), _this.active = !1, _this.on("abort").fire(ev);
+            }), idbtrans.oncomplete = wrap(function() {
+              _this.active = !1, _this._resolve(), "mutatedParts" in idbtrans && globalEvents.storagemutated.fire(idbtrans.mutatedParts);
+            }), this;
+          }, Transaction2.prototype._promise = function(mode, fn, bWriteLock) {
+            var _this = this;
+            if (mode === "readwrite" && this.mode !== "readwrite")
+              return rejection(new exceptions.ReadOnly("Transaction is readonly"));
+            if (!this.active)
+              return rejection(new exceptions.TransactionInactive());
+            if (this._locked())
+              return new DexiePromise(function(resolve, reject) {
+                _this._blockedFuncs.push([
+                  function() {
+                    _this._promise(mode, fn, bWriteLock).then(resolve, reject);
+                  },
+                  PSD
+                ]);
+              });
+            if (bWriteLock)
+              return newScope(function() {
+                var p2 = new DexiePromise(function(resolve, reject) {
+                  _this._lock();
+                  var rv = fn(resolve, reject, _this);
+                  rv && rv.then && rv.then(resolve, reject);
+                });
+                return p2.finally(function() {
+                  return _this._unlock();
+                }), p2._lib = !0, p2;
+              });
+            var p = new DexiePromise(function(resolve, reject) {
+              var rv = fn(resolve, reject, _this);
+              rv && rv.then && rv.then(resolve, reject);
+            });
+            return p._lib = !0, p;
+          }, Transaction2.prototype._root = function() {
+            return this.parent ? this.parent._root() : this;
+          }, Transaction2.prototype.waitFor = function(promiseLike) {
+            var root = this._root(), promise = DexiePromise.resolve(promiseLike);
+            if (root._waitingFor)
+              root._waitingFor = root._waitingFor.then(function() {
+                return promise;
+              });
+            else {
+              root._waitingFor = promise, root._waitingQueue = [];
+              var store = root.idbtrans.objectStore(root.storeNames[0]);
+              (/* @__PURE__ */ __name((function spin() {
+                for (++root._spinCount; root._waitingQueue.length; )
+                  root._waitingQueue.shift()();
+                root._waitingFor && (store.get(-1 / 0).onsuccess = spin);
+              }), "spin"))();
+            }
+            var currentWaitPromise = root._waitingFor;
+            return new DexiePromise(function(resolve, reject) {
+              promise.then(function(res) {
+                return root._waitingQueue.push(wrap(resolve.bind(null, res)));
+              }, function(err) {
+                return root._waitingQueue.push(wrap(reject.bind(null, err)));
+              }).finally(function() {
+                root._waitingFor === currentWaitPromise && (root._waitingFor = null);
+              });
+            });
+          }, Transaction2.prototype.abort = function() {
+            this.active && (this.active = !1, this.idbtrans && this.idbtrans.abort(), this._reject(new exceptions.Abort()));
+          }, Transaction2.prototype.table = function(tableName) {
+            var memoizedTables = this._memoizedTables || (this._memoizedTables = {});
+            if (hasOwn(memoizedTables, tableName))
+              return memoizedTables[tableName];
+            var tableSchema = this.schema[tableName];
+            if (!tableSchema)
+              throw new exceptions.NotFound("Table " + tableName + " not part of transaction");
+            var transactionBoundTable = new this.db.Table(tableName, tableSchema, this);
+            return transactionBoundTable.core = this.db.core.table(tableName), memoizedTables[tableName] = transactionBoundTable, transactionBoundTable;
+          }, Transaction2;
+        })();
+        function createTransactionConstructor(db2) {
+          return makeClassConstructor(Transaction.prototype, /* @__PURE__ */ __name(function(mode, storeNames, dbschema, chromeTransactionDurability, parent) {
+            var _this = this;
+            mode !== "readonly" && storeNames.forEach(function(storeName) {
+              var _a2, yProps = (_a2 = dbschema[storeName]) === null || _a2 === void 0 ? void 0 : _a2.yProps;
+              yProps && (storeNames = storeNames.concat(yProps.map(function(p) {
+                return p.updatesTable;
+              })));
+            }), this.db = db2, this.mode = mode, this.storeNames = storeNames, this.schema = dbschema, this.chromeTransactionDurability = chromeTransactionDurability, this.idbtrans = null, this.on = Events(this, "complete", "error", "abort"), this.parent = parent || null, this.active = !0, this._reculock = 0, this._blockedFuncs = [], this._resolve = null, this._reject = null, this._waitingFor = null, this._waitingQueue = null, this._spinCount = 0, this._completion = new DexiePromise(function(resolve, reject) {
+              _this._resolve = resolve, _this._reject = reject;
+            }), this._completion.then(function() {
+              _this.active = !1, _this.on.complete.fire();
+            }, function(e) {
+              var wasActive = _this.active;
+              return _this.active = !1, _this.on.error.fire(e), _this.parent ? _this.parent._reject(e) : wasActive && _this.idbtrans && _this.idbtrans.abort(), rejection(e);
+            });
+          }, "Transaction"));
+        }
+        __name(createTransactionConstructor, "createTransactionConstructor");
+        function createIndexSpec(name, keyPath, unique, multi, auto, compound, isPrimKey, type2) {
+          return {
+            name,
+            keyPath,
+            unique,
+            multi,
+            auto,
+            compound,
+            src: (unique && !isPrimKey ? "&" : "") + (multi ? "*" : "") + (auto ? "++" : "") + nameFromKeyPath(keyPath),
+            type: type2
+          };
+        }
+        __name(createIndexSpec, "createIndexSpec");
+        function nameFromKeyPath(keyPath) {
+          return typeof keyPath == "string" ? keyPath : keyPath ? "[" + [].join.call(keyPath, "+") + "]" : "";
+        }
+        __name(nameFromKeyPath, "nameFromKeyPath");
+        function createTableSchema(name, primKey, indexes) {
+          return {
+            name,
+            primKey,
+            indexes,
+            mappedClass: null,
+            idxByName: arrayToObject(indexes, function(index) {
+              return [index.name, index];
+            })
+          };
+        }
+        __name(createTableSchema, "createTableSchema");
+        function safariMultiStoreFix(storeNames) {
+          return storeNames.length === 1 ? storeNames[0] : storeNames;
+        }
+        __name(safariMultiStoreFix, "safariMultiStoreFix");
+        var getMaxKey = /* @__PURE__ */ __name(function(IdbKeyRange) {
+          try {
+            return IdbKeyRange.only([[]]), getMaxKey = /* @__PURE__ */ __name(function() {
+              return [[]];
+            }, "getMaxKey"), [[]];
+          } catch {
+            return getMaxKey = /* @__PURE__ */ __name(function() {
+              return maxString;
+            }, "getMaxKey"), maxString;
+          }
+        }, "getMaxKey");
+        function getKeyExtractor(keyPath) {
+          return keyPath == null ? function() {
+          } : typeof keyPath == "string" ? getSinglePathKeyExtractor(keyPath) : function(obj) {
+            return getByKeyPath(obj, keyPath);
+          };
+        }
+        __name(getKeyExtractor, "getKeyExtractor");
+        function getSinglePathKeyExtractor(keyPath) {
+          var split = keyPath.split(".");
+          return split.length === 1 ? function(obj) {
+            return obj[keyPath];
+          } : function(obj) {
+            return getByKeyPath(obj, keyPath);
+          };
+        }
+        __name(getSinglePathKeyExtractor, "getSinglePathKeyExtractor");
+        function arrayify(arrayLike) {
+          return [].slice.call(arrayLike);
+        }
+        __name(arrayify, "arrayify");
+        var _id_counter = 0;
+        function getKeyPathAlias(keyPath) {
+          return keyPath == null ? ":id" : typeof keyPath == "string" ? keyPath : "[".concat(keyPath.join("+"), "]");
+        }
+        __name(getKeyPathAlias, "getKeyPathAlias");
+        function createDBCore(db2, IdbKeyRange, tmpTrans) {
+          function extractSchema(db3, trans) {
+            var tables2 = arrayify(db3.objectStoreNames), tempStore = tables2.length > 0 ? trans.objectStore(tables2[0]) : {};
+            return {
+              schema: {
+                name: db3.name,
+                tables: tables2.map(function(table) {
+                  return trans.objectStore(table);
+                }).map(function(store) {
+                  var keyPath = store.keyPath, autoIncrement = store.autoIncrement, compound = isArray(keyPath), outbound = keyPath == null, indexByKeyPath = {}, result = {
+                    name: store.name,
+                    primaryKey: {
+                      name: null,
+                      isPrimaryKey: !0,
+                      outbound,
+                      compound,
+                      keyPath,
+                      autoIncrement,
+                      unique: !0,
+                      extractKey: getKeyExtractor(keyPath)
+                    },
+                    indexes: arrayify(store.indexNames).map(function(indexName) {
+                      return store.index(indexName);
+                    }).map(function(index) {
+                      var name = index.name, unique = index.unique, multiEntry = index.multiEntry, keyPath2 = index.keyPath, compound2 = isArray(keyPath2), result2 = {
+                        name,
+                        compound: compound2,
+                        keyPath: keyPath2,
+                        unique,
+                        multiEntry,
+                        extractKey: getKeyExtractor(keyPath2)
+                      };
+                      return indexByKeyPath[getKeyPathAlias(keyPath2)] = result2, result2;
+                    }),
+                    getIndexByKeyPath: /* @__PURE__ */ __name(function(keyPath2) {
+                      return indexByKeyPath[getKeyPathAlias(keyPath2)];
+                    }, "getIndexByKeyPath")
+                  };
+                  return indexByKeyPath[":id"] = result.primaryKey, keyPath != null && (indexByKeyPath[getKeyPathAlias(keyPath)] = result.primaryKey), result;
+                })
+              },
+              hasGetAll: tables2.length > 0 && "getAll" in tempStore && !(typeof navigator < "u" && /Safari/.test(navigator.userAgent) && !/(Chrome\/|Edge\/)/.test(navigator.userAgent) && [].concat(navigator.userAgent.match(/Safari\/(\d*)/))[1] < 604),
+              hasIdb3Features: "getAllRecords" in tempStore
+            };
+          }
+          __name(extractSchema, "extractSchema");
+          function makeIDBKeyRange(range) {
+            if (range.type === 3)
+              return null;
+            if (range.type === 4)
+              throw new Error("Cannot convert never type to IDBKeyRange");
+            var lower = range.lower, upper = range.upper, lowerOpen = range.lowerOpen, upperOpen = range.upperOpen, idbRange = lower === void 0 ? upper === void 0 ? null : IdbKeyRange.upperBound(upper, !!upperOpen) : upper === void 0 ? IdbKeyRange.lowerBound(lower, !!lowerOpen) : IdbKeyRange.bound(lower, upper, !!lowerOpen, !!upperOpen);
+            return idbRange;
+          }
+          __name(makeIDBKeyRange, "makeIDBKeyRange");
+          function createDbCoreTable(tableSchema) {
+            var tableName = tableSchema.name;
+            function mutate(_a3) {
+              var trans = _a3.trans, type2 = _a3.type, keys2 = _a3.keys, values = _a3.values, range = _a3.range;
+              return new Promise(function(resolve, reject) {
+                resolve = wrap(resolve);
+                var store = trans.objectStore(tableName), outbound = store.keyPath == null, isAddOrPut = type2 === "put" || type2 === "add";
+                if (!isAddOrPut && type2 !== "delete" && type2 !== "deleteRange")
+                  throw new Error("Invalid operation type: " + type2);
+                var length = (keys2 || values || { length: 1 }).length;
+                if (keys2 && values && keys2.length !== values.length)
+                  throw new Error("Given keys array must have same length as given values array.");
+                if (length === 0)
+                  return resolve({
+                    numFailures: 0,
+                    failures: {},
+                    results: [],
+                    lastResult: void 0
+                  });
+                var req, reqs = [], failures = [], numFailures = 0, errorHandler = /* @__PURE__ */ __name(function(event) {
+                  ++numFailures, preventDefault(event);
+                }, "errorHandler");
+                if (type2 === "deleteRange") {
+                  if (range.type === 4)
+                    return resolve({
+                      numFailures,
+                      failures,
+                      results: [],
+                      lastResult: void 0
+                    });
+                  range.type === 3 ? reqs.push(req = store.clear()) : reqs.push(req = store.delete(makeIDBKeyRange(range)));
+                } else {
+                  var _a4 = isAddOrPut ? outbound ? [values, keys2] : [values, null] : [keys2, null], args1 = _a4[0], args2 = _a4[1];
+                  if (isAddOrPut)
+                    for (var i = 0; i < length; ++i)
+                      reqs.push(req = args2 && args2[i] !== void 0 ? store[type2](args1[i], args2[i]) : store[type2](args1[i])), req.onerror = errorHandler;
+                  else
+                    for (var i = 0; i < length; ++i)
+                      reqs.push(req = store[type2](args1[i])), req.onerror = errorHandler;
+                }
+                var done = /* @__PURE__ */ __name(function(event) {
+                  var lastResult = event.target.result;
+                  reqs.forEach(function(req2, i2) {
+                    return req2.error != null && (failures[i2] = req2.error);
+                  }), resolve({
+                    numFailures,
+                    failures,
+                    results: type2 === "delete" ? keys2 : reqs.map(function(req2) {
+                      return req2.result;
+                    }),
+                    lastResult
+                  });
+                }, "done");
+                req.onerror = function(event) {
+                  errorHandler(event), done(event);
+                }, req.onsuccess = done;
+              });
+            }
+            __name(mutate, "mutate");
+            function openCursor2(_a3) {
+              var trans = _a3.trans, values = _a3.values, query2 = _a3.query, reverse = _a3.reverse, unique = _a3.unique;
+              return new Promise(function(resolve, reject) {
+                resolve = wrap(resolve);
+                var index = query2.index, range = query2.range, store = trans.objectStore(tableName), source = index.isPrimaryKey ? store : store.index(index.name), direction = reverse ? unique ? "prevunique" : "prev" : unique ? "nextunique" : "next", req = values || !("openKeyCursor" in source) ? source.openCursor(makeIDBKeyRange(range), direction) : source.openKeyCursor(makeIDBKeyRange(range), direction);
+                req.onerror = eventRejectHandler(reject), req.onsuccess = wrap(function(ev) {
+                  var cursor = req.result;
+                  if (!cursor) {
+                    resolve(null);
+                    return;
+                  }
+                  cursor.___id = ++_id_counter, cursor.done = !1;
+                  var _cursorContinue = cursor.continue.bind(cursor), _cursorContinuePrimaryKey = cursor.continuePrimaryKey;
+                  _cursorContinuePrimaryKey && (_cursorContinuePrimaryKey = _cursorContinuePrimaryKey.bind(cursor));
+                  var _cursorAdvance = cursor.advance.bind(cursor), doThrowCursorIsNotStarted = /* @__PURE__ */ __name(function() {
+                    throw new Error("Cursor not started");
+                  }, "doThrowCursorIsNotStarted"), doThrowCursorIsStopped = /* @__PURE__ */ __name(function() {
+                    throw new Error("Cursor not stopped");
+                  }, "doThrowCursorIsStopped");
+                  cursor.trans = trans, cursor.stop = cursor.continue = cursor.continuePrimaryKey = cursor.advance = doThrowCursorIsNotStarted, cursor.fail = wrap(reject), cursor.next = function() {
+                    var _this = this, gotOne = 1;
+                    return this.start(function() {
+                      return gotOne-- ? _this.continue() : _this.stop();
+                    }).then(function() {
+                      return _this;
+                    });
+                  }, cursor.start = function(callback) {
+                    var iterationPromise = new Promise(function(resolveIteration, rejectIteration) {
+                      resolveIteration = wrap(resolveIteration), req.onerror = eventRejectHandler(rejectIteration), cursor.fail = rejectIteration, cursor.stop = function(value) {
+                        cursor.stop = cursor.continue = cursor.continuePrimaryKey = cursor.advance = doThrowCursorIsStopped, resolveIteration(value);
+                      };
+                    }), guardedCallback = /* @__PURE__ */ __name(function() {
+                      if (req.result)
+                        try {
+                          callback();
+                        } catch (err) {
+                          cursor.fail(err);
+                        }
+                      else
+                        cursor.done = !0, cursor.start = function() {
+                          throw new Error("Cursor behind last entry");
+                        }, cursor.stop();
+                    }, "guardedCallback");
+                    return req.onsuccess = wrap(function(ev2) {
+                      req.onsuccess = guardedCallback, guardedCallback();
+                    }), cursor.continue = _cursorContinue, cursor.continuePrimaryKey = _cursorContinuePrimaryKey, cursor.advance = _cursorAdvance, guardedCallback(), iterationPromise;
+                  }, resolve(cursor);
+                }, reject);
+              });
+            }
+            __name(openCursor2, "openCursor");
+            function query(hasGetAll2, hasIdb3Features2) {
+              return function(request) {
+                return new Promise(function(resolve, reject) {
+                  var _a3;
+                  resolve = wrap(resolve);
+                  var trans = request.trans, values = request.values, limit = request.limit, query2 = request.query, direction = (_a3 = request.direction) !== null && _a3 !== void 0 ? _a3 : "next", nonInfinitLimit = limit === 1 / 0 ? void 0 : limit, index = query2.index, range = query2.range, store = trans.objectStore(tableName), source = index.isPrimaryKey ? store : store.index(index.name), idbKeyRange = makeIDBKeyRange(range);
+                  if (limit === 0)
+                    return resolve({ result: [] });
+                  if (hasIdb3Features2) {
+                    var options = {
+                      query: idbKeyRange,
+                      count: nonInfinitLimit,
+                      direction
+                    }, req = values ? source.getAll(options) : source.getAllKeys(options);
+                    req.onsuccess = function(event) {
+                      return resolve({ result: event.target.result });
+                    }, req.onerror = eventRejectHandler(reject);
+                  } else if (hasGetAll2 && direction === "next") {
+                    var req = values ? source.getAll(idbKeyRange, nonInfinitLimit) : source.getAllKeys(idbKeyRange, nonInfinitLimit);
+                    req.onsuccess = function(event) {
+                      return resolve({ result: event.target.result });
+                    }, req.onerror = eventRejectHandler(reject);
+                  } else {
+                    var count_1 = 0, req_1 = values || !("openKeyCursor" in source) ? source.openCursor(idbKeyRange, direction) : source.openKeyCursor(idbKeyRange, direction), result_1 = [];
+                    req_1.onsuccess = function() {
+                      var cursor = req_1.result;
+                      if (!cursor)
+                        return resolve({ result: result_1 });
+                      if (result_1.push(values ? cursor.value : cursor.primaryKey), ++count_1 === limit)
+                        return resolve({ result: result_1 });
+                      cursor.continue();
+                    }, req_1.onerror = eventRejectHandler(reject);
+                  }
+                });
+              };
+            }
+            return __name(query, "query"), {
+              name: tableName,
+              schema: tableSchema,
+              mutate,
+              getMany: /* @__PURE__ */ __name(function(_a3) {
+                var trans = _a3.trans, keys2 = _a3.keys;
+                return new Promise(function(resolve, reject) {
+                  resolve = wrap(resolve);
+                  for (var store = trans.objectStore(tableName), length = keys2.length, result = new Array(length), keyCount = 0, callbackCount = 0, req, successHandler = /* @__PURE__ */ __name(function(event) {
+                    var req2 = event.target;
+                    (result[req2._pos] = req2.result) != null, ++callbackCount === keyCount && resolve(result);
+                  }, "successHandler"), errorHandler = eventRejectHandler(reject), i = 0; i < length; ++i) {
+                    var key = keys2[i];
+                    key != null && (req = store.get(keys2[i]), req._pos = i, req.onsuccess = successHandler, req.onerror = errorHandler, ++keyCount);
+                  }
+                  keyCount === 0 && resolve(result);
+                });
+              }, "getMany"),
+              get: /* @__PURE__ */ __name(function(_a3) {
+                var trans = _a3.trans, key = _a3.key;
+                return new Promise(function(resolve, reject) {
+                  resolve = wrap(resolve);
+                  var store = trans.objectStore(tableName), req = store.get(key);
+                  req.onsuccess = function(event) {
+                    return resolve(event.target.result);
+                  }, req.onerror = eventRejectHandler(reject);
+                });
+              }, "get"),
+              query: query(hasGetAll, hasIdb3Features),
+              openCursor: openCursor2,
+              count: /* @__PURE__ */ __name(function(_a3) {
+                var query2 = _a3.query, trans = _a3.trans, index = query2.index, range = query2.range;
+                return new Promise(function(resolve, reject) {
+                  var store = trans.objectStore(tableName), source = index.isPrimaryKey ? store : store.index(index.name), idbKeyRange = makeIDBKeyRange(range), req = idbKeyRange ? source.count(idbKeyRange) : source.count();
+                  req.onsuccess = wrap(function(ev) {
+                    return resolve(ev.target.result);
+                  }), req.onerror = eventRejectHandler(reject);
+                });
+              }, "count")
+            };
+          }
+          __name(createDbCoreTable, "createDbCoreTable");
+          var _a2 = extractSchema(db2, tmpTrans), schema = _a2.schema, hasGetAll = _a2.hasGetAll, hasIdb3Features = _a2.hasIdb3Features, tables = schema.tables.map(function(tableSchema) {
+            return createDbCoreTable(tableSchema);
+          }), tableMap = {};
+          return tables.forEach(function(table) {
+            return tableMap[table.name] = table;
+          }), {
+            stack: "dbcore",
+            transaction: db2.transaction.bind(db2),
+            table: /* @__PURE__ */ __name(function(name) {
+              var result = tableMap[name];
+              if (!result)
+                throw new Error("Table '".concat(name, "' not found"));
+              return tableMap[name];
+            }, "table"),
+            MIN_KEY: -1 / 0,
+            MAX_KEY: getMaxKey(IdbKeyRange),
+            schema
+          };
+        }
+        __name(createDBCore, "createDBCore");
+        function createMiddlewareStack(stackImpl, middlewares) {
+          return middlewares.reduce(function(down, _a2) {
+            var create = _a2.create;
+            return __assign(__assign({}, down), create(down));
+          }, stackImpl);
+        }
+        __name(createMiddlewareStack, "createMiddlewareStack");
+        function createMiddlewareStacks(middlewares, idbdb, _a2, tmpTrans) {
+          var IDBKeyRange = _a2.IDBKeyRange;
+          _a2.indexedDB;
+          var dbcore = createMiddlewareStack(createDBCore(idbdb, IDBKeyRange, tmpTrans), middlewares.dbcore);
+          return {
+            dbcore
+          };
+        }
+        __name(createMiddlewareStacks, "createMiddlewareStacks");
+        function generateMiddlewareStacks(db2, tmpTrans) {
+          var idbdb = tmpTrans.db, stacks = createMiddlewareStacks(db2._middlewares, idbdb, db2._deps, tmpTrans);
+          db2.core = stacks.dbcore, db2.tables.forEach(function(table) {
+            var tableName = table.name;
+            db2.core.schema.tables.some(function(tbl) {
+              return tbl.name === tableName;
+            }) && (table.core = db2.core.table(tableName), db2[tableName] instanceof db2.Table && (db2[tableName].core = table.core));
+          });
+        }
+        __name(generateMiddlewareStacks, "generateMiddlewareStacks");
+        function setApiOnPlace(db2, objs, tableNames, dbschema) {
+          tableNames.forEach(function(tableName) {
+            var schema = dbschema[tableName];
+            objs.forEach(function(obj) {
+              var propDesc = getPropertyDescriptor(obj, tableName);
+              (!propDesc || "value" in propDesc && propDesc.value === void 0) && (obj === db2.Transaction.prototype || obj instanceof db2.Transaction ? setProp(obj, tableName, {
+                get: /* @__PURE__ */ __name(function() {
+                  return this.table(tableName);
+                }, "get"),
+                set: /* @__PURE__ */ __name(function(value) {
+                  defineProperty(this, tableName, {
+                    value,
+                    writable: !0,
+                    configurable: !0,
+                    enumerable: !0
+                  });
+                }, "set")
+              }) : obj[tableName] = new db2.Table(tableName, schema));
+            });
+          });
+        }
+        __name(setApiOnPlace, "setApiOnPlace");
+        function removeTablesApi(db2, objs) {
+          objs.forEach(function(obj) {
+            for (var key in obj)
+              obj[key] instanceof db2.Table && delete obj[key];
+          });
+        }
+        __name(removeTablesApi, "removeTablesApi");
+        function lowerVersionFirst(a, b) {
+          return a._cfg.version - b._cfg.version;
+        }
+        __name(lowerVersionFirst, "lowerVersionFirst");
+        function runUpgraders(db2, oldVersion, idbUpgradeTrans, reject) {
+          var globalSchema = db2._dbSchema;
+          idbUpgradeTrans.objectStoreNames.contains("$meta") && !globalSchema.$meta && (globalSchema.$meta = createTableSchema("$meta", parseIndexSyntax("")[0], []), db2._storeNames.push("$meta"));
+          var trans = db2._createTransaction("readwrite", db2._storeNames, globalSchema);
+          trans.create(idbUpgradeTrans), trans._completion.catch(reject);
+          var rejectTransaction = trans._reject.bind(trans), transless = PSD.transless || PSD;
+          newScope(function() {
+            if (PSD.trans = trans, PSD.transless = transless, oldVersion === 0)
+              keys(globalSchema).forEach(function(tableName) {
+                createTable(idbUpgradeTrans, tableName, globalSchema[tableName].primKey, globalSchema[tableName].indexes);
+              }), generateMiddlewareStacks(db2, idbUpgradeTrans), DexiePromise.follow(function() {
+                return db2.on.populate.fire(trans);
+              }).catch(rejectTransaction);
+            else
+              return generateMiddlewareStacks(db2, idbUpgradeTrans), getExistingVersion(db2, trans, oldVersion).then(function(oldVersion2) {
+                return updateTablesAndIndexes(db2, oldVersion2, trans, idbUpgradeTrans);
+              }).catch(rejectTransaction);
+          });
+        }
+        __name(runUpgraders, "runUpgraders");
+        function patchCurrentVersion(db2, idbUpgradeTrans) {
+          createMissingTables(db2._dbSchema, idbUpgradeTrans), idbUpgradeTrans.db.version % 10 === 0 && !idbUpgradeTrans.objectStoreNames.contains("$meta") && idbUpgradeTrans.db.createObjectStore("$meta").add(Math.ceil(idbUpgradeTrans.db.version / 10 - 1), "version");
+          var globalSchema = buildGlobalSchema(db2, db2.idbdb, idbUpgradeTrans);
+          adjustToExistingIndexNames(db2, db2._dbSchema, idbUpgradeTrans);
+          for (var diff = getSchemaDiff(globalSchema, db2._dbSchema), _loop_1 = /* @__PURE__ */ __name(function(tableChange2) {
+            if (tableChange2.change.length || tableChange2.recreate)
+              return console.warn("Unable to patch indexes of table ".concat(tableChange2.name, " because it has changes on the type of index or primary key.")), { value: void 0 };
+            var store = idbUpgradeTrans.objectStore(tableChange2.name);
+            tableChange2.add.forEach(function(idx) {
+              debug && console.debug("Dexie upgrade patch: Creating missing index ".concat(tableChange2.name, ".").concat(idx.src)), addIndex(store, idx);
+            });
+          }, "_loop_1"), _i = 0, _a2 = diff.change; _i < _a2.length; _i++) {
+            var tableChange = _a2[_i], state_1 = _loop_1(tableChange);
+            if (typeof state_1 == "object")
+              return state_1.value;
+          }
+        }
+        __name(patchCurrentVersion, "patchCurrentVersion");
+        function getExistingVersion(db2, trans, oldVersion) {
+          return trans.storeNames.includes("$meta") ? trans.table("$meta").get("version").then(function(metaVersion) {
+            return metaVersion ?? oldVersion;
+          }) : DexiePromise.resolve(oldVersion);
+        }
+        __name(getExistingVersion, "getExistingVersion");
+        function updateTablesAndIndexes(db2, oldVersion, trans, idbUpgradeTrans) {
+          var queue = [], versions = db2._versions, globalSchema = db2._dbSchema = buildGlobalSchema(db2, db2.idbdb, idbUpgradeTrans), versToRun = versions.filter(function(v) {
+            return v._cfg.version >= oldVersion;
+          });
+          if (versToRun.length === 0)
+            return DexiePromise.resolve();
+          versToRun.forEach(function(version) {
+            queue.push(function() {
+              var oldSchema = globalSchema, newSchema = version._cfg.dbschema;
+              adjustToExistingIndexNames(db2, oldSchema, idbUpgradeTrans), adjustToExistingIndexNames(db2, newSchema, idbUpgradeTrans), globalSchema = db2._dbSchema = newSchema;
+              var diff = getSchemaDiff(oldSchema, newSchema);
+              diff.add.forEach(function(tuple) {
+                createTable(idbUpgradeTrans, tuple[0], tuple[1].primKey, tuple[1].indexes);
+              }), diff.change.forEach(function(change) {
+                if (change.recreate)
+                  throw new exceptions.Upgrade("Not yet support for changing primary key");
+                var store_1 = idbUpgradeTrans.objectStore(change.name);
+                change.add.forEach(function(idx) {
+                  return addIndex(store_1, idx);
+                }), change.change.forEach(function(idx) {
+                  store_1.deleteIndex(idx.name), addIndex(store_1, idx);
+                }), change.del.forEach(function(idxName) {
+                  return store_1.deleteIndex(idxName);
+                });
+              });
+              var contentUpgrade = version._cfg.contentUpgrade;
+              if (contentUpgrade && version._cfg.version > oldVersion) {
+                generateMiddlewareStacks(db2, idbUpgradeTrans), trans._memoizedTables = {};
+                var upgradeSchema_1 = shallowClone(newSchema);
+                diff.del.forEach(function(table) {
+                  upgradeSchema_1[table] = oldSchema[table];
+                }), removeTablesApi(db2, [db2.Transaction.prototype]), setApiOnPlace(db2, [db2.Transaction.prototype], keys(upgradeSchema_1), upgradeSchema_1), trans.schema = upgradeSchema_1;
+                var contentUpgradeIsAsync_1 = isAsyncFunction(contentUpgrade);
+                contentUpgradeIsAsync_1 && incrementExpectedAwaits();
+                var returnValue_1, promiseFollowed = DexiePromise.follow(function() {
+                  if (returnValue_1 = contentUpgrade(trans), returnValue_1 && contentUpgradeIsAsync_1) {
+                    var decrementor = decrementExpectedAwaits.bind(null, null);
+                    returnValue_1.then(decrementor, decrementor);
+                  }
+                });
+                return returnValue_1 && typeof returnValue_1.then == "function" ? DexiePromise.resolve(returnValue_1) : promiseFollowed.then(function() {
+                  return returnValue_1;
+                });
+              }
+            }), queue.push(function(idbtrans) {
+              var newSchema = version._cfg.dbschema;
+              deleteRemovedTables(newSchema, idbtrans), removeTablesApi(db2, [db2.Transaction.prototype]), setApiOnPlace(db2, [db2.Transaction.prototype], db2._storeNames, db2._dbSchema), trans.schema = db2._dbSchema;
+            }), queue.push(function(idbtrans) {
+              db2.idbdb.objectStoreNames.contains("$meta") && (Math.ceil(db2.idbdb.version / 10) === version._cfg.version ? (db2.idbdb.deleteObjectStore("$meta"), delete db2._dbSchema.$meta, db2._storeNames = db2._storeNames.filter(function(name) {
+                return name !== "$meta";
+              })) : idbtrans.objectStore("$meta").put(version._cfg.version, "version"));
+            });
+          });
+          function runQueue() {
+            return queue.length ? DexiePromise.resolve(queue.shift()(trans.idbtrans)).then(runQueue) : DexiePromise.resolve();
+          }
+          return __name(runQueue, "runQueue"), runQueue().then(function() {
+            createMissingTables(globalSchema, idbUpgradeTrans);
+          });
+        }
+        __name(updateTablesAndIndexes, "updateTablesAndIndexes");
+        function getSchemaDiff(oldSchema, newSchema) {
+          var diff = {
+            del: [],
+            add: [],
+            change: []
+          }, table;
+          for (table in oldSchema)
+            newSchema[table] || diff.del.push(table);
+          for (table in newSchema) {
+            var oldDef = oldSchema[table], newDef = newSchema[table];
+            if (!oldDef)
+              diff.add.push([table, newDef]);
+            else {
+              var change = {
+                name: table,
+                def: newDef,
+                recreate: !1,
+                del: [],
+                add: [],
+                change: []
+              };
+              if ("" + (oldDef.primKey.keyPath || "") != "" + (newDef.primKey.keyPath || "") || oldDef.primKey.auto !== newDef.primKey.auto)
+                change.recreate = !0, diff.change.push(change);
+              else {
+                var oldIndexes = oldDef.idxByName, newIndexes = newDef.idxByName, idxName = void 0;
+                for (idxName in oldIndexes)
+                  newIndexes[idxName] || change.del.push(idxName);
+                for (idxName in newIndexes) {
+                  var oldIdx = oldIndexes[idxName], newIdx = newIndexes[idxName];
+                  oldIdx ? oldIdx.src !== newIdx.src && change.change.push(newIdx) : change.add.push(newIdx);
+                }
+                (change.del.length > 0 || change.add.length > 0 || change.change.length > 0) && diff.change.push(change);
+              }
+            }
+          }
+          return diff;
+        }
+        __name(getSchemaDiff, "getSchemaDiff");
+        function createTable(idbtrans, tableName, primKey, indexes) {
+          var store = idbtrans.db.createObjectStore(tableName, primKey.keyPath ? { keyPath: primKey.keyPath, autoIncrement: primKey.auto } : { autoIncrement: primKey.auto });
+          return indexes.forEach(function(idx) {
+            return addIndex(store, idx);
+          }), store;
+        }
+        __name(createTable, "createTable");
+        function createMissingTables(newSchema, idbtrans) {
+          keys(newSchema).forEach(function(tableName) {
+            idbtrans.db.objectStoreNames.contains(tableName) || (debug && console.debug("Dexie: Creating missing table", tableName), createTable(idbtrans, tableName, newSchema[tableName].primKey, newSchema[tableName].indexes));
+          });
+        }
+        __name(createMissingTables, "createMissingTables");
+        function deleteRemovedTables(newSchema, idbtrans) {
+          [].slice.call(idbtrans.db.objectStoreNames).forEach(function(storeName) {
+            return newSchema[storeName] == null && idbtrans.db.deleteObjectStore(storeName);
+          });
+        }
+        __name(deleteRemovedTables, "deleteRemovedTables");
+        function addIndex(store, idx) {
+          store.createIndex(idx.name, idx.keyPath, {
+            unique: idx.unique,
+            multiEntry: idx.multi
+          });
+        }
+        __name(addIndex, "addIndex");
+        function buildGlobalSchema(db2, idbdb, tmpTrans) {
+          var globalSchema = {}, dbStoreNames = slice(idbdb.objectStoreNames, 0);
+          return dbStoreNames.forEach(function(storeName) {
+            for (var store = tmpTrans.objectStore(storeName), keyPath = store.keyPath, primKey = createIndexSpec(nameFromKeyPath(keyPath), keyPath || "", !0, !1, !!store.autoIncrement, keyPath && typeof keyPath != "string", !0), indexes = [], j = 0; j < store.indexNames.length; ++j) {
+              var idbindex = store.index(store.indexNames[j]);
+              keyPath = idbindex.keyPath;
+              var index = createIndexSpec(idbindex.name, keyPath, !!idbindex.unique, !!idbindex.multiEntry, !1, keyPath && typeof keyPath != "string", !1);
+              indexes.push(index);
+            }
+            globalSchema[storeName] = createTableSchema(storeName, primKey, indexes);
+          }), globalSchema;
+        }
+        __name(buildGlobalSchema, "buildGlobalSchema");
+        function readGlobalSchema(db2, idbdb, tmpTrans) {
+          db2.verno = idbdb.version / 10;
+          var globalSchema = db2._dbSchema = buildGlobalSchema(db2, idbdb, tmpTrans);
+          db2._storeNames = slice(idbdb.objectStoreNames, 0), setApiOnPlace(db2, [db2._allTables], keys(globalSchema), globalSchema);
+        }
+        __name(readGlobalSchema, "readGlobalSchema");
+        function verifyInstalledSchema(db2, tmpTrans) {
+          var installedSchema = buildGlobalSchema(db2, db2.idbdb, tmpTrans), diff = getSchemaDiff(installedSchema, db2._dbSchema);
+          return !(diff.add.length || diff.change.some(function(ch) {
+            return ch.add.length || ch.change.length;
+          }));
+        }
+        __name(verifyInstalledSchema, "verifyInstalledSchema");
+        function adjustToExistingIndexNames(db2, schema, idbtrans) {
+          for (var storeNames = idbtrans.db.objectStoreNames, i = 0; i < storeNames.length; ++i) {
+            var storeName = storeNames[i], store = idbtrans.objectStore(storeName);
+            db2._hasGetAll = "getAll" in store;
+            for (var j = 0; j < store.indexNames.length; ++j) {
+              var indexName = store.indexNames[j], keyPath = store.index(indexName).keyPath, dexieName = typeof keyPath == "string" ? keyPath : "[" + slice(keyPath).join("+") + "]";
+              if (schema[storeName]) {
+                var indexSpec = schema[storeName].idxByName[dexieName];
+                indexSpec && (indexSpec.name = indexName, delete schema[storeName].idxByName[dexieName], schema[storeName].idxByName[indexName] = indexSpec);
+              }
+            }
+          }
+          typeof navigator < "u" && /Safari/.test(navigator.userAgent) && !/(Chrome\/|Edge\/)/.test(navigator.userAgent) && _global.WorkerGlobalScope && _global instanceof _global.WorkerGlobalScope && [].concat(navigator.userAgent.match(/Safari\/(\d*)/))[1] < 604 && (db2._hasGetAll = !1);
+        }
+        __name(adjustToExistingIndexNames, "adjustToExistingIndexNames");
+        function parseIndexSyntax(primKeyAndIndexes) {
+          return primKeyAndIndexes.split(",").map(function(index, indexNum) {
+            var _a2, typeSplit = index.split(":"), type2 = (_a2 = typeSplit[1]) === null || _a2 === void 0 ? void 0 : _a2.trim();
+            index = typeSplit[0].trim();
+            var name = index.replace(/([&*]|\+\+)/g, ""), keyPath = /^\[/.test(name) ? name.match(/^\[(.*)\]$/)[1].split("+") : name;
+            return createIndexSpec(name, keyPath || null, /\&/.test(index), /\*/.test(index), /\+\+/.test(index), isArray(keyPath), indexNum === 0, type2);
+          });
+        }
+        __name(parseIndexSyntax, "parseIndexSyntax");
+        var Version = (function() {
+          function Version2() {
+          }
+          return __name(Version2, "Version"), Version2.prototype._createTableSchema = function(name, primKey, indexes) {
+            return createTableSchema(name, primKey, indexes);
+          }, Version2.prototype._parseIndexSyntax = function(primKeyAndIndexes) {
+            return parseIndexSyntax(primKeyAndIndexes);
+          }, Version2.prototype._parseStoresSpec = function(stores, outSchema) {
+            var _this = this;
+            keys(stores).forEach(function(tableName) {
+              if (stores[tableName] !== null) {
+                var indexes = _this._parseIndexSyntax(stores[tableName]), primKey = indexes.shift();
+                if (!primKey)
+                  throw new exceptions.Schema("Invalid schema for table " + tableName + ": " + stores[tableName]);
+                if (primKey.unique = !0, primKey.multi)
+                  throw new exceptions.Schema("Primary key cannot be multiEntry*");
+                indexes.forEach(function(idx) {
+                  if (idx.auto)
+                    throw new exceptions.Schema("Only primary key can be marked as autoIncrement (++)");
+                  if (!idx.keyPath)
+                    throw new exceptions.Schema("Index must have a name and cannot be an empty string");
+                });
+                var tblSchema = _this._createTableSchema(tableName, primKey, indexes);
+                outSchema[tableName] = tblSchema;
+              }
+            });
+          }, Version2.prototype.stores = function(stores) {
+            var db2 = this.db;
+            this._cfg.storesSource = this._cfg.storesSource ? extend(this._cfg.storesSource, stores) : stores;
+            var versions = db2._versions, storesSpec = {}, dbschema = {};
+            return versions.forEach(function(version) {
+              extend(storesSpec, version._cfg.storesSource), dbschema = version._cfg.dbschema = {}, version._parseStoresSpec(storesSpec, dbschema);
+            }), db2._dbSchema = dbschema, removeTablesApi(db2, [db2._allTables, db2, db2.Transaction.prototype]), setApiOnPlace(db2, [db2._allTables, db2, db2.Transaction.prototype, this._cfg.tables], keys(dbschema), dbschema), db2._storeNames = keys(dbschema), this;
+          }, Version2.prototype.upgrade = function(upgradeFunction) {
+            return this._cfg.contentUpgrade = promisableChain(this._cfg.contentUpgrade || nop, upgradeFunction), this;
+          }, Version2;
+        })();
+        function createVersionConstructor(db2) {
+          return makeClassConstructor(Version.prototype, /* @__PURE__ */ __name(function(versionNumber) {
+            this.db = db2, this._cfg = {
+              version: versionNumber,
+              storesSource: null,
+              dbschema: {},
+              tables: {},
+              contentUpgrade: null
+            };
+          }, "Version"));
+        }
+        __name(createVersionConstructor, "createVersionConstructor");
+        var connections = createConnectionsManager();
+        function createConnectionsManager() {
+          if (typeof FinalizationRegistry < "u" && typeof WeakRef < "u") {
+            var _refs_1 = /* @__PURE__ */ new Set(), _registry_1 = new FinalizationRegistry(function(ref) {
+              _refs_1.delete(ref);
+            }), toArray = /* @__PURE__ */ __name(function() {
+              return Array.from(_refs_1).map(function(ref) {
+                return ref.deref();
+              }).filter(function(db2) {
+                return db2 !== void 0;
+              });
+            }, "toArray"), add3 = /* @__PURE__ */ __name(function(db2) {
+              var ref = new WeakRef(db2._novip);
+              if (_refs_1.add(ref), _registry_1.register(db2._novip, ref, ref), _refs_1.size > db2._options.maxConnections) {
+                var oldestRef = _refs_1.values().next().value;
+                _refs_1.delete(oldestRef), _registry_1.unregister(oldestRef);
+              }
+            }, "add"), remove4 = /* @__PURE__ */ __name(function(db2) {
+              if (db2)
+                for (var iterator = _refs_1.values(), result = iterator.next(); !result.done; ) {
+                  var ref = result.value;
+                  if (ref.deref() === db2._novip) {
+                    _refs_1.delete(ref), _registry_1.unregister(ref);
+                    return;
+                  }
+                  result = iterator.next();
+                }
+            }, "remove");
+            return { toArray, add: add3, remove: remove4 };
+          } else {
+            var connections_1 = [], toArray = /* @__PURE__ */ __name(function() {
+              return connections_1;
+            }, "toArray"), add3 = /* @__PURE__ */ __name(function(db2) {
+              connections_1.push(db2._novip);
+            }, "add"), remove4 = /* @__PURE__ */ __name(function(db2) {
+              if (db2) {
+                var index = connections_1.indexOf(db2._novip);
+                index !== -1 && connections_1.splice(index, 1);
+              }
+            }, "remove");
+            return { toArray, add: add3, remove: remove4 };
+          }
+        }
+        __name(createConnectionsManager, "createConnectionsManager");
+        function getDbNamesTable(indexedDB2, IDBKeyRange) {
+          var dbNamesDB = indexedDB2._dbNamesDB;
+          return dbNamesDB || (dbNamesDB = indexedDB2._dbNamesDB = new Dexie$1(DBNAMES_DB, {
+            addons: [],
+            indexedDB: indexedDB2,
+            IDBKeyRange
+          }), dbNamesDB.version(1).stores({ dbnames: "name" })), dbNamesDB.table("dbnames");
+        }
+        __name(getDbNamesTable, "getDbNamesTable");
+        function hasDatabasesNative(indexedDB2) {
+          return indexedDB2 && typeof indexedDB2.databases == "function";
+        }
+        __name(hasDatabasesNative, "hasDatabasesNative");
+        function getDatabaseNames(_a2) {
+          var indexedDB2 = _a2.indexedDB, IDBKeyRange = _a2.IDBKeyRange;
+          return hasDatabasesNative(indexedDB2) ? Promise.resolve(indexedDB2.databases()).then(function(infos) {
+            return infos.map(function(info) {
+              return info.name;
+            }).filter(function(name) {
+              return name !== DBNAMES_DB;
+            });
+          }) : getDbNamesTable(indexedDB2, IDBKeyRange).toCollection().primaryKeys();
+        }
+        __name(getDatabaseNames, "getDatabaseNames");
+        function _onDatabaseCreated(_a2, name) {
+          var indexedDB2 = _a2.indexedDB, IDBKeyRange = _a2.IDBKeyRange;
+          !hasDatabasesNative(indexedDB2) && name !== DBNAMES_DB && getDbNamesTable(indexedDB2, IDBKeyRange).put({ name }).catch(nop);
+        }
+        __name(_onDatabaseCreated, "_onDatabaseCreated");
+        function _onDatabaseDeleted(_a2, name) {
+          var indexedDB2 = _a2.indexedDB, IDBKeyRange = _a2.IDBKeyRange;
+          !hasDatabasesNative(indexedDB2) && name !== DBNAMES_DB && getDbNamesTable(indexedDB2, IDBKeyRange).delete(name).catch(nop);
+        }
+        __name(_onDatabaseDeleted, "_onDatabaseDeleted");
+        function vip(fn) {
+          return newScope(function() {
+            return PSD.letThrough = !0, fn();
+          });
+        }
+        __name(vip, "vip");
+        function idbReady() {
+          var isSafari = !navigator.userAgentData && /Safari\//.test(navigator.userAgent) && !/Chrom(e|ium)\//.test(navigator.userAgent);
+          if (!isSafari || !indexedDB.databases)
+            return Promise.resolve();
+          var intervalId;
+          return new Promise(function(resolve) {
+            var tryIdb = /* @__PURE__ */ __name(function() {
+              return indexedDB.databases().finally(resolve);
+            }, "tryIdb");
+            intervalId = setInterval(tryIdb, 100), tryIdb();
+          }).finally(function() {
+            return clearInterval(intervalId);
+          });
+        }
+        __name(idbReady, "idbReady");
+        var _a;
+        function isEmptyRange(node) {
+          return !("from" in node);
+        }
+        __name(isEmptyRange, "isEmptyRange");
+        var RangeSet2 = /* @__PURE__ */ __name(function(fromOrTree, to) {
+          if (this)
+            extend(this, arguments.length ? { d: 1, from: fromOrTree, to: arguments.length > 1 ? to : fromOrTree } : { d: 0 });
+          else {
+            var rv = new RangeSet2();
+            return fromOrTree && "d" in fromOrTree && extend(rv, fromOrTree), rv;
+          }
+        }, "RangeSet");
+        props(RangeSet2.prototype, (_a = {
+          add: /* @__PURE__ */ __name(function(rangeSet) {
+            return mergeRanges2(this, rangeSet), this;
+          }, "add"),
+          addKey: /* @__PURE__ */ __name(function(key) {
+            return addRange(this, key, key), this;
+          }, "addKey"),
+          addKeys: /* @__PURE__ */ __name(function(keys2) {
+            var _this = this;
+            return keys2.forEach(function(key) {
+              return addRange(_this, key, key);
+            }), this;
+          }, "addKeys"),
+          hasKey: /* @__PURE__ */ __name(function(key) {
+            var node = getRangeSetIterator(this).next(key).value;
+            return node && cmp2(node.from, key) <= 0 && cmp2(node.to, key) >= 0;
+          }, "hasKey")
+        }, _a[iteratorSymbol] = function() {
+          return getRangeSetIterator(this);
+        }, _a));
+        function addRange(target, from, to) {
+          var diff = cmp2(from, to);
+          if (!isNaN(diff)) {
+            if (diff > 0)
+              throw RangeError();
+            if (isEmptyRange(target))
+              return extend(target, { from, to, d: 1 });
+            var left = target.l, right = target.r;
+            if (cmp2(to, target.from) < 0)
+              return left ? addRange(left, from, to) : target.l = { from, to, d: 1, l: null, r: null }, rebalance(target);
+            if (cmp2(from, target.to) > 0)
+              return right ? addRange(right, from, to) : target.r = { from, to, d: 1, l: null, r: null }, rebalance(target);
+            cmp2(from, target.from) < 0 && (target.from = from, target.l = null, target.d = right ? right.d + 1 : 1), cmp2(to, target.to) > 0 && (target.to = to, target.r = null, target.d = target.l ? target.l.d + 1 : 1);
+            var rightWasCutOff = !target.r;
+            left && !target.l && mergeRanges2(target, left), right && rightWasCutOff && mergeRanges2(target, right);
+          }
+        }
+        __name(addRange, "addRange");
+        function mergeRanges2(target, newSet) {
+          function _addRangeSet(target2, _a2) {
+            var from = _a2.from, to = _a2.to, l = _a2.l, r = _a2.r;
+            addRange(target2, from, to), l && _addRangeSet(target2, l), r && _addRangeSet(target2, r);
+          }
+          __name(_addRangeSet, "_addRangeSet"), isEmptyRange(newSet) || _addRangeSet(target, newSet);
+        }
+        __name(mergeRanges2, "mergeRanges");
+        function rangesOverlap2(rangeSet1, rangeSet2) {
+          var i1 = getRangeSetIterator(rangeSet2), nextResult1 = i1.next();
+          if (nextResult1.done)
+            return !1;
+          for (var a = nextResult1.value, i2 = getRangeSetIterator(rangeSet1), nextResult2 = i2.next(a.from), b = nextResult2.value; !nextResult1.done && !nextResult2.done; ) {
+            if (cmp2(b.from, a.to) <= 0 && cmp2(b.to, a.from) >= 0)
+              return !0;
+            cmp2(a.from, b.from) < 0 ? a = (nextResult1 = i1.next(b.from)).value : b = (nextResult2 = i2.next(a.from)).value;
+          }
+          return !1;
+        }
+        __name(rangesOverlap2, "rangesOverlap");
+        function getRangeSetIterator(node) {
+          var state2 = isEmptyRange(node) ? null : { s: 0, n: node };
+          return {
+            next: /* @__PURE__ */ __name(function(key) {
+              for (var keyProvided = arguments.length > 0; state2; )
+                switch (state2.s) {
+                  case 0:
+                    if (state2.s = 1, keyProvided)
+                      for (; state2.n.l && cmp2(key, state2.n.from) < 0; )
+                        state2 = { up: state2, n: state2.n.l, s: 1 };
+                    else
+                      for (; state2.n.l; )
+                        state2 = { up: state2, n: state2.n.l, s: 1 };
+                  case 1:
+                    if (state2.s = 2, !keyProvided || cmp2(key, state2.n.to) <= 0)
+                      return { value: state2.n, done: !1 };
+                  case 2:
+                    if (state2.n.r) {
+                      state2.s = 3, state2 = { up: state2, n: state2.n.r, s: 0 };
+                      continue;
+                    }
+                  case 3:
+                    state2 = state2.up;
+                }
+              return { done: !0 };
+            }, "next")
+          };
+        }
+        __name(getRangeSetIterator, "getRangeSetIterator");
+        function rebalance(target) {
+          var _a2, _b, diff = (((_a2 = target.r) === null || _a2 === void 0 ? void 0 : _a2.d) || 0) - (((_b = target.l) === null || _b === void 0 ? void 0 : _b.d) || 0), r = diff > 1 ? "r" : diff < -1 ? "l" : "";
+          if (r) {
+            var l = r === "r" ? "l" : "r", rootClone = __assign({}, target), oldRootRight = target[r];
+            target.from = oldRootRight.from, target.to = oldRootRight.to, target[r] = oldRootRight[r], rootClone[r] = oldRootRight[l], target[l] = rootClone, rootClone.d = computeDepth(rootClone);
+          }
+          target.d = computeDepth(target);
+        }
+        __name(rebalance, "rebalance");
+        function computeDepth(_a2) {
+          var r = _a2.r, l = _a2.l;
+          return (r ? l ? Math.max(r.d, l.d) : r.d : l ? l.d : 0) + 1;
+        }
+        __name(computeDepth, "computeDepth");
+        function extendObservabilitySet(target, newSet) {
+          return keys(newSet).forEach(function(part) {
+            target[part] ? mergeRanges2(target[part], newSet[part]) : target[part] = cloneSimpleObjectTree(newSet[part]);
+          }), target;
+        }
+        __name(extendObservabilitySet, "extendObservabilitySet");
+        function obsSetsOverlap(os1, os2) {
+          return os1.all || os2.all || Object.keys(os1).some(function(key) {
+            return os2[key] && rangesOverlap2(os2[key], os1[key]);
+          });
+        }
+        __name(obsSetsOverlap, "obsSetsOverlap");
+        var cache = {}, unsignaledParts = {}, isTaskEnqueued = !1;
+        function signalSubscribersLazily(part, optimistic) {
+          extendObservabilitySet(unsignaledParts, part), isTaskEnqueued || (isTaskEnqueued = !0, setTimeout(function() {
+            isTaskEnqueued = !1;
+            var parts = unsignaledParts;
+            unsignaledParts = {}, signalSubscribersNow(parts, !1);
+          }, 0));
+        }
+        __name(signalSubscribersLazily, "signalSubscribersLazily");
+        function signalSubscribersNow(updatedParts, deleteAffectedCacheEntries) {
+          deleteAffectedCacheEntries === void 0 && (deleteAffectedCacheEntries = !1);
+          var queriesToSignal = /* @__PURE__ */ new Set();
+          if (updatedParts.all)
+            for (var _i = 0, _a2 = Object.values(cache); _i < _a2.length; _i++) {
+              var tblCache = _a2[_i];
+              collectTableSubscribers(tblCache, updatedParts, queriesToSignal, deleteAffectedCacheEntries);
+            }
+          else
+            for (var key in updatedParts) {
+              var parts = /^idb\:\/\/(.*)\/(.*)\//.exec(key);
+              if (parts) {
+                var dbName = parts[1], tableName = parts[2], tblCache = cache["idb://".concat(dbName, "/").concat(tableName)];
+                tblCache && collectTableSubscribers(tblCache, updatedParts, queriesToSignal, deleteAffectedCacheEntries);
+              }
+            }
+          queriesToSignal.forEach(function(requery) {
+            return requery();
+          });
+        }
+        __name(signalSubscribersNow, "signalSubscribersNow");
+        function collectTableSubscribers(tblCache, updatedParts, outQueriesToSignal, deleteAffectedCacheEntries) {
+          for (var updatedEntryLists = [], _i = 0, _a2 = Object.entries(tblCache.queries.query); _i < _a2.length; _i++) {
+            for (var _b = _a2[_i], indexName = _b[0], entries = _b[1], filteredEntries = [], _c = 0, entries_1 = entries; _c < entries_1.length; _c++) {
+              var entry = entries_1[_c];
+              obsSetsOverlap(updatedParts, entry.obsSet) ? entry.subscribers.forEach(function(requery) {
+                return outQueriesToSignal.add(requery);
+              }) : deleteAffectedCacheEntries && filteredEntries.push(entry);
+            }
+            deleteAffectedCacheEntries && updatedEntryLists.push([indexName, filteredEntries]);
+          }
+          if (deleteAffectedCacheEntries)
+            for (var _d = 0, updatedEntryLists_1 = updatedEntryLists; _d < updatedEntryLists_1.length; _d++) {
+              var _e = updatedEntryLists_1[_d], indexName = _e[0], filteredEntries = _e[1];
+              tblCache.queries.query[indexName] = filteredEntries;
+            }
+        }
+        __name(collectTableSubscribers, "collectTableSubscribers");
+        function dexieOpen(db2) {
+          var state2 = db2._state, indexedDB2 = db2._deps.indexedDB;
+          if (state2.isBeingOpened || db2.idbdb)
+            return state2.dbReadyPromise.then(function() {
+              return state2.dbOpenError ? rejection(state2.dbOpenError) : db2;
+            });
+          state2.isBeingOpened = !0, state2.dbOpenError = null, state2.openComplete = !1;
+          var openCanceller = state2.openCanceller, nativeVerToOpen = Math.round(db2.verno * 10), schemaPatchMode = !1;
+          function throwIfCancelled() {
+            if (state2.openCanceller !== openCanceller)
+              throw new exceptions.DatabaseClosed("db.open() was cancelled");
+          }
+          __name(throwIfCancelled, "throwIfCancelled");
+          var resolveDbReady = state2.dbReadyResolve, upgradeTransaction = null, wasCreated = !1, tryOpenDB = /* @__PURE__ */ __name(function() {
+            return new DexiePromise(function(resolve, reject) {
+              if (throwIfCancelled(), !indexedDB2)
+                throw new exceptions.MissingAPI();
+              var dbName = db2.name, req = state2.autoSchema || !nativeVerToOpen ? indexedDB2.open(dbName) : indexedDB2.open(dbName, nativeVerToOpen);
+              if (!req)
+                throw new exceptions.MissingAPI();
+              req.onerror = eventRejectHandler(reject), req.onblocked = wrap(db2._fireOnBlocked), req.onupgradeneeded = wrap(function(e) {
+                if (upgradeTransaction = req.transaction, state2.autoSchema && !db2._options.allowEmptyDB) {
+                  req.onerror = preventDefault, upgradeTransaction.abort(), req.result.close();
+                  var delreq = indexedDB2.deleteDatabase(dbName);
+                  delreq.onsuccess = delreq.onerror = wrap(function() {
+                    reject(new exceptions.NoSuchDatabase("Database ".concat(dbName, " doesnt exist")));
+                  });
+                } else {
+                  upgradeTransaction.onerror = eventRejectHandler(reject);
+                  var oldVer = e.oldVersion > Math.pow(2, 62) ? 0 : e.oldVersion;
+                  wasCreated = oldVer < 1, db2.idbdb = req.result, schemaPatchMode && patchCurrentVersion(db2, upgradeTransaction), runUpgraders(db2, oldVer / 10, upgradeTransaction, reject);
+                }
+              }, reject), req.onsuccess = wrap(function() {
+                upgradeTransaction = null;
+                var idbdb = db2.idbdb = req.result, objectStoreNames = slice(idbdb.objectStoreNames);
+                if (objectStoreNames.length > 0)
+                  try {
+                    var tmpTrans = idbdb.transaction(safariMultiStoreFix(objectStoreNames), "readonly");
+                    if (state2.autoSchema)
+                      readGlobalSchema(db2, idbdb, tmpTrans);
+                    else if (adjustToExistingIndexNames(db2, db2._dbSchema, tmpTrans), !verifyInstalledSchema(db2, tmpTrans) && !schemaPatchMode)
+                      return console.warn("Dexie SchemaDiff: Schema was extended without increasing the number passed to db.version(). Dexie will add missing parts and increment native version number to workaround this."), idbdb.close(), nativeVerToOpen = idbdb.version + 1, schemaPatchMode = !0, resolve(tryOpenDB());
+                    generateMiddlewareStacks(db2, tmpTrans);
+                  } catch {
+                  }
+                connections.add(db2), idbdb.onversionchange = wrap(function(ev) {
+                  state2.vcFired = !0, db2.on("versionchange").fire(ev);
+                }), idbdb.onclose = wrap(function() {
+                  db2.close({ disableAutoOpen: !1 });
+                }), wasCreated && _onDatabaseCreated(db2._deps, dbName), resolve();
+              }, reject);
+            }).catch(function(err) {
+              switch (err?.name) {
+                case "UnknownError":
+                  if (state2.PR1398_maxLoop > 0)
+                    return state2.PR1398_maxLoop--, console.warn("Dexie: Workaround for Chrome UnknownError on open()"), tryOpenDB();
+                  break;
+                case "VersionError":
+                  if (nativeVerToOpen > 0)
+                    return nativeVerToOpen = 0, tryOpenDB();
+                  break;
+              }
+              return DexiePromise.reject(err);
+            });
+          }, "tryOpenDB"), useSafari14Workaround = typeof navigator < "u" && !!indexedDB2 && indexedDB2 === _global.indexedDB;
+          return DexiePromise.race([
+            openCanceller,
+            (useSafari14Workaround ? idbReady() : DexiePromise.resolve()).then(tryOpenDB)
+          ]).then(function() {
+            return throwIfCancelled(), state2.onReadyBeingFired = [], DexiePromise.resolve(vip(function() {
+              return db2.on.ready.fire(db2.vip);
+            })).then(/* @__PURE__ */ __name(function fireRemainders() {
+              if (state2.onReadyBeingFired.length > 0) {
+                var remainders_1 = state2.onReadyBeingFired.reduce(promisableChain, nop);
+                return state2.onReadyBeingFired = [], DexiePromise.resolve(vip(function() {
+                  return remainders_1(db2.vip);
+                })).then(fireRemainders);
+              }
+            }, "fireRemainders"));
+          }).finally(function() {
+            state2.openCanceller === openCanceller && (state2.onReadyBeingFired = null, state2.isBeingOpened = !1);
+          }).catch(function(err) {
+            state2.dbOpenError = err;
+            try {
+              upgradeTransaction && upgradeTransaction.abort();
+            } catch {
+            }
+            return openCanceller === state2.openCanceller && db2._close(), rejection(err);
+          }).finally(function() {
+            state2.openComplete = !0, resolveDbReady();
+          }).then(function() {
+            if (wasCreated) {
+              var everything_1 = {};
+              db2.tables.forEach(function(table) {
+                table.schema.indexes.forEach(function(idx) {
+                  idx.name && (everything_1["idb://".concat(db2.name, "/").concat(table.name, "/").concat(idx.name)] = new RangeSet2(-1 / 0, [[[]]]));
+                }), everything_1["idb://".concat(db2.name, "/").concat(table.name, "/")] = everything_1["idb://".concat(db2.name, "/").concat(table.name, "/:dels")] = new RangeSet2(-1 / 0, [[[]]]);
+              }), globalEvents(DEXIE_STORAGE_MUTATED_EVENT_NAME).fire(everything_1), signalSubscribersNow(everything_1, !0);
+            }
+            return db2;
+          });
+        }
+        __name(dexieOpen, "dexieOpen");
+        function awaitIterator(iterator) {
+          var callNext = /* @__PURE__ */ __name(function(result) {
+            return iterator.next(result);
+          }, "callNext"), doThrow = /* @__PURE__ */ __name(function(error) {
+            return iterator.throw(error);
+          }, "doThrow"), onSuccess = step(callNext), onError = step(doThrow);
+          function step(getNext) {
+            return function(val) {
+              var next = getNext(val), value = next.value;
+              return next.done ? value : !value || typeof value.then != "function" ? isArray(value) ? Promise.all(value).then(onSuccess, onError) : onSuccess(value) : value.then(onSuccess, onError);
+            };
+          }
+          return __name(step, "step"), step(callNext)();
+        }
+        __name(awaitIterator, "awaitIterator");
+        function extractTransactionArgs(mode, _tableArgs_, scopeFunc) {
+          var i = arguments.length;
+          if (i < 2)
+            throw new exceptions.InvalidArgument("Too few arguments");
+          for (var args = new Array(i - 1); --i; )
+            args[i - 1] = arguments[i];
+          scopeFunc = args.pop();
+          var tables = flatten(args);
+          return [mode, tables, scopeFunc];
+        }
+        __name(extractTransactionArgs, "extractTransactionArgs");
+        function enterTransactionScope(db2, mode, storeNames, parentTransaction, scopeFunc) {
+          return DexiePromise.resolve().then(function() {
+            var transless = PSD.transless || PSD, trans = db2._createTransaction(mode, storeNames, db2._dbSchema, parentTransaction);
+            trans.explicit = !0;
+            var zoneProps = {
+              trans,
+              transless
+            };
+            if (parentTransaction)
+              trans.idbtrans = parentTransaction.idbtrans;
+            else
+              try {
+                trans.create(), trans.idbtrans._explicit = !0, db2._state.PR1398_maxLoop = 3;
+              } catch (ex) {
+                return ex.name === errnames.InvalidState && db2.isOpen() && --db2._state.PR1398_maxLoop > 0 ? (console.warn("Dexie: Need to reopen db"), db2.close({ disableAutoOpen: !1 }), db2.open().then(function() {
+                  return enterTransactionScope(db2, mode, storeNames, null, scopeFunc);
+                })) : rejection(ex);
+              }
+            var scopeFuncIsAsync = isAsyncFunction(scopeFunc);
+            scopeFuncIsAsync && incrementExpectedAwaits();
+            var returnValue, promiseFollowed = DexiePromise.follow(function() {
+              if (returnValue = scopeFunc.call(trans, trans), returnValue)
+                if (scopeFuncIsAsync) {
+                  var decrementor = decrementExpectedAwaits.bind(null, null);
+                  returnValue.then(decrementor, decrementor);
+                } else typeof returnValue.next == "function" && typeof returnValue.throw == "function" && (returnValue = awaitIterator(returnValue));
+            }, zoneProps);
+            return (returnValue && typeof returnValue.then == "function" ? DexiePromise.resolve(returnValue).then(function(x) {
+              return trans.active ? x : rejection(new exceptions.PrematureCommit("Transaction committed too early. See http://bit.ly/2kdckMn"));
+            }) : promiseFollowed.then(function() {
+              return returnValue;
+            })).then(function(x) {
+              return parentTransaction && trans._resolve(), trans._completion.then(function() {
+                return x;
+              });
+            }).catch(function(e) {
+              return trans._reject(e), rejection(e);
+            });
+          });
+        }
+        __name(enterTransactionScope, "enterTransactionScope");
+        function pad(a, value, count) {
+          for (var result = isArray(a) ? a.slice() : [a], i = 0; i < count; ++i)
+            result.push(value);
+          return result;
+        }
+        __name(pad, "pad");
+        function createVirtualIndexMiddleware(down) {
+          return __assign(__assign({}, down), { table: /* @__PURE__ */ __name(function(tableName) {
+            var table = down.table(tableName), schema = table.schema, indexLookup = /* @__PURE__ */ Object.create(null), allVirtualIndexes = [];
+            function addVirtualIndexes(keyPath, keyTail, lowLevelIndex) {
+              var keyPathAlias = getKeyPathAlias(keyPath), indexList = indexLookup[keyPathAlias] = indexLookup[keyPathAlias] || [], keyLength = keyPath == null ? 0 : typeof keyPath == "string" ? 1 : keyPath.length, isVirtual = keyTail > 0, virtualIndex = __assign(__assign({}, lowLevelIndex), { name: isVirtual ? "".concat(keyPathAlias, "(virtual-from:").concat(lowLevelIndex.name, ")") : lowLevelIndex.name, lowLevelIndex, isVirtual, keyTail, keyLength, extractKey: getKeyExtractor(keyPath), unique: !isVirtual && lowLevelIndex.unique });
+              if (indexList.push(virtualIndex), virtualIndex.isPrimaryKey || allVirtualIndexes.push(virtualIndex), keyLength > 1) {
+                var virtualKeyPath = keyLength === 2 ? keyPath[0] : keyPath.slice(0, keyLength - 1);
+                addVirtualIndexes(virtualKeyPath, keyTail + 1, lowLevelIndex);
+              }
+              return indexList.sort(function(a, b) {
+                return a.keyTail - b.keyTail;
+              }), virtualIndex;
+            }
+            __name(addVirtualIndexes, "addVirtualIndexes");
+            var primaryKey = addVirtualIndexes(schema.primaryKey.keyPath, 0, schema.primaryKey);
+            indexLookup[":id"] = [primaryKey];
+            for (var _i = 0, _a2 = schema.indexes; _i < _a2.length; _i++) {
+              var index = _a2[_i];
+              addVirtualIndexes(index.keyPath, 0, index);
+            }
+            function findBestIndex(keyPath) {
+              var result2 = indexLookup[getKeyPathAlias(keyPath)];
+              return result2 && result2[0];
+            }
+            __name(findBestIndex, "findBestIndex");
+            function translateRange(range, keyTail) {
+              return {
+                type: range.type === 1 ? 2 : range.type,
+                lower: pad(range.lower, range.lowerOpen ? down.MAX_KEY : down.MIN_KEY, keyTail),
+                lowerOpen: !0,
+                upper: pad(range.upper, range.upperOpen ? down.MIN_KEY : down.MAX_KEY, keyTail),
+                upperOpen: !0
+              };
+            }
+            __name(translateRange, "translateRange");
+            function translateRequest(req) {
+              var index2 = req.query.index;
+              return index2.isVirtual ? __assign(__assign({}, req), { query: {
+                index: index2.lowLevelIndex,
+                range: translateRange(req.query.range, index2.keyTail)
+              } }) : req;
+            }
+            __name(translateRequest, "translateRequest");
+            var result = __assign(__assign({}, table), { schema: __assign(__assign({}, schema), { primaryKey, indexes: allVirtualIndexes, getIndexByKeyPath: findBestIndex }), count: /* @__PURE__ */ __name(function(req) {
+              return table.count(translateRequest(req));
+            }, "count"), query: /* @__PURE__ */ __name(function(req) {
+              return table.query(translateRequest(req));
+            }, "query"), openCursor: /* @__PURE__ */ __name(function(req) {
+              var _a3 = req.query.index, keyTail = _a3.keyTail, isVirtual = _a3.isVirtual, keyLength = _a3.keyLength;
+              if (!isVirtual)
+                return table.openCursor(req);
+              function createVirtualCursor(cursor) {
+                function _continue(key) {
+                  key != null ? cursor.continue(pad(key, req.reverse ? down.MAX_KEY : down.MIN_KEY, keyTail)) : req.unique ? cursor.continue(cursor.key.slice(0, keyLength).concat(req.reverse ? down.MIN_KEY : down.MAX_KEY, keyTail)) : cursor.continue();
+                }
+                __name(_continue, "_continue");
+                var virtualCursor = Object.create(cursor, {
+                  continue: { value: _continue },
+                  continuePrimaryKey: {
+                    value: /* @__PURE__ */ __name(function(key, primaryKey2) {
+                      cursor.continuePrimaryKey(pad(key, down.MAX_KEY, keyTail), primaryKey2);
+                    }, "value")
+                  },
+                  primaryKey: {
+                    get: /* @__PURE__ */ __name(function() {
+                      return cursor.primaryKey;
+                    }, "get")
+                  },
+                  key: {
+                    get: /* @__PURE__ */ __name(function() {
+                      var key = cursor.key;
+                      return keyLength === 1 ? key[0] : key.slice(0, keyLength);
+                    }, "get")
+                  },
+                  value: {
+                    get: /* @__PURE__ */ __name(function() {
+                      return cursor.value;
+                    }, "get")
+                  }
+                });
+                return virtualCursor;
+              }
+              return __name(createVirtualCursor, "createVirtualCursor"), table.openCursor(translateRequest(req)).then(function(cursor) {
+                return cursor && createVirtualCursor(cursor);
+              });
+            }, "openCursor") });
+            return result;
+          }, "table") });
+        }
+        __name(createVirtualIndexMiddleware, "createVirtualIndexMiddleware");
+        var virtualIndexMiddleware = {
+          stack: "dbcore",
+          name: "VirtualIndexMiddleware",
+          level: 1,
+          create: createVirtualIndexMiddleware
+        };
+        function getObjectDiff(a, b, rv, prfx) {
+          return rv = rv || {}, prfx = prfx || "", keys(a).forEach(function(prop) {
+            if (!hasOwn(b, prop))
+              rv[prfx + prop] = void 0;
+            else {
+              var ap = a[prop], bp = b[prop];
+              if (typeof ap == "object" && typeof bp == "object" && ap && bp) {
+                var apTypeName = toStringTag(ap), bpTypeName = toStringTag(bp);
+                apTypeName !== bpTypeName ? rv[prfx + prop] = b[prop] : apTypeName === "Object" ? getObjectDiff(ap, bp, rv, prfx + prop + ".") : ap !== bp && (rv[prfx + prop] = b[prop]);
+              } else ap !== bp && (rv[prfx + prop] = b[prop]);
+            }
+          }), keys(b).forEach(function(prop) {
+            hasOwn(a, prop) || (rv[prfx + prop] = b[prop]);
+          }), rv;
+        }
+        __name(getObjectDiff, "getObjectDiff");
+        function getEffectiveKeys(primaryKey, req) {
+          return req.type === "delete" ? req.keys : req.keys || req.values.map(primaryKey.extractKey);
+        }
+        __name(getEffectiveKeys, "getEffectiveKeys");
+        var hooksMiddleware = {
+          stack: "dbcore",
+          name: "HooksMiddleware",
+          level: 2,
+          create: /* @__PURE__ */ __name(function(downCore) {
+            return __assign(__assign({}, downCore), { table: /* @__PURE__ */ __name(function(tableName) {
+              var downTable = downCore.table(tableName), primaryKey = downTable.schema.primaryKey, tableMiddleware = __assign(__assign({}, downTable), { mutate: /* @__PURE__ */ __name(function(req) {
+                var dxTrans = PSD.trans, _a2 = dxTrans.table(tableName).hook, deleting = _a2.deleting, creating = _a2.creating, updating = _a2.updating;
+                switch (req.type) {
+                  case "add":
+                    if (creating.fire === nop)
+                      break;
+                    return dxTrans._promise("readwrite", function() {
+                      return addPutOrDelete(req);
+                    }, !0);
+                  case "put":
+                    if (creating.fire === nop && updating.fire === nop)
+                      break;
+                    return dxTrans._promise("readwrite", function() {
+                      return addPutOrDelete(req);
+                    }, !0);
+                  case "delete":
+                    if (deleting.fire === nop)
+                      break;
+                    return dxTrans._promise("readwrite", function() {
+                      return addPutOrDelete(req);
+                    }, !0);
+                  case "deleteRange":
+                    if (deleting.fire === nop)
+                      break;
+                    return dxTrans._promise("readwrite", function() {
+                      return deleteRange(req);
+                    }, !0);
+                }
+                return downTable.mutate(req);
+                function addPutOrDelete(req2) {
+                  var dxTrans2 = PSD.trans, keys2 = req2.keys || getEffectiveKeys(primaryKey, req2);
+                  if (!keys2)
+                    throw new Error("Keys missing");
+                  return req2 = req2.type === "add" || req2.type === "put" ? __assign(__assign({}, req2), { keys: keys2 }) : __assign({}, req2), req2.type !== "delete" && (req2.values = __spreadArray([], req2.values, !0)), req2.keys && (req2.keys = __spreadArray([], req2.keys, !0)), getExistingValues(downTable, req2, keys2).then(function(existingValues) {
+                    var contexts = keys2.map(function(key, i) {
+                      var existingValue = existingValues[i], ctx = { onerror: null, onsuccess: null };
+                      if (req2.type === "delete")
+                        deleting.fire.call(ctx, key, existingValue, dxTrans2);
+                      else if (req2.type === "add" || existingValue === void 0) {
+                        var generatedPrimaryKey = creating.fire.call(ctx, key, req2.values[i], dxTrans2);
+                        key == null && generatedPrimaryKey != null && (key = generatedPrimaryKey, req2.keys[i] = key, primaryKey.outbound || setByKeyPath(req2.values[i], primaryKey.keyPath, key));
+                      } else {
+                        var objectDiff = getObjectDiff(existingValue, req2.values[i]), additionalChanges_1 = updating.fire.call(ctx, objectDiff, key, existingValue, dxTrans2);
+                        if (additionalChanges_1) {
+                          var requestedValue_1 = req2.values[i];
+                          Object.keys(additionalChanges_1).forEach(function(keyPath) {
+                            hasOwn(requestedValue_1, keyPath) ? requestedValue_1[keyPath] = additionalChanges_1[keyPath] : setByKeyPath(requestedValue_1, keyPath, additionalChanges_1[keyPath]);
+                          });
+                        }
+                      }
+                      return ctx;
+                    });
+                    return downTable.mutate(req2).then(function(_a3) {
+                      for (var failures = _a3.failures, results = _a3.results, numFailures = _a3.numFailures, lastResult = _a3.lastResult, i = 0; i < keys2.length; ++i) {
+                        var primKey = results ? results[i] : keys2[i], ctx = contexts[i];
+                        primKey == null ? ctx.onerror && ctx.onerror(failures[i]) : ctx.onsuccess && ctx.onsuccess(
+                          req2.type === "put" && existingValues[i] ? req2.values[i] : primKey
+                        );
+                      }
+                      return { failures, results, numFailures, lastResult };
+                    }).catch(function(error) {
+                      return contexts.forEach(function(ctx) {
+                        return ctx.onerror && ctx.onerror(error);
+                      }), Promise.reject(error);
+                    });
+                  });
+                }
+                function deleteRange(req2) {
+                  return deleteNextChunk(req2.trans, req2.range, 1e4);
+                }
+                function deleteNextChunk(trans, range, limit) {
+                  return downTable.query({
+                    trans,
+                    values: !1,
+                    query: { index: primaryKey, range },
+                    limit
+                  }).then(function(_a3) {
+                    var result = _a3.result;
+                    return addPutOrDelete({
+                      type: "delete",
+                      keys: result,
+                      trans
+                    }).then(function(res) {
+                      return res.numFailures > 0 ? Promise.reject(res.failures[0]) : result.length < limit ? {
+                        failures: [],
+                        numFailures: 0,
+                        lastResult: void 0
+                      } : deleteNextChunk(trans, __assign(__assign({}, range), { lower: result[result.length - 1], lowerOpen: !0 }), limit);
+                    });
+                  });
+                }
+              }, "mutate") });
+              return tableMiddleware;
+            }, "table") });
+          }, "create")
+        };
+        function getExistingValues(table, req, effectiveKeys) {
+          return req.type === "add" ? Promise.resolve([]) : table.getMany({
+            trans: req.trans,
+            keys: effectiveKeys,
+            cache: "immutable"
+          });
+        }
+        __name(getExistingValues, "getExistingValues");
+        function getFromTransactionCache(keys2, cache2, clone) {
+          try {
+            if (!cache2 || cache2.keys.length < keys2.length)
+              return null;
+            for (var result = [], i = 0, j = 0; i < cache2.keys.length && j < keys2.length; ++i)
+              cmp2(cache2.keys[i], keys2[j]) === 0 && (result.push(clone ? deepClone(cache2.values[i]) : cache2.values[i]), ++j);
+            return result.length === keys2.length ? result : null;
+          } catch {
+            return null;
+          }
+        }
+        __name(getFromTransactionCache, "getFromTransactionCache");
+        var cacheExistingValuesMiddleware = {
+          stack: "dbcore",
+          level: -1,
+          create: /* @__PURE__ */ __name(function(core) {
+            return {
+              table: /* @__PURE__ */ __name(function(tableName) {
+                var table = core.table(tableName);
+                return __assign(__assign({}, table), { getMany: /* @__PURE__ */ __name(function(req) {
+                  if (!req.cache)
+                    return table.getMany(req);
+                  var cachedResult = getFromTransactionCache(req.keys, req.trans._cache, req.cache === "clone");
+                  return cachedResult ? DexiePromise.resolve(cachedResult) : table.getMany(req).then(function(res) {
+                    return req.trans._cache = {
+                      keys: req.keys,
+                      values: req.cache === "clone" ? deepClone(res) : res
+                    }, res;
+                  });
+                }, "getMany"), mutate: /* @__PURE__ */ __name(function(req) {
+                  return req.type !== "add" && (req.trans._cache = null), table.mutate(req);
+                }, "mutate") });
+              }, "table")
+            };
+          }, "create")
+        };
+        function isCachableContext(ctx, table) {
+          return ctx.trans.mode === "readonly" && !!ctx.subscr && !ctx.trans.explicit && ctx.trans.db._options.cache !== "disabled" && !table.schema.primaryKey.outbound;
+        }
+        __name(isCachableContext, "isCachableContext");
+        function isCachableRequest(type2, req) {
+          switch (type2) {
+            case "query":
+              return req.values && !req.unique;
+            case "get":
+              return !1;
+            case "getMany":
+              return !1;
+            case "count":
+              return !1;
+            case "openCursor":
+              return !1;
+          }
+        }
+        __name(isCachableRequest, "isCachableRequest");
+        var observabilityMiddleware = {
+          stack: "dbcore",
+          level: 0,
+          name: "Observability",
+          create: /* @__PURE__ */ __name(function(core) {
+            var dbName = core.schema.name, FULL_RANGE = new RangeSet2(core.MIN_KEY, core.MAX_KEY);
+            return __assign(__assign({}, core), { transaction: /* @__PURE__ */ __name(function(stores, mode, options) {
+              if (PSD.subscr && mode !== "readonly")
+                throw new exceptions.ReadOnly("Readwrite transaction in liveQuery context. Querier source: ".concat(PSD.querier));
+              return core.transaction(stores, mode, options);
+            }, "transaction"), table: /* @__PURE__ */ __name(function(tableName) {
+              var table = core.table(tableName), schema = table.schema, primaryKey = schema.primaryKey, indexes = schema.indexes, extractKey = primaryKey.extractKey, outbound = primaryKey.outbound, indexesWithAutoIncPK = primaryKey.autoIncrement && indexes.filter(function(index) {
+                return index.compound && index.keyPath.includes(primaryKey.keyPath);
+              }), tableClone = __assign(__assign({}, table), { mutate: /* @__PURE__ */ __name(function(req) {
+                var _a2, _b, trans = req.trans, mutatedParts = req.mutatedParts || (req.mutatedParts = {}), getRangeSet = /* @__PURE__ */ __name(function(indexName) {
+                  var part = "idb://".concat(dbName, "/").concat(tableName, "/").concat(indexName);
+                  return mutatedParts[part] || (mutatedParts[part] = new RangeSet2());
+                }, "getRangeSet"), pkRangeSet = getRangeSet(""), delsRangeSet = getRangeSet(":dels"), type2 = req.type, _c = req.type === "deleteRange" ? [req.range] : req.type === "delete" ? [req.keys] : req.values.length < 50 ? [
+                  getEffectiveKeys(primaryKey, req).filter(function(id) {
+                    return id != null;
+                  }),
+                  req.values
+                ] : [], keys2 = _c[0], newObjs = _c[1], oldCache = req.trans._cache;
+                if (isArray(keys2)) {
+                  pkRangeSet.addKeys(keys2);
+                  var oldObjs = type2 === "delete" || keys2.length === newObjs.length ? getFromTransactionCache(keys2, oldCache) : null;
+                  oldObjs || delsRangeSet.addKeys(keys2), (oldObjs || newObjs) && trackAffectedIndexes(getRangeSet, schema, oldObjs, newObjs);
+                } else if (keys2) {
+                  var range = {
+                    from: (_a2 = keys2.lower) !== null && _a2 !== void 0 ? _a2 : core.MIN_KEY,
+                    to: (_b = keys2.upper) !== null && _b !== void 0 ? _b : core.MAX_KEY
+                  };
+                  delsRangeSet.add(range), pkRangeSet.add(range);
+                } else
+                  pkRangeSet.add(FULL_RANGE), delsRangeSet.add(FULL_RANGE), schema.indexes.forEach(function(idx) {
+                    return getRangeSet(idx.name).add(FULL_RANGE);
+                  });
+                return table.mutate(req).then(function(res) {
+                  return keys2 && (req.type === "add" || req.type === "put") && (pkRangeSet.addKeys(res.results), indexesWithAutoIncPK && indexesWithAutoIncPK.forEach(function(idx) {
+                    for (var idxVals = req.values.map(function(v) {
+                      return idx.extractKey(v);
+                    }), pkPos = idx.keyPath.findIndex(function(prop) {
+                      return prop === primaryKey.keyPath;
+                    }), i = 0, len = res.results.length; i < len; ++i)
+                      idxVals[i][pkPos] = res.results[i];
+                    getRangeSet(idx.name).addKeys(idxVals);
+                  })), trans.mutatedParts = extendObservabilitySet(trans.mutatedParts || {}, mutatedParts), res;
+                });
+              }, "mutate") }), getRange = /* @__PURE__ */ __name(function(_a2) {
+                var _b, _c, _d = _a2.query, index = _d.index, range = _d.range;
+                return [
+                  index,
+                  new RangeSet2((_b = range.lower) !== null && _b !== void 0 ? _b : core.MIN_KEY, (_c = range.upper) !== null && _c !== void 0 ? _c : core.MAX_KEY)
+                ];
+              }, "getRange"), readSubscribers = {
+                get: /* @__PURE__ */ __name(function(req) {
+                  return [primaryKey, new RangeSet2(req.key)];
+                }, "get"),
+                getMany: /* @__PURE__ */ __name(function(req) {
+                  return [primaryKey, new RangeSet2().addKeys(req.keys)];
+                }, "getMany"),
+                count: getRange,
+                query: getRange,
+                openCursor: getRange
+              };
+              return keys(readSubscribers).forEach(function(method) {
+                tableClone[method] = function(req) {
+                  var subscr = PSD.subscr, isLiveQuery = !!subscr, cachable = isCachableContext(PSD, table) && isCachableRequest(method, req), obsSet = cachable ? req.obsSet = {} : subscr;
+                  if (isLiveQuery) {
+                    var getRangeSet = /* @__PURE__ */ __name(function(indexName) {
+                      var part = "idb://".concat(dbName, "/").concat(tableName, "/").concat(indexName);
+                      return obsSet[part] || (obsSet[part] = new RangeSet2());
+                    }, "getRangeSet"), pkRangeSet_1 = getRangeSet(""), delsRangeSet_1 = getRangeSet(":dels"), _a2 = readSubscribers[method](req), queriedIndex = _a2[0], queriedRanges = _a2[1];
+                    if (method === "query" && queriedIndex.isPrimaryKey && !req.values ? delsRangeSet_1.add(queriedRanges) : getRangeSet(queriedIndex.name || "").add(queriedRanges), !queriedIndex.isPrimaryKey)
+                      if (method === "count")
+                        delsRangeSet_1.add(FULL_RANGE);
+                      else {
+                        var keysPromise_1 = method === "query" && outbound && req.values && table.query(__assign(__assign({}, req), { values: !1 }));
+                        return table[method].apply(this, arguments).then(function(res) {
+                          if (method === "query") {
+                            if (outbound && req.values)
+                              return keysPromise_1.then(function(_a3) {
+                                var resultingKeys = _a3.result;
+                                return pkRangeSet_1.addKeys(resultingKeys), res;
+                              });
+                            var pKeys = req.values ? res.result.map(extractKey) : res.result;
+                            req.values ? pkRangeSet_1.addKeys(pKeys) : delsRangeSet_1.addKeys(pKeys);
+                          } else if (method === "openCursor") {
+                            var cursor_1 = res, wantValues_1 = req.values;
+                            return cursor_1 && Object.create(cursor_1, {
+                              key: {
+                                get: /* @__PURE__ */ __name(function() {
+                                  return delsRangeSet_1.addKey(cursor_1.primaryKey), cursor_1.key;
+                                }, "get")
+                              },
+                              primaryKey: {
+                                get: /* @__PURE__ */ __name(function() {
+                                  var pkey = cursor_1.primaryKey;
+                                  return delsRangeSet_1.addKey(pkey), pkey;
+                                }, "get")
+                              },
+                              value: {
+                                get: /* @__PURE__ */ __name(function() {
+                                  return wantValues_1 && pkRangeSet_1.addKey(cursor_1.primaryKey), cursor_1.value;
+                                }, "get")
+                              }
+                            });
+                          }
+                          return res;
+                        });
+                      }
+                  }
+                  return table[method].apply(this, arguments);
+                };
+              }), tableClone;
+            }, "table") });
+          }, "create")
+        };
+        function trackAffectedIndexes(getRangeSet, schema, oldObjs, newObjs) {
+          function addAffectedIndex(ix) {
+            var rangeSet = getRangeSet(ix.name || "");
+            function extractKey(obj) {
+              return obj != null ? ix.extractKey(obj) : null;
+            }
+            __name(extractKey, "extractKey");
+            var addKeyOrKeys = /* @__PURE__ */ __name(function(key) {
+              return ix.multiEntry && isArray(key) ? key.forEach(function(key2) {
+                return rangeSet.addKey(key2);
+              }) : rangeSet.addKey(key);
+            }, "addKeyOrKeys");
+            (oldObjs || newObjs).forEach(function(_, i) {
+              var oldKey = oldObjs && extractKey(oldObjs[i]), newKey = newObjs && extractKey(newObjs[i]);
+              cmp2(oldKey, newKey) !== 0 && (oldKey != null && addKeyOrKeys(oldKey), newKey != null && addKeyOrKeys(newKey));
+            });
+          }
+          __name(addAffectedIndex, "addAffectedIndex"), schema.indexes.forEach(addAffectedIndex);
+        }
+        __name(trackAffectedIndexes, "trackAffectedIndexes");
+        function adjustOptimisticFromFailures(tblCache, req, res) {
+          if (res.numFailures === 0)
+            return req;
+          if (req.type === "deleteRange")
+            return null;
+          var numBulkOps = req.keys ? req.keys.length : "values" in req && req.values ? req.values.length : 1;
+          if (res.numFailures === numBulkOps)
+            return null;
+          var clone = __assign({}, req);
+          return isArray(clone.keys) && (clone.keys = clone.keys.filter(function(_, i) {
+            return !(i in res.failures);
+          })), "values" in clone && isArray(clone.values) && (clone.values = clone.values.filter(function(_, i) {
+            return !(i in res.failures);
+          })), clone;
+        }
+        __name(adjustOptimisticFromFailures, "adjustOptimisticFromFailures");
+        function isAboveLower(key, range) {
+          return range.lower === void 0 ? !0 : range.lowerOpen ? cmp2(key, range.lower) > 0 : cmp2(key, range.lower) >= 0;
+        }
+        __name(isAboveLower, "isAboveLower");
+        function isBelowUpper(key, range) {
+          return range.upper === void 0 ? !0 : range.upperOpen ? cmp2(key, range.upper) < 0 : cmp2(key, range.upper) <= 0;
+        }
+        __name(isBelowUpper, "isBelowUpper");
+        function isWithinRange(key, range) {
+          return isAboveLower(key, range) && isBelowUpper(key, range);
+        }
+        __name(isWithinRange, "isWithinRange");
+        function applyOptimisticOps(result, req, ops, table, cacheEntry, immutable) {
+          if (!ops || ops.length === 0)
+            return result;
+          var index = req.query.index, multiEntry = index.multiEntry, queryRange = req.query.range, primaryKey = table.schema.primaryKey, extractPrimKey = primaryKey.extractKey, extractIndex = index.extractKey, extractLowLevelIndex = (index.lowLevelIndex || index).extractKey, finalResult = ops.reduce(function(result2, op) {
+            var modifedResult = result2, includedValues = [];
+            if (op.type === "add" || op.type === "put")
+              for (var includedPKs = new RangeSet2(), i = op.values.length - 1; i >= 0; --i) {
+                var value = op.values[i], pk = extractPrimKey(value);
+                if (!includedPKs.hasKey(pk)) {
+                  var key = extractIndex(value);
+                  (multiEntry && isArray(key) ? key.some(function(k) {
+                    return isWithinRange(k, queryRange);
+                  }) : isWithinRange(key, queryRange)) && (includedPKs.addKey(pk), includedValues.push(value));
+                }
+              }
+            switch (op.type) {
+              case "add": {
+                var existingKeys_1 = new RangeSet2().addKeys(req.values ? result2.map(function(v) {
+                  return extractPrimKey(v);
+                }) : result2);
+                modifedResult = result2.concat(req.values ? includedValues.filter(function(v) {
+                  var key2 = extractPrimKey(v);
+                  return existingKeys_1.hasKey(key2) ? !1 : (existingKeys_1.addKey(key2), !0);
+                }) : includedValues.map(function(v) {
+                  return extractPrimKey(v);
+                }).filter(function(k) {
+                  return existingKeys_1.hasKey(k) ? !1 : (existingKeys_1.addKey(k), !0);
+                }));
+                break;
+              }
+              case "put": {
+                var keySet_1 = new RangeSet2().addKeys(op.values.map(function(v) {
+                  return extractPrimKey(v);
+                }));
+                modifedResult = result2.filter(
+                  function(item) {
+                    return !keySet_1.hasKey(req.values ? extractPrimKey(item) : item);
+                  }
+                ).concat(
+                  req.values ? includedValues : includedValues.map(function(v) {
+                    return extractPrimKey(v);
+                  })
+                );
+                break;
+              }
+              case "delete":
+                var keysToDelete_1 = new RangeSet2().addKeys(op.keys);
+                modifedResult = result2.filter(function(item) {
+                  return !keysToDelete_1.hasKey(req.values ? extractPrimKey(item) : item);
+                });
+                break;
+              case "deleteRange":
+                var range_1 = op.range;
+                modifedResult = result2.filter(function(item) {
+                  return !isWithinRange(extractPrimKey(item), range_1);
+                });
+                break;
+            }
+            return modifedResult;
+          }, result);
+          if (finalResult === result)
+            return result;
+          var sorter = /* @__PURE__ */ __name(function(a, b) {
+            return cmp2(extractLowLevelIndex(a), extractLowLevelIndex(b)) || cmp2(extractPrimKey(a), extractPrimKey(b));
+          }, "sorter");
+          return finalResult.sort(req.direction === "prev" || req.direction === "prevunique" ? function(a, b) {
+            return sorter(b, a);
+          } : sorter), req.limit && req.limit < 1 / 0 && (finalResult.length > req.limit ? finalResult.length = req.limit : result.length === req.limit && finalResult.length < req.limit && (cacheEntry.dirty = !0)), immutable ? Object.freeze(finalResult) : finalResult;
+        }
+        __name(applyOptimisticOps, "applyOptimisticOps");
+        function areRangesEqual(r1, r2) {
+          return cmp2(r1.lower, r2.lower) === 0 && cmp2(r1.upper, r2.upper) === 0 && !!r1.lowerOpen == !!r2.lowerOpen && !!r1.upperOpen == !!r2.upperOpen;
+        }
+        __name(areRangesEqual, "areRangesEqual");
+        function compareLowers(lower1, lower2, lowerOpen1, lowerOpen2) {
+          if (lower1 === void 0)
+            return lower2 !== void 0 ? -1 : 0;
+          if (lower2 === void 0)
+            return 1;
+          var c = cmp2(lower1, lower2);
+          if (c === 0) {
+            if (lowerOpen1 && lowerOpen2)
+              return 0;
+            if (lowerOpen1)
+              return 1;
+            if (lowerOpen2)
+              return -1;
+          }
+          return c;
+        }
+        __name(compareLowers, "compareLowers");
+        function compareUppers(upper1, upper2, upperOpen1, upperOpen2) {
+          if (upper1 === void 0)
+            return upper2 !== void 0 ? 1 : 0;
+          if (upper2 === void 0)
+            return -1;
+          var c = cmp2(upper1, upper2);
+          if (c === 0) {
+            if (upperOpen1 && upperOpen2)
+              return 0;
+            if (upperOpen1)
+              return -1;
+            if (upperOpen2)
+              return 1;
+          }
+          return c;
+        }
+        __name(compareUppers, "compareUppers");
+        function isSuperRange(r1, r2) {
+          return compareLowers(r1.lower, r2.lower, r1.lowerOpen, r2.lowerOpen) <= 0 && compareUppers(r1.upper, r2.upper, r1.upperOpen, r2.upperOpen) >= 0;
+        }
+        __name(isSuperRange, "isSuperRange");
+        function findCompatibleQuery(dbName, tableName, type2, req) {
+          var _a2, tblCache = cache["idb://".concat(dbName, "/").concat(tableName)];
+          if (!tblCache)
+            return [];
+          var queries = tblCache.queries[type2];
+          if (!queries)
+            return [null, !1, tblCache, null];
+          var indexName = req.query ? req.query.index.name : null, entries = queries[indexName || ""];
+          if (!entries)
+            return [null, !1, tblCache, null];
+          switch (type2) {
+            case "query":
+              var reqDirection_1 = (_a2 = req.direction) !== null && _a2 !== void 0 ? _a2 : "next", equalEntry = entries.find(function(entry) {
+                var _a3;
+                return entry.req.limit === req.limit && entry.req.values === req.values && ((_a3 = entry.req.direction) !== null && _a3 !== void 0 ? _a3 : "next") === reqDirection_1 && areRangesEqual(entry.req.query.range, req.query.range);
+              });
+              if (equalEntry)
+                return [
+                  equalEntry,
+                  !0,
+                  tblCache,
+                  entries
+                ];
+              var superEntry = entries.find(function(entry) {
+                var _a3, limit = "limit" in entry.req ? entry.req.limit : 1 / 0;
+                return limit >= req.limit && ((_a3 = entry.req.direction) !== null && _a3 !== void 0 ? _a3 : "next") === reqDirection_1 && (req.values ? entry.req.values : !0) && isSuperRange(entry.req.query.range, req.query.range);
+              });
+              return [superEntry, !1, tblCache, entries];
+            case "count":
+              var countQuery = entries.find(function(entry) {
+                return areRangesEqual(entry.req.query.range, req.query.range);
+              });
+              return [countQuery, !!countQuery, tblCache, entries];
+          }
+        }
+        __name(findCompatibleQuery, "findCompatibleQuery");
+        function subscribeToCacheEntry(cacheEntry, container, requery, signal) {
+          cacheEntry.subscribers.add(requery), signal.addEventListener("abort", function() {
+            cacheEntry.subscribers.delete(requery), cacheEntry.subscribers.size === 0 && enqueForDeletion(cacheEntry, container);
+          });
+        }
+        __name(subscribeToCacheEntry, "subscribeToCacheEntry");
+        function enqueForDeletion(cacheEntry, container) {
+          setTimeout(function() {
+            cacheEntry.subscribers.size === 0 && delArrayItem(container, cacheEntry);
+          }, 3e3);
+        }
+        __name(enqueForDeletion, "enqueForDeletion");
+        var cacheMiddleware = {
+          stack: "dbcore",
+          level: 0,
+          name: "Cache",
+          create: /* @__PURE__ */ __name(function(core) {
+            var dbName = core.schema.name, coreMW = __assign(__assign({}, core), { transaction: /* @__PURE__ */ __name(function(stores, mode, options) {
+              var idbtrans = core.transaction(stores, mode, options);
+              if (mode === "readwrite") {
+                var ac_1 = new AbortController(), signal = ac_1.signal, endTransaction = /* @__PURE__ */ __name(function(wasCommitted) {
+                  return function() {
+                    if (ac_1.abort(), mode === "readwrite") {
+                      for (var affectedSubscribers_1 = /* @__PURE__ */ new Set(), _i = 0, stores_1 = stores; _i < stores_1.length; _i++) {
+                        var storeName = stores_1[_i], tblCache = cache["idb://".concat(dbName, "/").concat(storeName)];
+                        if (tblCache) {
+                          var table = core.table(storeName), ops = tblCache.optimisticOps.filter(function(op) {
+                            return op.trans === idbtrans;
+                          });
+                          if (idbtrans._explicit && wasCommitted && idbtrans.mutatedParts)
+                            for (var _a2 = 0, _b = Object.values(tblCache.queries.query); _a2 < _b.length; _a2++)
+                              for (var entries = _b[_a2], _c = 0, _d = entries.slice(); _c < _d.length; _c++) {
+                                var entry = _d[_c];
+                                obsSetsOverlap(entry.obsSet, idbtrans.mutatedParts) && (delArrayItem(entries, entry), entry.subscribers.forEach(function(requery) {
+                                  return affectedSubscribers_1.add(requery);
+                                }));
+                              }
+                          else if (ops.length > 0) {
+                            tblCache.optimisticOps = tblCache.optimisticOps.filter(function(op) {
+                              return op.trans !== idbtrans;
+                            });
+                            for (var _e = 0, _f = Object.values(tblCache.queries.query); _e < _f.length; _e++)
+                              for (var entries = _f[_e], _g = 0, _h = entries.slice(); _g < _h.length; _g++) {
+                                var entry = _h[_g];
+                                if (entry.res != null && idbtrans.mutatedParts)
+                                  if (wasCommitted && !entry.dirty) {
+                                    var freezeResults = Object.isFrozen(entry.res), modRes = applyOptimisticOps(entry.res, entry.req, ops, table, entry, freezeResults);
+                                    entry.dirty ? (delArrayItem(entries, entry), entry.subscribers.forEach(function(requery) {
+                                      return affectedSubscribers_1.add(requery);
+                                    })) : modRes !== entry.res && (entry.res = modRes, entry.promise = DexiePromise.resolve({
+                                      result: modRes
+                                    }));
+                                  } else
+                                    entry.dirty && delArrayItem(entries, entry), entry.subscribers.forEach(function(requery) {
+                                      return affectedSubscribers_1.add(requery);
+                                    });
+                              }
+                          }
+                        }
+                      }
+                      affectedSubscribers_1.forEach(function(requery) {
+                        return requery();
+                      });
+                    }
+                  };
+                }, "endTransaction");
+                idbtrans.addEventListener("abort", endTransaction(!1), {
+                  signal
+                }), idbtrans.addEventListener("error", endTransaction(!1), {
+                  signal
+                }), idbtrans.addEventListener("complete", endTransaction(!0), {
+                  signal
+                });
+              }
+              return idbtrans;
+            }, "transaction"), table: /* @__PURE__ */ __name(function(tableName) {
+              var downTable = core.table(tableName), primKey = downTable.schema.primaryKey, tableMW = __assign(__assign({}, downTable), { mutate: /* @__PURE__ */ __name(function(req) {
+                var trans = PSD.trans;
+                if (primKey.outbound || trans.db._options.cache === "disabled" || trans.explicit || trans.idbtrans.mode !== "readwrite")
+                  return downTable.mutate(req);
+                var tblCache = cache["idb://".concat(dbName, "/").concat(tableName)];
+                if (!tblCache)
+                  return downTable.mutate(req);
+                var promise = downTable.mutate(req);
+                return (req.type === "add" || req.type === "put") && (req.values.length >= 50 || getEffectiveKeys(primKey, req).some(function(key) {
+                  return key == null;
+                })) ? promise.then(function(res) {
+                  var reqWithResolvedKeys = __assign(__assign({}, req), { values: req.values.map(function(value, i) {
+                    var _a2;
+                    if (res.failures[i])
+                      return value;
+                    var valueWithKey = !((_a2 = primKey.keyPath) === null || _a2 === void 0) && _a2.includes(".") ? deepClone(value) : __assign({}, value);
+                    return setByKeyPath(valueWithKey, primKey.keyPath, res.results[i]), valueWithKey;
+                  }) }), adjustedReq = adjustOptimisticFromFailures(tblCache, reqWithResolvedKeys, res);
+                  tblCache.optimisticOps.push(adjustedReq), queueMicrotask(function() {
+                    return req.mutatedParts && signalSubscribersLazily(req.mutatedParts);
+                  });
+                }) : (tblCache.optimisticOps.push(req), req.mutatedParts && signalSubscribersLazily(req.mutatedParts), promise.then(function(res) {
+                  if (res.numFailures > 0) {
+                    delArrayItem(tblCache.optimisticOps, req);
+                    var adjustedReq = adjustOptimisticFromFailures(tblCache, req, res);
+                    adjustedReq && tblCache.optimisticOps.push(adjustedReq), req.mutatedParts && signalSubscribersLazily(req.mutatedParts);
+                  }
+                }), promise.catch(function() {
+                  delArrayItem(tblCache.optimisticOps, req), req.mutatedParts && signalSubscribersLazily(req.mutatedParts);
+                })), promise;
+              }, "mutate"), query: /* @__PURE__ */ __name(function(req) {
+                var _a2;
+                if (!isCachableContext(PSD, downTable) || !isCachableRequest("query", req))
+                  return downTable.query(req);
+                var freezeResults = ((_a2 = PSD.trans) === null || _a2 === void 0 ? void 0 : _a2.db._options.cache) === "immutable", _b = PSD, requery = _b.requery, signal = _b.signal, _c = findCompatibleQuery(dbName, tableName, "query", req), cacheEntry = _c[0], exactMatch = _c[1], tblCache = _c[2], container = _c[3];
+                if (cacheEntry && exactMatch)
+                  cacheEntry.obsSet = req.obsSet;
+                else {
+                  var promise = downTable.query(req).then(function(res) {
+                    var result = res.result;
+                    if (cacheEntry && (cacheEntry.res = result), freezeResults) {
+                      for (var i = 0, l = result.length; i < l; ++i)
+                        Object.freeze(result[i]);
+                      Object.freeze(result);
+                    }
+                    return res;
+                  }).catch(function(error) {
+                    return container && cacheEntry && delArrayItem(container, cacheEntry), Promise.reject(error);
+                  });
+                  cacheEntry = {
+                    obsSet: req.obsSet,
+                    promise,
+                    subscribers: /* @__PURE__ */ new Set(),
+                    type: "query",
+                    req,
+                    dirty: !1
+                  }, container ? container.push(cacheEntry) : (container = [cacheEntry], tblCache || (tblCache = cache["idb://".concat(dbName, "/").concat(tableName)] = {
+                    queries: {
+                      query: {},
+                      count: {}
+                    },
+                    objs: /* @__PURE__ */ new Map(),
+                    optimisticOps: [],
+                    unsignaledParts: {}
+                  }), tblCache.queries.query[req.query.index.name || ""] = container);
+                }
+                return subscribeToCacheEntry(cacheEntry, container, requery, signal), cacheEntry.promise.then(function(res) {
+                  var result = applyOptimisticOps(res.result, req, tblCache?.optimisticOps, downTable, cacheEntry, freezeResults);
+                  return {
+                    result: freezeResults ? result : deepClone(result)
+                  };
+                });
+              }, "query") });
+              return tableMW;
+            }, "table") });
+            return coreMW;
+          }, "create")
+        };
+        function vipify(target, vipDb) {
+          return new Proxy(target, {
+            get: /* @__PURE__ */ __name(function(target2, prop, receiver) {
+              return prop === "db" ? vipDb : Reflect.get(target2, prop, receiver);
+            }, "get")
+          });
+        }
+        __name(vipify, "vipify");
+        var Dexie$1 = (function() {
+          function Dexie3(name, options) {
+            var _this = this;
+            this._middlewares = {}, this.verno = 0;
+            var deps = Dexie3.dependencies;
+            this._options = options = __assign({
+              addons: Dexie3.addons,
+              autoOpen: !0,
+              indexedDB: deps.indexedDB,
+              IDBKeyRange: deps.IDBKeyRange,
+              cache: "cloned",
+              maxConnections: DEFAULT_MAX_CONNECTIONS
+            }, options), this._deps = {
+              indexedDB: options.indexedDB,
+              IDBKeyRange: options.IDBKeyRange
+            };
+            var addons = options.addons;
+            this._dbSchema = {}, this._versions = [], this._storeNames = [], this._allTables = {}, this.idbdb = null, this._novip = this;
+            var state2 = {
+              dbOpenError: null,
+              isBeingOpened: !1,
+              onReadyBeingFired: null,
+              openComplete: !1,
+              dbReadyResolve: nop,
+              dbReadyPromise: null,
+              cancelOpen: nop,
+              openCanceller: null,
+              autoSchema: !0,
+              PR1398_maxLoop: 3,
+              autoOpen: options.autoOpen
+            };
+            state2.dbReadyPromise = new DexiePromise(function(resolve) {
+              state2.dbReadyResolve = resolve;
+            }), state2.openCanceller = new DexiePromise(function(_, reject) {
+              state2.cancelOpen = reject;
+            }), this._state = state2, this.name = name, this.on = Events(this, "populate", "blocked", "versionchange", "close", {
+              ready: [promisableChain, nop]
+            }), this.once = function(event, callback) {
+              var fn = /* @__PURE__ */ __name(function() {
+                for (var args = [], _i = 0; _i < arguments.length; _i++)
+                  args[_i] = arguments[_i];
+                _this.on(event).unsubscribe(fn), callback.apply(_this, args);
+              }, "fn");
+              return _this.on(event, fn);
+            }, this.on.ready.subscribe = override(this.on.ready.subscribe, function(subscribe) {
+              return function(subscriber, bSticky) {
+                Dexie3.vip(function() {
+                  var state3 = _this._state;
+                  if (state3.openComplete)
+                    state3.dbOpenError || DexiePromise.resolve().then(subscriber), bSticky && subscribe(subscriber);
+                  else if (state3.onReadyBeingFired)
+                    state3.onReadyBeingFired.push(subscriber), bSticky && subscribe(subscriber);
+                  else {
+                    subscribe(subscriber);
+                    var db_1 = _this;
+                    bSticky || subscribe(/* @__PURE__ */ __name(function unsubscribe() {
+                      db_1.on.ready.unsubscribe(subscriber), db_1.on.ready.unsubscribe(unsubscribe);
+                    }, "unsubscribe"));
+                  }
+                });
+              };
+            }), this.Collection = createCollectionConstructor(this), this.Table = createTableConstructor(this), this.Transaction = createTransactionConstructor(this), this.Version = createVersionConstructor(this), this.WhereClause = createWhereClauseConstructor(this), this.on("versionchange", function(ev) {
+              ev.newVersion > 0 ? console.warn("Another connection wants to upgrade database '".concat(_this.name, "'. Closing db now to resume the upgrade.")) : console.warn("Another connection wants to delete database '".concat(_this.name, "'. Closing db now to resume the delete request.")), _this.close({ disableAutoOpen: !1 });
+            }), this.on("blocked", function(ev) {
+              !ev.newVersion || ev.newVersion < ev.oldVersion ? console.warn("Dexie.delete('".concat(_this.name, "') was blocked")) : console.warn("Upgrade '".concat(_this.name, "' blocked by other connection holding version ").concat(ev.oldVersion / 10));
+            }), this._maxKey = getMaxKey(options.IDBKeyRange), this._createTransaction = function(mode, storeNames, dbschema, parentTransaction) {
+              return new _this.Transaction(mode, storeNames, dbschema, _this._options.chromeTransactionDurability, parentTransaction);
+            }, this._fireOnBlocked = function(ev) {
+              _this.on("blocked").fire(ev), connections.toArray().filter(function(c) {
+                return c.name === _this.name && c !== _this && !c._state.vcFired;
+              }).map(function(c) {
+                return c.on("versionchange").fire(ev);
+              });
+            }, this.use(cacheExistingValuesMiddleware), this.use(cacheMiddleware), this.use(observabilityMiddleware), this.use(virtualIndexMiddleware), this.use(hooksMiddleware);
+            var vipDB = new Proxy(this, {
+              get: /* @__PURE__ */ __name(function(_, prop, receiver) {
+                if (prop === "_vip")
+                  return !0;
+                if (prop === "table")
+                  return function(tableName) {
+                    return vipify(_this.table(tableName), vipDB);
+                  };
+                var rv = Reflect.get(_, prop, receiver);
+                return rv instanceof Table ? vipify(rv, vipDB) : prop === "tables" ? rv.map(function(t) {
+                  return vipify(t, vipDB);
+                }) : prop === "_createTransaction" ? function() {
+                  var tx = rv.apply(this, arguments);
+                  return vipify(tx, vipDB);
+                } : rv;
+              }, "get")
+            });
+            this.vip = vipDB, addons.forEach(function(addon) {
+              return addon(_this);
+            });
+          }
+          return __name(Dexie3, "Dexie"), Dexie3.prototype.version = function(versionNumber) {
+            if (isNaN(versionNumber) || versionNumber < 0.1)
+              throw new exceptions.Type("Given version is not a positive number");
+            if (versionNumber = Math.round(versionNumber * 10) / 10, this.idbdb || this._state.isBeingOpened)
+              throw new exceptions.Schema("Cannot add version when database is open");
+            this.verno = Math.max(this.verno, versionNumber);
+            var versions = this._versions, versionInstance = versions.filter(function(v) {
+              return v._cfg.version === versionNumber;
+            })[0];
+            return versionInstance || (versionInstance = new this.Version(versionNumber), versions.push(versionInstance), versions.sort(lowerVersionFirst), versionInstance.stores({}), this._state.autoSchema = !1, versionInstance);
+          }, Dexie3.prototype._whenReady = function(fn) {
+            var _this = this;
+            return this.idbdb && (this._state.openComplete || PSD.letThrough || this._vip) ? fn() : new DexiePromise(function(resolve, reject) {
+              if (_this._state.openComplete)
+                return reject(new exceptions.DatabaseClosed(_this._state.dbOpenError));
+              if (!_this._state.isBeingOpened) {
+                if (!_this._state.autoOpen) {
+                  reject(new exceptions.DatabaseClosed());
+                  return;
+                }
+                _this.open().catch(nop);
+              }
+              _this._state.dbReadyPromise.then(resolve, reject);
+            }).then(fn);
+          }, Dexie3.prototype.use = function(_a2) {
+            var stack = _a2.stack, create = _a2.create, level = _a2.level, name = _a2.name;
+            name && this.unuse({ stack, name });
+            var middlewares = this._middlewares[stack] || (this._middlewares[stack] = []);
+            return middlewares.push({
+              stack,
+              create,
+              level: level ?? 10,
+              name
+            }), middlewares.sort(function(a, b) {
+              return a.level - b.level;
+            }), this;
+          }, Dexie3.prototype.unuse = function(_a2) {
+            var stack = _a2.stack, name = _a2.name, create = _a2.create;
+            return stack && this._middlewares[stack] && (this._middlewares[stack] = this._middlewares[stack].filter(function(mw) {
+              return create ? mw.create !== create : name ? mw.name !== name : !1;
+            })), this;
+          }, Dexie3.prototype.open = function() {
+            var _this = this;
+            return usePSD(
+              globalPSD,
+              function() {
+                return dexieOpen(_this);
+              }
+            );
+          }, Dexie3.prototype._close = function() {
+            this.on.close.fire(new CustomEvent("close"));
+            var state2 = this._state;
+            if (connections.remove(this), this.idbdb) {
+              try {
+                this.idbdb.close();
+              } catch {
+              }
+              this.idbdb = null;
+            }
+            state2.isBeingOpened || (state2.dbReadyPromise = new DexiePromise(function(resolve) {
+              state2.dbReadyResolve = resolve;
+            }), state2.openCanceller = new DexiePromise(function(_, reject) {
+              state2.cancelOpen = reject;
+            }));
+          }, Dexie3.prototype.close = function(_a2) {
+            var _b = _a2 === void 0 ? { disableAutoOpen: !0 } : _a2, disableAutoOpen = _b.disableAutoOpen, state2 = this._state;
+            disableAutoOpen ? (state2.isBeingOpened && state2.cancelOpen(new exceptions.DatabaseClosed()), this._close(), state2.autoOpen = !1, state2.dbOpenError = new exceptions.DatabaseClosed()) : (this._close(), state2.autoOpen = this._options.autoOpen || state2.isBeingOpened, state2.openComplete = !1, state2.dbOpenError = null);
+          }, Dexie3.prototype.delete = function(closeOptions) {
+            var _this = this;
+            closeOptions === void 0 && (closeOptions = { disableAutoOpen: !0 });
+            var hasInvalidArguments = arguments.length > 0 && typeof arguments[0] != "object", state2 = this._state;
+            return new DexiePromise(function(resolve, reject) {
+              var doDelete = /* @__PURE__ */ __name(function() {
+                _this.close(closeOptions);
+                var req = _this._deps.indexedDB.deleteDatabase(_this.name);
+                req.onsuccess = wrap(function() {
+                  _onDatabaseDeleted(_this._deps, _this.name), resolve();
+                }), req.onerror = eventRejectHandler(reject), req.onblocked = _this._fireOnBlocked;
+              }, "doDelete");
+              if (hasInvalidArguments)
+                throw new exceptions.InvalidArgument("Invalid closeOptions argument to db.delete()");
+              state2.isBeingOpened ? state2.dbReadyPromise.then(doDelete) : doDelete();
+            });
+          }, Dexie3.prototype.backendDB = function() {
+            return this.idbdb;
+          }, Dexie3.prototype.isOpen = function() {
+            return this.idbdb !== null;
+          }, Dexie3.prototype.hasBeenClosed = function() {
+            var dbOpenError = this._state.dbOpenError;
+            return dbOpenError && dbOpenError.name === "DatabaseClosedError";
+          }, Dexie3.prototype.hasFailed = function() {
+            return this._state.dbOpenError !== null;
+          }, Dexie3.prototype.dynamicallyOpened = function() {
+            return this._state.autoSchema;
+          }, Object.defineProperty(Dexie3.prototype, "tables", {
+            get: /* @__PURE__ */ __name(function() {
+              var _this = this;
+              return keys(this._allTables).map(function(name) {
+                return _this._allTables[name];
+              });
+            }, "get"),
+            enumerable: !1,
+            configurable: !0
+          }), Dexie3.prototype.transaction = function() {
+            var args = extractTransactionArgs.apply(this, arguments);
+            return this._transaction.apply(this, args);
+          }, Dexie3.prototype._transaction = function(mode, tables, scopeFunc) {
+            var _this = this, parentTransaction = PSD.trans;
+            (!parentTransaction || parentTransaction.db !== this || mode.indexOf("!") !== -1) && (parentTransaction = null);
+            var onlyIfCompatible = mode.indexOf("?") !== -1;
+            mode = mode.replace("!", "").replace("?", "");
+            var idbMode, storeNames;
+            try {
+              if (storeNames = tables.map(function(table) {
+                var storeName = table instanceof _this.Table ? table.name : table;
+                if (typeof storeName != "string")
+                  throw new TypeError("Invalid table argument to Dexie.transaction(). Only Table or String are allowed");
+                return storeName;
+              }), mode == "r" || mode === READONLY)
+                idbMode = READONLY;
+              else if (mode == "rw" || mode == READWRITE)
+                idbMode = READWRITE;
+              else
+                throw new exceptions.InvalidArgument("Invalid transaction mode: " + mode);
+              if (parentTransaction) {
+                if (parentTransaction.mode === READONLY && idbMode === READWRITE)
+                  if (onlyIfCompatible)
+                    parentTransaction = null;
+                  else
+                    throw new exceptions.SubTransaction("Cannot enter a sub-transaction with READWRITE mode when parent transaction is READONLY");
+                parentTransaction && storeNames.forEach(function(storeName) {
+                  if (parentTransaction && parentTransaction.storeNames.indexOf(storeName) === -1)
+                    if (onlyIfCompatible)
+                      parentTransaction = null;
+                    else
+                      throw new exceptions.SubTransaction("Table " + storeName + " not included in parent transaction.");
+                }), onlyIfCompatible && parentTransaction && !parentTransaction.active && (parentTransaction = null);
+              }
+            } catch (e) {
+              return parentTransaction ? parentTransaction._promise(null, function(_, reject) {
+                reject(e);
+              }) : rejection(e);
+            }
+            var enterTransaction = enterTransactionScope.bind(null, this, idbMode, storeNames, parentTransaction, scopeFunc);
+            return parentTransaction ? parentTransaction._promise(idbMode, enterTransaction, "lock") : PSD.trans ? usePSD(PSD.transless, function() {
+              return _this._whenReady(enterTransaction);
+            }) : this._whenReady(enterTransaction);
+          }, Dexie3.prototype.table = function(tableName) {
+            if (!hasOwn(this._allTables, tableName))
+              throw new exceptions.InvalidTable("Table ".concat(tableName, " does not exist"));
+            return this._allTables[tableName];
+          }, Dexie3;
+        })(), symbolObservable = typeof Symbol < "u" && "observable" in Symbol ? Symbol.observable : "@@observable", Observable = (function() {
+          function Observable2(subscribe) {
+            this._subscribe = subscribe;
+          }
+          return __name(Observable2, "Observable"), Observable2.prototype.subscribe = function(x, error, complete) {
+            return this._subscribe(!x || typeof x == "function" ? { next: x, error, complete } : x);
+          }, Observable2.prototype[symbolObservable] = function() {
+            return this;
+          }, Observable2;
+        })(), domDeps;
+        try {
+          domDeps = {
+            indexedDB: _global.indexedDB || _global.mozIndexedDB || _global.webkitIndexedDB || _global.msIndexedDB,
+            IDBKeyRange: _global.IDBKeyRange || _global.webkitIDBKeyRange
+          };
+        } catch {
+          domDeps = { indexedDB: null, IDBKeyRange: null };
+        }
+        function liveQuery2(querier) {
+          var hasValue = !1, currentValue, observable = new Observable(function(observer) {
+            var scopeFuncIsAsync = isAsyncFunction(querier);
+            function execute(ctx) {
+              var wasRootExec = beginMicroTickScope();
+              try {
+                scopeFuncIsAsync && incrementExpectedAwaits();
+                var rv = newScope(querier, ctx);
+                return scopeFuncIsAsync && (rv = rv.finally(decrementExpectedAwaits)), rv;
+              } finally {
+                wasRootExec && endMicroTickScope();
+              }
+            }
+            __name(execute, "execute");
+            var closed = !1, abortController, accumMuts = {}, currentObs = {}, subscription = {
+              get closed() {
+                return closed;
+              },
+              unsubscribe: /* @__PURE__ */ __name(function() {
+                closed || (closed = !0, abortController && abortController.abort(), startedListening && globalEvents.storagemutated.unsubscribe(mutationListener));
+              }, "unsubscribe")
+            };
+            observer.start && observer.start(subscription);
+            var startedListening = !1, doQuery = /* @__PURE__ */ __name(function() {
+              return execInGlobalContext(_doQuery);
+            }, "doQuery");
+            function shouldNotify() {
+              return obsSetsOverlap(currentObs, accumMuts);
+            }
+            __name(shouldNotify, "shouldNotify");
+            var mutationListener = /* @__PURE__ */ __name(function(parts) {
+              extendObservabilitySet(accumMuts, parts), shouldNotify() && doQuery();
+            }, "mutationListener"), _doQuery = /* @__PURE__ */ __name(function() {
+              if (!(closed || !domDeps.indexedDB)) {
+                accumMuts = {};
+                var subscr = {};
+                abortController && abortController.abort(), abortController = new AbortController();
+                var ctx = {
+                  subscr,
+                  signal: abortController.signal,
+                  requery: doQuery,
+                  querier,
+                  trans: null
+                }, ret = execute(ctx);
+                startedListening || (globalEvents.storagemutated.subscribe(mutationListener), startedListening = !0), Promise.resolve(ret).then(function(result) {
+                  hasValue = !0, currentValue = result, !(closed || ctx.signal.aborted) && (shouldNotify() ? doQuery() : (currentObs = subscr, shouldNotify() ? doQuery() : (accumMuts = {}, execInGlobalContext(function() {
+                    return !closed && observer.next && observer.next(result);
+                  }))));
+                }, function(err) {
+                  closed || ctx.signal.aborted || (hasValue = !1, ["DatabaseClosedError", "AbortError"].includes(err?.name) || closed || execInGlobalContext(function() {
+                    closed || observer.error && observer.error(err);
+                  }));
+                });
+              }
+            }, "_doQuery");
+            return setTimeout(doQuery, 0), subscription;
+          });
+          return observable.hasValue = function() {
+            return hasValue;
+          }, observable.getValue = function() {
+            return currentValue;
+          }, observable;
+        }
+        __name(liveQuery2, "liveQuery");
+        var Dexie2 = Dexie$1;
+        props(Dexie2, __assign(__assign({}, fullNameExceptions), {
+          delete: /* @__PURE__ */ __name(function(databaseName) {
+            var db2 = new Dexie2(databaseName, { addons: [] });
+            return db2.delete();
+          }, "delete"),
+          exists: /* @__PURE__ */ __name(function(name) {
+            return new Dexie2(name, { addons: [] }).open().then(function(db2) {
+              return db2.close(), !0;
+            }).catch("NoSuchDatabaseError", function() {
+              return !1;
+            });
+          }, "exists"),
+          getDatabaseNames: /* @__PURE__ */ __name(function(cb) {
+            try {
+              return getDatabaseNames(Dexie2.dependencies).then(cb);
+            } catch {
+              return rejection(new exceptions.MissingAPI());
+            }
+          }, "getDatabaseNames"),
+          defineClass: /* @__PURE__ */ __name(function() {
+            function Class(content) {
+              extend(this, content);
+            }
+            return __name(Class, "Class"), Class;
+          }, "defineClass"),
+          ignoreTransaction: /* @__PURE__ */ __name(function(scopeFunc) {
+            return PSD.trans ? usePSD(PSD.transless || globalPSD, scopeFunc) : scopeFunc();
+          }, "ignoreTransaction"),
+          vip,
+          async: /* @__PURE__ */ __name(function(generatorFn) {
+            return function() {
+              try {
+                var rv = awaitIterator(generatorFn.apply(this, arguments));
+                return !rv || typeof rv.then != "function" ? DexiePromise.resolve(rv) : rv;
+              } catch (e) {
+                return rejection(e);
+              }
+            };
+          }, "async"),
+          spawn: /* @__PURE__ */ __name(function(generatorFn, args, thiz) {
+            try {
+              var rv = awaitIterator(generatorFn.apply(thiz, args || []));
+              return !rv || typeof rv.then != "function" ? DexiePromise.resolve(rv) : rv;
+            } catch (e) {
+              return rejection(e);
+            }
+          }, "spawn"),
+          currentTransaction: {
+            get: /* @__PURE__ */ __name(function() {
+              return PSD.trans || null;
+            }, "get")
+          },
+          waitFor: /* @__PURE__ */ __name(function(promiseOrFunction, optionalTimeout) {
+            var promise = DexiePromise.resolve(typeof promiseOrFunction == "function" ? Dexie2.ignoreTransaction(promiseOrFunction) : promiseOrFunction).timeout(optionalTimeout || 6e4);
+            return PSD.trans ? PSD.trans.waitFor(promise) : promise;
+          }, "waitFor"),
+          Promise: DexiePromise,
+          debug: {
+            get: /* @__PURE__ */ __name(function() {
+              return debug;
+            }, "get"),
+            set: /* @__PURE__ */ __name(function(value) {
+              setDebug(value);
+            }, "set")
+          },
+          derive,
+          extend,
+          props,
+          override,
+          Events,
+          on: globalEvents,
+          liveQuery: liveQuery2,
+          extendObservabilitySet,
+          getByKeyPath,
+          setByKeyPath,
+          delByKeyPath,
+          shallowClone,
+          deepClone,
+          getObjectDiff,
+          cmp: cmp2,
+          asap: asap$1,
+          minKey,
+          addons: [],
+          connections: {
+            get: connections.toArray
+          },
+          errnames,
+          dependencies: domDeps,
+          cache,
+          semVer: DEXIE_VERSION,
+          version: DEXIE_VERSION.split(".").map(function(n) {
+            return parseInt(n);
+          }).reduce(function(p, c, i) {
+            return p + c / Math.pow(10, i * 2);
+          })
+        })), Dexie2.maxKey = getMaxKey(Dexie2.dependencies.IDBKeyRange), typeof dispatchEvent < "u" && typeof addEventListener < "u" && (globalEvents(DEXIE_STORAGE_MUTATED_EVENT_NAME, function(updatedParts) {
+          if (!propagatingLocally) {
+            var event_1;
+            event_1 = new CustomEvent(STORAGE_MUTATED_DOM_EVENT_NAME, {
+              detail: updatedParts
+            }), propagatingLocally = !0, dispatchEvent(event_1), propagatingLocally = !1;
+          }
+        }), addEventListener(STORAGE_MUTATED_DOM_EVENT_NAME, function(_a2) {
+          var detail = _a2.detail;
+          propagatingLocally || propagateLocally(detail);
+        }));
+        function propagateLocally(updateParts) {
+          var wasMe = propagatingLocally;
+          try {
+            propagatingLocally = !0, globalEvents.storagemutated.fire(updateParts), signalSubscribersNow(updateParts, !0);
+          } finally {
+            propagatingLocally = wasMe;
+          }
+        }
+        __name(propagateLocally, "propagateLocally");
+        var propagatingLocally = !1, bc, createBC = /* @__PURE__ */ __name(function() {
+        }, "createBC");
+        typeof BroadcastChannel < "u" && (createBC = /* @__PURE__ */ __name(function() {
+          bc = new BroadcastChannel(STORAGE_MUTATED_DOM_EVENT_NAME), bc.onmessage = function(ev) {
+            return ev.data && propagateLocally(ev.data);
+          };
+        }, "createBC"), createBC(), typeof bc.unref == "function" && bc.unref(), globalEvents(DEXIE_STORAGE_MUTATED_EVENT_NAME, function(changedParts) {
+          propagatingLocally || bc.postMessage(changedParts);
+        })), typeof addEventListener < "u" && (addEventListener("pagehide", function(event) {
+          if (!Dexie$1.disableBfCache && event.persisted) {
+            debug && console.debug("Dexie: handling persisted pagehide"), bc?.close();
+            for (var _i = 0, _a2 = connections.toArray(); _i < _a2.length; _i++) {
+              var db2 = _a2[_i];
+              db2.close({ disableAutoOpen: !1 });
+            }
+          }
+        }), addEventListener("pageshow", function(event) {
+          !Dexie$1.disableBfCache && event.persisted && (debug && console.debug("Dexie: handling persisted pageshow"), createBC(), propagateLocally({ all: new RangeSet2(-1 / 0, [[]]) }));
+        }));
+        function add2(value) {
+          return new PropModification2({ add: value });
+        }
+        __name(add2, "add");
+        function remove3(value) {
+          return new PropModification2({ remove: value });
+        }
+        __name(remove3, "remove");
+        function replacePrefix2(a, b) {
+          return new PropModification2({ replacePrefix: [a, b] });
+        }
+        __name(replacePrefix2, "replacePrefix"), DexiePromise.rejectionMapper = mapError, setDebug(debug);
+        var namedExports = /* @__PURE__ */ Object.freeze({
+          __proto__: null,
+          DEFAULT_MAX_CONNECTIONS,
+          Dexie: Dexie$1,
+          Entity: Entity2,
+          PropModification: PropModification2,
+          RangeSet: RangeSet2,
+          add: add2,
+          cmp: cmp2,
+          default: Dexie$1,
+          liveQuery: liveQuery2,
+          mergeRanges: mergeRanges2,
+          rangesOverlap: rangesOverlap2,
+          remove: remove3,
+          replacePrefix: replacePrefix2
+        });
+        return __assign(Dexie$1, namedExports, { default: Dexie$1 }), Dexie$1;
+      }));
+    }
+  });
 
   // src/content/core/transactions/fiatConfig.js
   var ROBUX_FIAT_RATE_MODE_NORMAL = "normal", ROBUX_FIAT_RATE_MODE_DEVEX = "devex";
@@ -474,6 +5146,12 @@
             }
           }
         },
+        heroUnitsEnabled: {
+          label: "Marketplace Hero Units",
+          description: "Adds the featured hero units, like seasonal item collections, to the top of the Marketplace landing page with when they end.",
+          type: "checkbox",
+          default: !0
+        },
         bonusItemEnabled: {
           label: "Robux Purchase Bonus Item Selector",
           description: "Adds a bonus item selector to eligible Robux purchases of 2,000 Robux or more.",
@@ -725,6 +5403,15 @@
           type: "checkbox",
           default: !0
         },
+        shopOffersEnabled: {
+          label: "Show In-game Discounts",
+          description: [
+            "This shows active Roblox discounts for in-game purchases.",
+            "So you dont have to join a game to see it."
+          ],
+          type: "checkbox",
+          default: !0
+        },
         QuickOutfitsEnabled: {
           label: "Quick Equip Outfits",
           description: [
@@ -809,7 +5496,7 @@
           ],
           type: "checkbox",
           default: !0,
-          storageKey: "rovalra_badges_v1"
+          indexedDbStore: "badges"
         },
         badgeLayoutToggleEnabled: {
           label: "Badge Layout Toggle",
@@ -910,7 +5597,8 @@
           ],
           type: "checkbox",
           default: !0,
-          storageKey: "rovalra_transactions_v2"
+          indexedDbStore: "transactions",
+          dependedBy: ["spendingEnabled"]
         },
         OldestVersionEnabled: {
           label: "Oldest Server Version",
@@ -1200,7 +5888,9 @@
             "Credit to [syra](https://www.roblox.com/users/170038374/profile) for making a concept which this feature is based on."
           ],
           type: "checkbox",
-          default: !0
+          default: !0,
+          locked: "Due to people selling RoValra profile views as a service.",
+          isPermanent: !0
         },
         creatorStatsEnabled: {
           label: "Creator Stats",
@@ -1473,6 +6163,25 @@
               label: "Status bubble for friends on home page, and other parts of the site where friends might show.",
               type: "checkbox",
               default: !0
+            },
+            statusImagesEnabled: {
+              label: "Status Images",
+              description: [
+                "Allows you to add an image to your status bubble using a decal ID.",
+                "**The image is saved on RoValras database so anyone with RoValra can view it.**"
+              ],
+              type: "checkbox",
+              default: !0,
+              donatorTier: 3,
+              donatorReason: "Donator Tier 3 is required to add images to your status."
+            },
+            hideStatusImages: {
+              label: "Hide Status Images",
+              description: [
+                "Hides images in other users' status bubbles."
+              ],
+              type: "checkbox",
+              default: !1
             }
           }
         },
@@ -1829,6 +6538,15 @@
           default: !1,
           contributors: ["760897332", "3598865306"]
         },
+        robloxAdminBadgesEnabled: {
+          label: "Roblox Admin Badges",
+          description: [
+            "Shows the official Roblox Administrator badge beside names on supported user cards, including Home and the friends list."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: ["127238"]
+        },
         homeLayoutEnabled: {
           label: "Home Layout",
           description: [
@@ -2073,7 +6791,7 @@
           ],
           type: "checkbox",
           default: !1,
-          contributors: ["193520242", "447170745"],
+          contributors: ["193520242", "447170745", "2239549101"],
           experimental: "Sometimes shows the wrong amount. And it might causes some issues on the site.",
           childSettings: {
             robuxFiatDisplayCurrency: {
@@ -2127,21 +6845,17 @@
           type: "checkbox",
           default: !0
         },
-        spentPerGameEnabled: {
-          label: "Spent Per Experience",
+        spendingEnabled: {
+          label: "Spending Breakdown",
           description: [
-            "Shows how much Robux you have spent on each experience on the transactions page."
+            "Shows a timeline of how much Robux you have spent, along with how much you have spent on each creator and experience on the transactions page.",
+            "Click a month or year to filter by it, or use **View purchases** to see everything you bought from a creator or experience.",
+            "Uses the transaction scan from **Total Spent on Experience**."
           ],
           type: "checkbox",
-          default: !0
-        },
-        spentPerCreatorEnabled: {
-          label: "Spent Per Creator",
-          description: [
-            "Shows how much Robux you have spent on each user and group on the transactions page."
-          ],
-          type: "checkbox",
-          default: !0
+          default: !0,
+          indexedDbStore: "transactions",
+          dependsOn: ["TotalSpentGamesEnabled"]
         },
         totalearnedEnabled: {
           label: "Total Earned",
@@ -3698,6 +8412,16 @@ Standards{linkEnd}.`,
           default: !1,
           contributors: ["10646979010"]
         },
+        debugOverlayEnabled: {
+          label: "Debug Overlay",
+          description: [
+            "Shows a debug overlay with performance, loading and graphics information.",
+            "Press F3 to show or hide it."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["2239549101"]
+        },
         alwaysShowAccountStandingTab: {
           label: ["Always show Account Standing tab"],
           description: [
@@ -3797,6 +8521,14 @@ Standards{linkEnd}.`,
           label: ["Simulate RoValra Server Errors / downtime"],
           description: [
             "This will simulate RoValra Server errors / downtime, useful when testing how the extension handles stuff like that."
+          ],
+          type: "checkbox",
+          default: !1
+        },
+        simulateRoValraApiTimeout: {
+          label: ["Simulate RoValra Region API Timeout"],
+          description: [
+            "Makes the preferred region search wait the full 5 second RoValra API limit without finding a server, then fall back to scanning locally. Useful for testing the fallback user experience."
           ],
           type: "checkbox",
           default: !1
@@ -4151,12 +8883,12 @@ Standards{linkEnd}.`,
       endpoint: `/v2/trades/${tradeId}`
     });
     if (!trade) return null;
-    let items = await getRolimonsItems(), partnerIsA = String(trade.participantAOffer?.user?.id) === String(partnerId), mine = partnerIsA ? trade.participantBOffer : trade.participantAOffer, theirs = partnerIsA ? trade.participantAOffer : trade.participantBOffer, give = getOfferTotals(mine, items, Number(mine?.robux) || 0), get = getOfferTotals(
+    let items = await getRolimonsItems(), partnerIsA = String(trade.participantAOffer?.user?.id) === String(partnerId), mine = partnerIsA ? trade.participantBOffer : trade.participantAOffer, theirs = partnerIsA ? trade.participantAOffer : trade.participantBOffer, give = getOfferTotals(mine, items, Number(mine?.robux) || 0), get2 = getOfferTotals(
       theirs,
       items,
       Math.floor((Number(theirs?.robux) || 0) * 0.7)
     );
-    return { value: get.value - give.value, rap: get.rap - give.rap };
+    return { value: get2.value - give.value, rap: get2.rap - give.rap };
   }
   __name(getTradeDiff, "getTradeDiff");
   function signed(number) {
@@ -4252,6 +8984,70 @@ ${stats}` : from
   }
   __name(setupNotifications, "setupNotifications");
 
+  // node_modules/dexie/import-wrapper.mjs
+  var import_dexie = __toESM(require_dexie(), 1), DexieSymbol = /* @__PURE__ */ Symbol.for("Dexie"), Dexie = globalThis[DexieSymbol] || (globalThis[DexieSymbol] = import_dexie.default);
+  if (import_dexie.default.semVer !== Dexie.semVer)
+    throw new Error(`Two different versions of Dexie loaded in the same app: ${import_dexie.default.semVer} and ${Dexie.semVer}`);
+  var {
+    liveQuery,
+    mergeRanges,
+    rangesOverlap,
+    RangeSet,
+    cmp,
+    Entity,
+    PropModification,
+    replacePrefix,
+    add,
+    remove,
+    DexieYProvider
+  } = Dexie;
+  var import_wrapper_default = Dexie;
+
+  // src/background/indexedDb.js
+  var db = new import_wrapper_default("rovalra");
+  db.version(1).stores({
+    entries: "[store+key], store"
+  });
+  function notifyChange(store, key) {
+    chrome.tabs.query({}, (tabs) => {
+      for (let tab of tabs || [])
+        chrome.tabs.sendMessage(tab.id, {
+          action: "indexedDbChanged",
+          store,
+          key
+        }).catch(() => {
+        });
+    });
+  }
+  __name(notifyChange, "notifyChange");
+  async function get(store, key) {
+    let entry = await db.entries.get([store, String(key)]);
+    return entry ? entry.value : null;
+  }
+  __name(get, "get");
+  async function set(store, key, value) {
+    await db.entries.put({ store, key: String(key), value }), notifyChange(store, String(key));
+  }
+  __name(set, "set");
+  async function remove2(store, key) {
+    await db.entries.delete([store, String(key)]), notifyChange(store, String(key));
+  }
+  __name(remove2, "remove");
+  async function clearStore(store) {
+    await db.entries.where("store").equals(store).delete(), notifyChange(store, null);
+  }
+  __name(clearStore, "clearStore");
+  var messageHandlers = {
+    indexedDbGet: /* @__PURE__ */ __name((request) => get(request.store, request.key), "indexedDbGet"),
+    indexedDbSet: /* @__PURE__ */ __name((request) => set(request.store, request.key, request.value), "indexedDbSet"),
+    indexedDbRemove: /* @__PURE__ */ __name((request) => remove2(request.store, request.key), "indexedDbRemove"),
+    indexedDbClearStore: /* @__PURE__ */ __name((request) => clearStore(request.store), "indexedDbClearStore")
+  };
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    let handler = messageHandlers[request?.action];
+    return handler ? (handler(request).then((value) => sendResponse({ value: value ?? null })).catch((error) => sendResponse({ error: error.message })), !0) : !1;
+  });
+
   // src/background/background.js
   var state = {
     isMemoryFixEnabled: !1,
@@ -4263,14 +9059,7 @@ ${stats}` : from
     rotatorInterval: null,
     rotatorIndex: 0,
     bannedUserRedirects: /* @__PURE__ */ new Map(),
-    privateGameRedirects: /* @__PURE__ */ new Map(),
-    scanningUsers: /* @__PURE__ */ new Set(),
-    badgeScanningUsers: /* @__PURE__ */ new Set(),
-    avatarInventoryScanningUsers: /* @__PURE__ */ new Set(),
-    transactionInterval: null,
-    badgeInterval: null,
-    badgeFullScanInterval: null,
-    avatarInventoryInterval: null
+    privateGameRedirects: /* @__PURE__ */ new Map()
   }, rateLimitCooldowns = /* @__PURE__ */ new Map();
   chrome.storage.session && chrome.storage.session.setAccessLevel && chrome.storage.session.setAccessLevel({
     accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS"
@@ -4724,18 +9513,6 @@ ${stats}` : from
     );
   }
   __name(updateAvatarRotator, "updateAvatarRotator");
-  var TRANSACTIONS_DATA_KEY = "rovalra_transactions_v2", TRANSACTION_SCAN_LOCKS_KEY = "rovalra_transaction_scan_locks", TRANSACTIONS_STORAGE_VERSION = 4, TRANSACTION_REFRESH_DURATION = 300 * 1e3, TRANSACTION_REQUEST_DELAY = 5e3, TRANSACTION_SCAN_LOCK_DURATION = 120 * 1e3, TRANSACTION_MAX_INTERNAL_ERRORS = 3, BADGES_DATA_KEY = "rovalra_badges_v1", BADGES_STORAGE_VERSION = 2, BADGE_REFRESH_DURATION = 300 * 1e3, BADGE_FULL_REFRESH_DURATION = 1800 * 1e3, BADGE_REQUEST_DELAY = 150, AVATAR_INVENTORY_DATA_KEY = "rovalra_avatar_inventory_v1", AVATAR_INVENTORY_REFRESH_DURATION = 60 * 1e3, AVATAR_INVENTORY_REQUEST_DELAY = 150, AVATAR_INVENTORY_SCAN_TYPES = {
-    recentEquipped: {
-      sortOption: "recentEquipped",
-      timeField: "lastEquipTime",
-      latestKey: "latestRecentlyEquippedItems"
-    },
-    recentAdded: {
-      sortOption: "recentAdded",
-      timeField: "acquisitionTime",
-      latestKey: "latestRecentlyAddedItems"
-    }
-  };
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -4754,679 +9531,6 @@ ${stats}` : from
     return Number.isFinite(remaining) && remaining <= 1 && Number.isFinite(resetValue) && resetValue > 0 ? (resetValue > 1e9 ? Math.max(0, resetValue * 1e3 - Date.now()) : resetValue * 1e3) + 1e3 : 0;
   }
   __name(getRateLimitDelay, "getRateLimitDelay");
-  async function fetchTransactionsPage(userId, cursor = null) {
-    let endpoint = `/transaction-records/v1/users/${userId}/transactions?limit=100&transactionType=Purchase&itemPricingType=PaidAndLimited`;
-    for (cursor && (endpoint += `&cursor=${encodeURIComponent(cursor)}`); ; )
-      try {
-        let response = await callRobloxApiBackground({
-          subdomain: "apis",
-          endpoint
-        });
-        if (response.status === 429) {
-          await sleep(getRateLimitDelay(response) || 2e3);
-          continue;
-        }
-        return response.status >= 500 && response.status < 600 ? {
-          internalError: !0,
-          status: response.status,
-          rateLimitDelay: getRateLimitDelay(response)
-        } : response.ok ? {
-          body: await response.json(),
-          rateLimitDelay: getRateLimitDelay(response)
-        } : null;
-      } catch (error) {
-        return console.error("RoValra: Failed to fetch transactions page", error), null;
-      }
-  }
-  __name(fetchTransactionsPage, "fetchTransactionsPage");
-  async function acquireTransactionScanLock(userId) {
-    userId = String(userId);
-    let scanId = `${Date.now()}-${Math.random().toString(36).slice(2)}`, locks = (await chrome.storage.local.get([
-      TRANSACTION_SCAN_LOCKS_KEY
-    ]))[TRANSACTION_SCAN_LOCKS_KEY] || {}, existingLock = locks[userId], now = Date.now();
-    return existingLock?.expiresAt && existingLock.expiresAt > now ? null : (locks[userId] = {
-      scanId,
-      expiresAt: now + TRANSACTION_SCAN_LOCK_DURATION
-    }, await chrome.storage.local.set({ [TRANSACTION_SCAN_LOCKS_KEY]: locks }), (await chrome.storage.local.get([
-      TRANSACTION_SCAN_LOCKS_KEY
-    ]))[TRANSACTION_SCAN_LOCKS_KEY]?.[userId]?.scanId === scanId ? scanId : null);
-  }
-  __name(acquireTransactionScanLock, "acquireTransactionScanLock");
-  async function refreshTransactionScanLock(userId, scanId) {
-    let locks = (await chrome.storage.local.get([
-      TRANSACTION_SCAN_LOCKS_KEY
-    ]))[TRANSACTION_SCAN_LOCKS_KEY] || {};
-    return locks[userId]?.scanId !== scanId ? !1 : (locks[userId] = {
-      scanId,
-      expiresAt: Date.now() + TRANSACTION_SCAN_LOCK_DURATION
-    }, await chrome.storage.local.set({ [TRANSACTION_SCAN_LOCKS_KEY]: locks }), !0);
-  }
-  __name(refreshTransactionScanLock, "refreshTransactionScanLock");
-  async function releaseTransactionScanLock(userId, scanId) {
-    let locks = (await chrome.storage.local.get([
-      TRANSACTION_SCAN_LOCKS_KEY
-    ]))[TRANSACTION_SCAN_LOCKS_KEY] || {};
-    locks[userId]?.scanId === scanId && (delete locks[userId], await chrome.storage.local.set({ [TRANSACTION_SCAN_LOCKS_KEY]: locks }));
-  }
-  __name(releaseTransactionScanLock, "releaseTransactionScanLock");
-  function processTransaction(transaction) {
-    if (!transaction || !transaction.currency || !transaction.agent)
-      return null;
-    let transactionIdHash = transaction.idHash ? String(transaction.idHash) : null, base = {
-      amount: Math.abs(transaction.currency.amount || 0),
-      transactionIdHash,
-      creatorId: transaction.agent.id || 0,
-      creatorType: transaction.agent.type || "User",
-      creatorName: transaction.agent.name || "Unknown"
-    };
-    return transaction.details?.place ? {
-      ...base,
-      universeId: transaction.details.place.universeId,
-      gameName: transaction.details.place.name
-    } : base;
-  }
-  __name(processTransaction, "processTransaction");
-  function createEmptyTransactionScan() {
-    return {
-      totals: { transactions: {} },
-      creators: {}
-    };
-  }
-  __name(createEmptyTransactionScan, "createEmptyTransactionScan");
-  function normalizeTransactionScan(scan) {
-    return {
-      totals: {
-        transactions: {
-          ...scan?.totals?.transactions || {}
-        }
-      },
-      creators: {
-        ...scan?.creators || {}
-      }
-    };
-  }
-  __name(normalizeTransactionScan, "normalizeTransactionScan");
-  function addProcessedTransactionToScan(scan, processed) {
-    if (!processed?.transactionIdHash) return !1;
-    let idHash = String(processed.transactionIdHash);
-    if (scan.totals.transactions[idHash] !== void 0) return !1;
-    scan.totals.transactions[idHash] = processed.amount;
-    let creatorKey = String(processed.creatorId);
-    scan.creators[creatorKey] || (scan.creators[creatorKey] = {
-      name: processed.creatorName,
-      type: processed.creatorType,
-      transactions: {},
-      games: {}
-    });
-    let creator = scan.creators[creatorKey];
-    if (creator.name = processed.creatorName || creator.name, creator.type = processed.creatorType || creator.type, creator.transactions[idHash] = processed.amount, processed.universeId) {
-      let gameKey = String(processed.universeId);
-      creator.games[gameKey] || (creator.games[gameKey] = {
-        name: processed.gameName,
-        transactions: {}
-      });
-      let game = creator.games[gameKey];
-      game.name = processed.gameName || game.name, game.transactions[idHash] = processed.amount;
-    }
-    return !0;
-  }
-  __name(addProcessedTransactionToScan, "addProcessedTransactionToScan");
-  function aggregateTemporaryTransactionScan(scan) {
-    let aggregated = {
-      totals: { totalSpent: 0, totalTransactions: 0 },
-      creators: {}
-    };
-    if (!scan) return aggregated;
-    for (let amount of Object.values(scan.totals?.transactions || {}))
-      aggregated.totals.totalSpent += amount, aggregated.totals.totalTransactions += 1;
-    for (let [creatorKey, creatorScan] of Object.entries(
-      scan.creators || {}
-    )) {
-      let creator = {
-        name: creatorScan.name,
-        type: creatorScan.type,
-        totalSpent: 0,
-        totalTransactions: 0,
-        games: {}
-      };
-      for (let amount of Object.values(creatorScan.transactions || {}))
-        creator.totalSpent += amount, creator.totalTransactions += 1;
-      for (let [gameKey, gameScan] of Object.entries(
-        creatorScan.games || {}
-      )) {
-        let game = {
-          name: gameScan.name,
-          totalSpent: 0,
-          totalTransactions: 0
-        };
-        for (let amount of Object.values(gameScan.transactions || {}))
-          game.totalSpent += amount, game.totalTransactions += 1;
-        creator.games[gameKey] = game;
-      }
-      aggregated.creators[creatorKey] = creator;
-    }
-    return aggregated;
-  }
-  __name(aggregateTemporaryTransactionScan, "aggregateTemporaryTransactionScan");
-  function getStoredLatestTransactionHashes(userData) {
-    return Array.isArray(userData.latestTransactionHashes) ? userData.latestTransactionHashes.filter(Boolean) : userData.latestTransactionHash ? [userData.latestTransactionHash] : [];
-  }
-  __name(getStoredLatestTransactionHashes, "getStoredLatestTransactionHashes");
-  function migrateTransactionUserData(userData = {}) {
-    let migrated = {
-      ...userData,
-      latestTransactionHashes: getStoredLatestTransactionHashes(userData),
-      storageVersion: TRANSACTIONS_STORAGE_VERSION
-    }, changed = userData.storageVersion !== TRANSACTIONS_STORAGE_VERSION || !Array.isArray(userData.latestTransactionHashes);
-    if (userData.storageVersion !== TRANSACTIONS_STORAGE_VERSION) {
-      let rescanData2 = {
-        ...migrated,
-        totals: { totalSpent: 0, totalTransactions: 0 },
-        creators: {},
-        temporaryTransactions: createEmptyTransactionScan(),
-        scanCursor: null,
-        isFullyScanned: !1,
-        isScanning: !0,
-        latestTransactionHashes: []
-      };
-      return delete rescanData2.latestTransactionHash, delete rescanData2.latestPurchaseToken, delete rescanData2.latestPurchaseTokens, {
-        data: rescanData2,
-        needsFullRescan: !0,
-        changed: !0
-      };
-    }
-    if (delete migrated.latestPurchaseToken, delete migrated.latestPurchaseTokens, migrated.temporaryTransactions && (migrated.temporaryTransactions = normalizeTransactionScan(
-      migrated.temporaryTransactions
-    ), changed = !0), migrated.temporaryTransactions && migrated.isFullyScanned) {
-      let aggregated = aggregateTemporaryTransactionScan(
-        migrated.temporaryTransactions
-      );
-      migrated.totals = aggregated.totals, migrated.creators = aggregated.creators, delete migrated.temporaryTransactions, migrated.scanCursor = null, migrated.isScanning = !1, changed = !0;
-    }
-    if (migrated.temporaryTransactions && !migrated.isFullyScanned)
-      return migrated.isScanning = !0, { data: migrated, needsFullRescan: !1, changed: !0 };
-    if (migrated.isFullyScanned)
-      return { data: migrated, needsFullRescan: !1, changed };
-    let rescanData = {
-      ...migrated,
-      totals: { totalSpent: 0, totalTransactions: 0 },
-      creators: {},
-      temporaryTransactions: createEmptyTransactionScan(),
-      scanCursor: null,
-      isFullyScanned: !1,
-      isScanning: !0,
-      latestTransactionHashes: []
-    };
-    return delete rescanData.latestTransactionHash, delete rescanData.latestPurchaseToken, delete rescanData.latestPurchaseTokens, {
-      data: rescanData,
-      needsFullRescan: !0,
-      changed: !0
-    };
-  }
-  __name(migrateTransactionUserData, "migrateTransactionUserData");
-  function mergeTransactionsIntoAggregated(existingAggregated, rawTransactions) {
-    let updated = existingAggregated || {
-      totals: { totalSpent: 0, totalTransactions: 0 },
-      creators: {}
-    };
-    return rawTransactions.forEach((tx) => {
-      let processed = processTransaction(tx);
-      if (!processed) return;
-      updated.totals.totalSpent += processed.amount, updated.totals.totalTransactions += 1;
-      let creatorKey = String(processed.creatorId);
-      updated.creators[creatorKey] || (updated.creators[creatorKey] = {
-        name: processed.creatorName,
-        type: processed.creatorType,
-        totalSpent: 0,
-        totalTransactions: 0,
-        games: {}
-      });
-      let creator = updated.creators[creatorKey];
-      if (creator.name = processed.creatorName || creator.name, creator.totalSpent += processed.amount, creator.totalTransactions += 1, processed.universeId) {
-        creator.games[processed.universeId] || (creator.games[processed.universeId] = {
-          name: processed.gameName,
-          totalSpent: 0,
-          totalTransactions: 0
-        });
-        let game = creator.games[processed.universeId];
-        game.totalSpent += processed.amount, game.totalTransactions += 1;
-      }
-    }), updated;
-  }
-  __name(mergeTransactionsIntoAggregated, "mergeTransactionsIntoAggregated");
-  async function handleBackgroundTransactionScan(userId) {
-    if (userId = String(userId), !(await chrome.storage.local.get({
-      TotalSpentGamesEnabled: !0
-    })).TotalSpentGamesEnabled || state.scanningUsers.has(userId)) return;
-    let scanId = await acquireTransactionScanLock(userId);
-    if (scanId) {
-      state.scanningUsers.add(userId);
-      try {
-        let allData = (await chrome.storage.local.get([TRANSACTIONS_DATA_KEY]))[TRANSACTIONS_DATA_KEY] || {}, userData = allData[userId] || {}, migration = migrateTransactionUserData(userData);
-        migration.changed && (allData[userId] = migration.data, await chrome.storage.local.set({
-          [TRANSACTIONS_DATA_KEY]: allData
-        }));
-        let now = Date.now();
-        if (migration.needsFullRescan)
-          await runTransactionLoop(userId, migration.data, !1, scanId);
-        else if (migration.data.isFullyScanned) {
-          let lastCheck = migration.data.lastIncrementalCheck || migration.data.lastFullScan || 0;
-          if (now - lastCheck < TRANSACTION_REFRESH_DURATION) return;
-          await runTransactionLoop(userId, migration.data, !0, scanId);
-        } else
-          await runTransactionLoop(userId, migration.data, !1, scanId);
-      } finally {
-        state.scanningUsers.delete(userId), await releaseTransactionScanLock(userId, scanId);
-      }
-    }
-  }
-  __name(handleBackgroundTransactionScan, "handleBackgroundTransactionScan");
-  async function runTransactionLoop(userId, existingData, isIncremental, scanId) {
-    let cursor = isIncremental ? null : existingData.scanCursor || null, pagesChecked = 0, foundMatch = !1, emptyPageCount = 0, internalErrorCount = 0, temporaryScan = isIncremental ? createEmptyTransactionScan() : normalizeTransactionScan(existingData.temporaryTransactions), latestTransactionHashes = getStoredLatestTransactionHashes(existingData), currentAggregated = {
-      totals: existingData.totals || { totalSpent: 0, totalTransactions: 0 },
-      creators: existingData.creators || {}
-    }, persistTransactionData = /* @__PURE__ */ __name(async (scanFinished) => {
-      if (!await refreshTransactionScanLock(userId, scanId)) return !1;
-      !isIncremental && scanFinished && (currentAggregated = aggregateTemporaryTransactionScan(temporaryScan));
-      let allData = (await chrome.storage.local.get([TRANSACTIONS_DATA_KEY]))[TRANSACTIONS_DATA_KEY] || {}, nextUserData = {
-        ...existingData,
-        ...currentAggregated,
-        latestTransactionHashes,
-        latestTransactionHash: latestTransactionHashes[0],
-        scanCursor: isIncremental ? null : cursor,
-        isFullyScanned: scanFinished,
-        isScanning: !scanFinished,
-        storageVersion: TRANSACTIONS_STORAGE_VERSION,
-        [isIncremental ? "lastIncrementalCheck" : "lastFullScan"]: Date.now()
-      };
-      return isIncremental || scanFinished ? delete nextUserData.temporaryTransactions : nextUserData.temporaryTransactions = temporaryScan, delete nextUserData.latestPurchaseToken, delete nextUserData.latestPurchaseTokens, allData[userId] = nextUserData, await chrome.storage.local.set({ [TRANSACTIONS_DATA_KEY]: allData }), !0;
-    }, "persistTransactionData");
-    for (; await refreshTransactionScanLock(userId, scanId); ) {
-      let page = await fetchTransactionsPage(userId, cursor);
-      if (!page) break;
-      if (page.internalError) {
-        if (internalErrorCount++, internalErrorCount >= TRANSACTION_MAX_INTERNAL_ERRORS) {
-          console.warn(
-            "RoValra: Treating repeated Roblox transaction internal errors as end of scan",
-            {
-              userId,
-              cursor,
-              status: page.status,
-              internalErrorCount
-            }
-          ), await persistTransactionData(!0);
-          break;
-        }
-        await sleep(
-          Math.max(TRANSACTION_REQUEST_DELAY, page.rateLimitDelay || 0)
-        );
-        continue;
-      }
-      internalErrorCount = 0;
-      let data = page.body;
-      if (!data.data || data.data.length === 0) {
-        if (emptyPageCount++, emptyPageCount >= 5 || !data.nextPageCursor) {
-          cursor = data.nextPageCursor, await persistTransactionData(!0);
-          break;
-        }
-        cursor = data.nextPageCursor;
-        continue;
-      }
-      emptyPageCount = 0;
-      let newBatch = [];
-      for (let tx of data.data) {
-        let processed = processTransaction(tx), uniqueKey = processed?.transactionIdHash;
-        if (uniqueKey && temporaryScan.totals.transactions[String(uniqueKey)] === void 0) {
-          if (isIncremental && latestTransactionHashes.includes(String(uniqueKey))) {
-            foundMatch = !0;
-            break;
-          }
-          addProcessedTransactionToScan(temporaryScan, processed), newBatch.push(tx);
-        }
-      }
-      if (isIncremental && (currentAggregated = mergeTransactionsIntoAggregated(
-        currentAggregated,
-        newBatch
-      )), pagesChecked === 0) {
-        let firstTransactionHashes = data.data.map((tx) => processTransaction(tx)?.transactionIdHash).filter(Boolean).map(String).slice(0, 2);
-        latestTransactionHashes = [
-          .../* @__PURE__ */ new Set([
-            ...firstTransactionHashes,
-            ...latestTransactionHashes
-          ])
-        ].slice(0, 2);
-      }
-      if (cursor = data.nextPageCursor, pagesChecked++, !await persistTransactionData(isIncremental || !cursor) || !cursor || foundMatch || isIncremental && pagesChecked >= 5)
-        break;
-      await sleep(Math.max(TRANSACTION_REQUEST_DELAY, page.rateLimitDelay));
-    }
-    isIncremental && !foundMatch && pagesChecked >= 5 && await runTransactionLoop(userId, currentAggregated, !1, scanId);
-  }
-  __name(runTransactionLoop, "runTransactionLoop");
-  async function fetchBadgesPage(userId, cursor = null) {
-    let endpoint = `/v1/users/${userId}/badges?limit=100&sortOrder=Desc`;
-    for (cursor && (endpoint += `&cursor=${encodeURIComponent(cursor)}`); ; )
-      try {
-        let response = await callRobloxApiBackground({
-          subdomain: "badges",
-          endpoint
-        });
-        if (response.status === 429) {
-          let resetSeconds = parseInt(
-            response.headers.get("x-ratelimit-reset"),
-            10
-          ), retryDelay = Number.isFinite(resetSeconds) ? Math.max(resetSeconds, 1) * 1e3 : 1e4;
-          await new Promise((resolve) => setTimeout(resolve, retryDelay));
-          continue;
-        }
-        return response.ok ? await response.json() : null;
-      } catch (error) {
-        return console.error("RoValra: Failed to fetch badges page", error), null;
-      }
-  }
-  __name(fetchBadgesPage, "fetchBadgesPage");
-  function processBadge(badge) {
-    let badgeId = badge?.id, placeId = badge?.awarder?.id;
-    return !badgeId || !placeId || badge?.enabled !== !1 ? null : {
-      badgeId: String(badgeId),
-      placeId: String(placeId)
-    };
-  }
-  __name(processBadge, "processBadge");
-  function removeBadgeFromAggregated(aggregated, badgeId, placeId) {
-    delete aggregated.badges[badgeId];
-    let badgeIds = aggregated.places?.[placeId]?.badgeIds;
-    badgeIds && (aggregated.places[placeId].badgeIds = badgeIds.filter(
-      (id) => id !== badgeId
-    ), aggregated.places[placeId].badgeIds.length === 0 && delete aggregated.places[placeId]);
-  }
-  __name(removeBadgeFromAggregated, "removeBadgeFromAggregated");
-  function mergeBadgesIntoAggregated(existingAggregated, rawBadges) {
-    let updated = existingAggregated || {
-      totals: { totalBadges: 0 },
-      badges: {},
-      places: {}
-    };
-    return updated.totals = updated.totals || { totalBadges: 0 }, updated.badges = updated.badges || {}, updated.places = updated.places || {}, rawBadges.forEach((badge) => {
-      let rawBadgeId = badge?.id ? String(badge.id) : null, rawPlaceId = badge?.awarder?.id ? String(badge.awarder.id) : null;
-      if (rawBadgeId && rawPlaceId && badge?.enabled !== !1) {
-        removeBadgeFromAggregated(updated, rawBadgeId, rawPlaceId);
-        return;
-      }
-      let processed = processBadge(badge);
-      if (!processed) return;
-      let { badgeId, placeId } = processed, isNewBadge = !updated.badges[badgeId];
-      updated.badges[badgeId] = processed, updated.places[placeId] || (updated.places[placeId] = { badgeIds: [] }), updated.places[placeId].badgeIds.includes(badgeId) || updated.places[placeId].badgeIds.push(badgeId), isNewBadge && (updated.totals.totalBadges += 1);
-    }), updated.totals.totalBadges = Object.keys(updated.badges).length, updated;
-  }
-  __name(mergeBadgesIntoAggregated, "mergeBadgesIntoAggregated");
-  async function handleBackgroundBadgeScan(userId, options = {}) {
-    userId = String(userId);
-    let forceFullScan = !!options.forceFullScan;
-    if (!state.badgeScanningUsers.has(userId)) {
-      state.badgeScanningUsers.add(userId);
-      try {
-        let userData = ((await chrome.storage.local.get([BADGES_DATA_KEY]))[BADGES_DATA_KEY] || {})[userId] || {}, needsStorageMigration = userData.storageVersion !== BADGES_STORAGE_VERSION, now = Date.now();
-        if (userData.isFullyScanned && !needsStorageMigration) {
-          let lastFullBadgeCheck = userData.lastFullBadgeCheck || userData.lastFullScan || 0, isFullBadgeCheckDue = now - lastFullBadgeCheck >= BADGE_FULL_REFRESH_DURATION;
-          if (forceFullScan && !isFullBadgeCheckDue) return;
-          if (forceFullScan || isFullBadgeCheckDue) {
-            await runBadgeLoop(userId, userData, !1, {
-              resetCursor: !0,
-              timestampKey: "lastFullBadgeCheck"
-            });
-            return;
-          }
-          let lastCheck = userData.lastIncrementalCheck || userData.lastFullScan || 0;
-          if (now - lastCheck < BADGE_REFRESH_DURATION) return;
-          await runBadgeLoop(userId, userData, !0);
-        } else
-          await runBadgeLoop(
-            userId,
-            needsStorageMigration ? {
-              ...userData,
-              totals: { totalBadges: 0 },
-              badges: {},
-              places: {},
-              scanCursor: null
-            } : userData,
-            !1
-          );
-      } finally {
-        state.badgeScanningUsers.delete(userId);
-      }
-    }
-  }
-  __name(handleBackgroundBadgeScan, "handleBackgroundBadgeScan");
-  async function runBadgeLoop(userId, existingData, isIncremental, options = {}) {
-    let cursor = isIncremental || options.resetCursor ? null : existingData.scanCursor || null, pagesChecked = 0, foundMatch = !1, emptyPageCount = 0, seenBadgeIds = /* @__PURE__ */ new Set(), currentAggregated = {
-      totals: existingData.totals || { totalBadges: 0 },
-      badges: existingData.badges || {},
-      places: existingData.places || {},
-      latestBadgeIds: existingData.latestBadgeIds || []
-    };
-    for (; ; ) {
-      let data = await fetchBadgesPage(userId, cursor);
-      if (!data) break;
-      if (!data.data || data.data.length === 0) {
-        if (emptyPageCount++, emptyPageCount >= 5 || !data.nextPageCursor) break;
-        cursor = data.nextPageCursor;
-        continue;
-      }
-      emptyPageCount = 0;
-      let newBatch = [];
-      for (let badge of data.data) {
-        let badgeId = badge?.id ? String(badge.id) : null;
-        if (!(!badgeId || seenBadgeIds.has(badgeId))) {
-          if (seenBadgeIds.add(badgeId), isIncremental && currentAggregated.latestBadgeIds.includes(badgeId)) {
-            foundMatch = !0;
-            break;
-          }
-          newBatch.push(badge);
-        }
-      }
-      if (currentAggregated = mergeBadgesIntoAggregated(
-        currentAggregated,
-        newBatch
-      ), pagesChecked === 0) {
-        let firstBadgeIds = data.data.map((badge) => badge?.id ? String(badge.id) : null).filter(Boolean).slice(0, 10);
-        currentAggregated.latestBadgeIds = [
-          .../* @__PURE__ */ new Set([
-            ...firstBadgeIds,
-            ...currentAggregated.latestBadgeIds
-          ])
-        ].slice(0, 10);
-      }
-      cursor = data.nextPageCursor, pagesChecked++;
-      let allData = (await chrome.storage.local.get([BADGES_DATA_KEY]))[BADGES_DATA_KEY] || {}, timestampKey = options.timestampKey || (isIncremental ? "lastIncrementalCheck" : "lastFullScan");
-      if (allData[userId] = {
-        ...existingData,
-        ...currentAggregated,
-        latestBadgeId: currentAggregated.latestBadgeIds[0],
-        scanCursor: isIncremental ? null : cursor,
-        isFullyScanned: isIncremental || !cursor,
-        isScanning: !isIncremental && !!cursor,
-        storageVersion: BADGES_STORAGE_VERSION,
-        [timestampKey]: Date.now()
-      }, await chrome.storage.local.set({ [BADGES_DATA_KEY]: allData }), !cursor || foundMatch || isIncremental && pagesChecked >= 10)
-        break;
-      await new Promise((r) => setTimeout(r, BADGE_REQUEST_DELAY));
-    }
-    isIncremental && !foundMatch && pagesChecked >= 10 && await runBadgeLoop(userId, currentAggregated, !1);
-  }
-  __name(runBadgeLoop, "runBadgeLoop");
-  async function fetchAvatarInventoryPage(sortOption, pageToken = null) {
-    let endpoint = `/v1/avatar-inventory?sortOption=${encodeURIComponent(sortOption)}&pageLimit=120`;
-    for (pageToken && (endpoint += `&pageToken=${encodeURIComponent(pageToken)}`); ; )
-      try {
-        let response = await callRobloxApiBackground({
-          subdomain: "avatar",
-          endpoint
-        });
-        if (response.status === 429) {
-          let resetSeconds = parseInt(
-            response.headers.get("x-ratelimit-reset"),
-            10
-          ), retryDelay = Number.isFinite(resetSeconds) ? Math.max(resetSeconds, 1) * 1e3 : 1e4;
-          await new Promise((resolve) => setTimeout(resolve, retryDelay));
-          continue;
-        }
-        return response.ok ? await response.json() : null;
-      } catch (error) {
-        return console.error(
-          "RoValra: Failed to fetch avatar inventory page",
-          error
-        ), null;
-      }
-  }
-  __name(fetchAvatarInventoryPage, "fetchAvatarInventoryPage");
-  function getAvatarInventorySignature(item, timeField) {
-    let itemId = item?.itemId ? String(item.itemId) : null;
-    return itemId ? `${itemId}:${item?.[timeField] || ""}` : null;
-  }
-  __name(getAvatarInventorySignature, "getAvatarInventorySignature");
-  function mergeAvatarInventoryIntoAggregated(existingAggregated, rawItems, timeField) {
-    let updated = existingAggregated || {
-      totals: { totalItems: 0 },
-      items: {}
-    };
-    return updated.totals = updated.totals || { totalItems: 0 }, updated.items = updated.items || {}, rawItems.forEach((item) => {
-      let itemId = item?.itemId ? String(item.itemId) : null;
-      if (!itemId) return;
-      let existingItem = updated.items[itemId] || { itemId }, isNewItem = !updated.items[itemId];
-      updated.items[itemId] = {
-        ...existingItem,
-        itemId,
-        itemName: item.itemName || existingItem.itemName || "",
-        availabilityStatus: item.availabilityStatus || existingItem.availabilityStatus || "",
-        itemCategory: item.itemCategory || existingItem.itemCategory || {},
-        [timeField]: item[timeField] || existingItem[timeField] || null
-      }, isNewItem && (updated.totals.totalItems += 1);
-    }), updated;
-  }
-  __name(mergeAvatarInventoryIntoAggregated, "mergeAvatarInventoryIntoAggregated");
-  async function handleBackgroundAvatarInventoryScan(userId) {
-    if (userId = String(userId), !state.avatarInventoryScanningUsers.has(userId)) {
-      state.avatarInventoryScanningUsers.add(userId);
-      try {
-        let userData = ((await chrome.storage.local.get([
-          AVATAR_INVENTORY_DATA_KEY
-        ]))[AVATAR_INVENTORY_DATA_KEY] || {})[userId] || {}, now = Date.now();
-        if (userData.isFullyScanned) {
-          let lastCheck = userData.lastIncrementalCheck || userData.lastFullScan || 0;
-          if (now - lastCheck < AVATAR_INVENTORY_REFRESH_DURATION) return;
-          await runAvatarInventoryScan(userId, userData, !0);
-        } else
-          await runAvatarInventoryScan(userId, userData, !1);
-      } finally {
-        state.avatarInventoryScanningUsers.delete(userId);
-      }
-    }
-  }
-  __name(handleBackgroundAvatarInventoryScan, "handleBackgroundAvatarInventoryScan");
-  async function runAvatarInventoryScan(userId, existingData, isIncremental) {
-    let currentAggregated = {
-      totals: existingData.totals || { totalItems: 0 },
-      items: existingData.items || {},
-      scanCursors: existingData.scanCursors || {},
-      scanComplete: existingData.scanComplete || {},
-      latestRecentlyEquippedItems: existingData.latestRecentlyEquippedItems || [],
-      latestRecentlyAddedItems: existingData.latestRecentlyAddedItems || []
-    };
-    for (let [scanType, config] of Object.entries(
-      AVATAR_INVENTORY_SCAN_TYPES
-    ))
-      currentAggregated = await runAvatarInventoryLoopForType(
-        userId,
-        existingData,
-        currentAggregated,
-        scanType,
-        config,
-        isIncremental
-      );
-  }
-  __name(runAvatarInventoryScan, "runAvatarInventoryScan");
-  async function runAvatarInventoryLoopForType(userId, existingData, currentAggregated, scanType, config, isIncremental) {
-    let cursor = isIncremental ? null : currentAggregated.scanCursors?.[scanType] || null, pagesChecked = 0, foundMatch = !1, emptyPageCount = 0, seenSignatures = /* @__PURE__ */ new Set();
-    for (; ; ) {
-      let data = await fetchAvatarInventoryPage(config.sortOption, cursor);
-      if (!data) break;
-      let items = data.avatarInventoryItems || [];
-      if (items.length === 0) {
-        if (emptyPageCount++, emptyPageCount >= 5 || !data.nextPageToken) break;
-        cursor = data.nextPageToken;
-        continue;
-      }
-      emptyPageCount = 0;
-      let newBatch = [];
-      for (let item of items) {
-        let signature = getAvatarInventorySignature(
-          item,
-          config.timeField
-        );
-        if (!(!signature || seenSignatures.has(signature))) {
-          if (seenSignatures.add(signature), isIncremental && currentAggregated[config.latestKey].includes(signature)) {
-            foundMatch = !0;
-            break;
-          }
-          newBatch.push(item);
-        }
-      }
-      if (currentAggregated = mergeAvatarInventoryIntoAggregated(
-        currentAggregated,
-        newBatch,
-        config.timeField
-      ), pagesChecked === 0) {
-        let firstSignatures = items.map(
-          (item) => getAvatarInventorySignature(item, config.timeField)
-        ).filter(Boolean).slice(0, 20);
-        currentAggregated[config.latestKey] = [
-          .../* @__PURE__ */ new Set([
-            ...firstSignatures,
-            ...currentAggregated[config.latestKey]
-          ])
-        ].slice(0, 20);
-      }
-      cursor = data.nextPageToken, pagesChecked++, currentAggregated.scanCursors = {
-        ...currentAggregated.scanCursors || {},
-        [scanType]: isIncremental ? null : cursor
-      }, currentAggregated.scanComplete = {
-        ...currentAggregated.scanComplete || {},
-        [scanType]: isIncremental || !cursor
-      };
-      let scanComplete = currentAggregated.scanComplete || {}, isFullyScanned = Object.keys(AVATAR_INVENTORY_SCAN_TYPES).every(
-        (key) => !!scanComplete[key]
-      ), allData = (await chrome.storage.local.get([
-        AVATAR_INVENTORY_DATA_KEY
-      ]))[AVATAR_INVENTORY_DATA_KEY] || {};
-      if (allData[userId] = {
-        ...existingData,
-        ...currentAggregated,
-        isFullyScanned,
-        isScanning: !isIncremental && !isFullyScanned,
-        [isIncremental ? "lastIncrementalCheck" : "lastFullScan"]: Date.now()
-      }, await chrome.storage.local.set({
-        [AVATAR_INVENTORY_DATA_KEY]: allData
-      }), !cursor || foundMatch || isIncremental && pagesChecked >= 5)
-        break;
-      await new Promise((r) => setTimeout(r, AVATAR_INVENTORY_REQUEST_DELAY));
-    }
-    return isIncremental && !foundMatch && pagesChecked >= 5 ? (currentAggregated.scanCursors = {
-      ...currentAggregated.scanCursors || {},
-      [scanType]: null
-    }, currentAggregated.scanComplete = {
-      ...currentAggregated.scanComplete || {},
-      [scanType]: !1
-    }, runAvatarInventoryLoopForType(
-      userId,
-      existingData,
-      currentAggregated,
-      scanType,
-      config,
-      !1
-    )) : currentAggregated;
-  }
-  __name(runAvatarInventoryLoopForType, "runAvatarInventoryLoopForType");
   function uint8ToBase64(u8) {
     let binary = "";
     for (let i = 0; i < u8.length; i += 8192)
@@ -5521,9 +9625,7 @@ ${stats}` : from
     initializeSettings("startup"), setupContextMenuListener();
   });
   chrome.storage.onChanged.addListener((changes, namespace) => {
-    namespace === "local" && (changes.MemoryleakFixEnabled && (state.isMemoryFixEnabled = changes.MemoryleakFixEnabled.newValue, state.isMemoryFixEnabled && setupNavigationListener()), (changes.rovalra_avatar_rotator_enabled || changes.rovalra_avatar_rotator_ids || changes.rovalra_avatar_rotator_interval) && updateAvatarRotator(), (changes.privateGameViewerEnabled || changes.privateGameDetectionFallbackEnabled) && updatePrivateGameListener(), (changes.bannedUserViewerEnabled || changes.bannedUserDetectionFallbackEnabled) && updateBannedUserListener(), changes.TotalSpentGamesEnabled && (changes.TotalSpentGamesEnabled.newValue === !1 ? state.transactionInterval && (clearInterval(state.transactionInterval), state.transactionInterval = null) : state.currentUserId && (handleBackgroundTransactionScan(state.currentUserId), state.transactionInterval && clearInterval(state.transactionInterval), state.transactionInterval = setInterval(() => {
-      handleBackgroundTransactionScan(state.currentUserId);
-    }, TRANSACTION_REFRESH_DURATION))));
+    namespace === "local" && (changes.MemoryleakFixEnabled && (state.isMemoryFixEnabled = changes.MemoryleakFixEnabled.newValue, state.isMemoryFixEnabled && setupNavigationListener()), (changes.rovalra_avatar_rotator_enabled || changes.rovalra_avatar_rotator_ids || changes.rovalra_avatar_rotator_interval) && updateAvatarRotator(), (changes.privateGameViewerEnabled || changes.privateGameDetectionFallbackEnabled) && updatePrivateGameListener(), (changes.bannedUserViewerEnabled || changes.bannedUserDetectionFallbackEnabled) && updateBannedUserListener());
   });
   chrome.permissions.onAdded.addListener((permissions) => {
     permissions.permissions?.includes("webNavigation") && setupNavigationListener(), permissions.permissions?.includes("contextMenus") && setupContextMenuListener(), permissions.permissions?.includes("webRequest") && (updateBannedUserListener(), updatePrivateGameListener()), chrome.tabs.query({}, (tabs) => {
@@ -5626,34 +9728,7 @@ ${stats}` : from
           }
         ), !0;
       case "updateUserId":
-        return request.userId && request.userId !== state.currentUserId && (state.currentUserId = request.userId, state.latestPresence = null, state.pollingInterval && clearInterval(state.pollingInterval), pollUserPresence(), state.pollingInterval = setInterval(pollUserPresence, 5e3), state.transactionInterval && (clearInterval(state.transactionInterval), state.transactionInterval = null), state.badgeInterval && (clearInterval(state.badgeInterval), state.badgeInterval = null), state.badgeFullScanInterval && (clearInterval(state.badgeFullScanInterval), state.badgeFullScanInterval = null), state.avatarInventoryInterval && (clearInterval(state.avatarInventoryInterval), state.avatarInventoryInterval = null), chrome.storage.local.get(
-          { TotalSpentGamesEnabled: !0 },
-          (settings) => {
-            settings.TotalSpentGamesEnabled && (handleBackgroundTransactionScan(
-              state.currentUserId
-            ), state.transactionInterval = setInterval(() => {
-              handleBackgroundTransactionScan(
-                state.currentUserId
-              );
-            }, TRANSACTION_REFRESH_DURATION));
-          }
-        ), handleBackgroundBadgeScan(state.currentUserId), state.badgeInterval = setInterval(() => {
-          handleBackgroundBadgeScan(state.currentUserId);
-        }, BADGE_REFRESH_DURATION), state.badgeFullScanInterval = setInterval(() => {
-          handleBackgroundBadgeScan(state.currentUserId, {
-            forceFullScan: !0
-          });
-        }, BADGE_FULL_REFRESH_DURATION), handleBackgroundAvatarInventoryScan(state.currentUserId), state.avatarInventoryInterval = setInterval(() => {
-          handleBackgroundAvatarInventoryScan(state.currentUserId);
-        }, AVATAR_INVENTORY_REFRESH_DURATION)), !1;
-      case "triggerTransactionScan":
-        return handleBackgroundTransactionScan(request.userId), !1;
-      case "triggerBadgeScan":
-        return handleBackgroundBadgeScan(request.userId, {
-          forceFullScan: !!request.forceFullScan
-        }), !1;
-      case "triggerAvatarInventoryScan":
-        return handleBackgroundAvatarInventoryScan(request.userId), !1;
+        return request.userId && request.userId !== state.currentUserId && (state.currentUserId = request.userId, state.latestPresence = null, state.pollingInterval && clearInterval(state.pollingInterval), pollUserPresence(), state.pollingInterval = setInterval(pollUserPresence, 5e3)), !1;
       case "getBannedUserRedirect": {
         let userId = state.bannedUserRedirects.get(sender.tab?.id);
         return state.bannedUserRedirects.delete(sender.tab?.id), sendResponse({ userId }), !1;
