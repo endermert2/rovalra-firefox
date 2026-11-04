@@ -67,8 +67,8 @@ export function repairServers(source,contracts) {
   // Listing and join eligibility are separate. Do not discard listed servers
   // before rendering merely because a metadata join probe was unsuccessful.
   replace('renderAndAppendServers',text=>once(text,
-    'let activeServers = [];\n    for (let s of servers)\n      await isServerActive2(placeId, s.id || s.server_id) && activeServers.push(s);',
-    'let activeServers = servers.filter(server => server && (server.id || server.server_id));'));
+    'let activeServers = [];\n    for (let s of servers2)\n      await isServerActive2(placeId, s.id || s.server_id) && activeServers.push(s);',
+    'let activeServers = servers2.filter(server => server && (server.id || server.server_id));'));
   replace('fetchServerRegion2',text=>{
     const request=once(once(text,'async function fetchServerRegion2(placeId, serverId, options = {})',
       'async function request()'),'if (!response.ok) throw new Error("API Error");',`

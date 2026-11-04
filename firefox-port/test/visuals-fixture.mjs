@@ -37,14 +37,15 @@ export function globeFixtureSource() {
   return `(async()=>{
     const GLOBE_PANEL_ID='rovalra-globe-panel',GLOBE_CONTAINER_ID='rovalra-globe-container',
       GLOBE_TOOLTIP_ID='rovalra-globe-tooltip',EASTER_EGG_TRIGGER_ID='rovalra-easter-egg-trigger',
-      HEADER_TITLE_ID='rovalra-header-title',EVT_INIT_GLOBE='initRovalraGlobe';
+      HEADER_TITLE_ID='rovalra-header-title',SCAN_STATUS_ID='rovalra-globe-scan-status',
+      EVT_INIT_GLOBE='initRovalraGlobe';
     const State2={globe:{},regions:{Europe:{DE:{coords:{lat:50,lon:10},city:'Frankfurt',country:'Germany'}}},
       apiCounts:{},dataCenterCounts:{DE:1},activeServerCounts:{DE:2}};
     const getAssets=()=>({rovalraIcon:browser.runtime.getURL('public/Assets/RoValraLogo.png'),
       globeInitializer:browser.runtime.getURL('public/Assets/data/globe_initializer.js'),
       mapDark:browser.runtime.getURL('public/Assets/data/map_dark.png')});
     const detectTheme2=()=> 'dark',ts=()=> 'RoValra Region Selector',setupGlobePointerEvents=()=>{},
-      buildServerCountsMap=()=>({DE:2});
+      isServerApiDisabled=()=>false,buildServerCountsMap=()=>({DE:2});
     async function injectScript(src) {
       const response=await browser.runtime.sendMessage({action:'rovalraFirefoxMainScript',
         path:src.slice(browser.runtime.getURL('').length)});

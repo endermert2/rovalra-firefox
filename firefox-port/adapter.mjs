@@ -81,7 +81,7 @@ function replaceOnce(source, before, after) {
 }
 export function releaseVersion(tag, manifestVersion) {
   const version = tag.replace(/^v/, '');
-  if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(version) ||
+  if (!/^\d+\.\d+(?:\.\d+){0,2}$/.test(version) ||
       (version !== manifestVersion && !(/^\d+\.\d+\.\d+$/.test(manifestVersion) &&
         version.startsWith(`${manifestVersion}.`) && Number(version.split('.')[3]) > 0))) {
     throw new Error('Release tag and manifest version disagree');
@@ -89,11 +89,12 @@ export function releaseVersion(tag, manifestVersion) {
   return version;
 }
 export function firefoxVersion(upstreamVersion, revision) {
-  if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(upstreamVersion) ||
+  if (!/^\d+\.\d+(?:\.\d+){0,2}$/.test(upstreamVersion) ||
       !Number.isInteger(revision) || revision < 1 || revision > 99) {
-    throw new Error('Expected a three- or four-part upstream version and adapter revision 1–99');
+    throw new Error('Expected a two- to four-part upstream version and adapter revision 1–99');
   }
   const parts = upstreamVersion.split('.').map(Number);
+  if (parts.length === 2) parts.push(0);
   // Reserve 100 revisions for each upstream hotfix while keeping four components.
   const result = [...parts.slice(0, 3), (parts[3] || 0) * 100 + revision];
   if (result.some(part => !Number.isSafeInteger(part) || part > 65535)) throw new Error('Version component exceeds Firefox package limits');

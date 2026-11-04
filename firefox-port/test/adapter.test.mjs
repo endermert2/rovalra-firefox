@@ -16,7 +16,7 @@ const baseline = JSON.parse(await fs.readFile(path.join(ROOT, 'upstream-release.
 test('MV3 adaptation preserves main-world order and static rules', () => {
   const result = adaptManifest(original, config);
   assert.equal(result.manifest_version, 3);
-  assert.equal(result.version, `${original.version}.${config.adapterRevision}`);
+  assert.equal(result.version, firefoxVersion(original.version, config.adapterRevision));
   assert.equal(result.background.service_worker, undefined);
   assert.deepEqual(result.background.scripts, ['firefox/background.js','background.js']);
   assert.deepEqual(result.content_scripts.slice(0,2), original.content_scripts.slice(0,2));
@@ -48,6 +48,8 @@ test('upstream hotfix tags retain their identity when the manifest omits the hot
 });
 
 test('port versions preserve hotfix ordering and stay within four numeric components', () => {
+  assert.equal(firefoxVersion('2.7', 15), '2.7.0.15');
+  assert.equal(firefoxVersion('2.7.0', 15), '2.7.0.15');
   assert.equal(firefoxVersion('2.6.14', 9), '2.6.14.9');
   assert.equal(firefoxVersion('2.6.14.1', 9), '2.6.14.109');
   assert.equal(firefoxVersion('2.6.14.2', 1), '2.6.14.201');
@@ -55,6 +57,25 @@ test('port versions preserve hotfix ordering and stay within four numeric compon
     Number(firefoxVersion('2.6.14.1', 99).split('.')[3]));
   for (const revision of [0, 100, 1.5]) assert.throws(() => firefoxVersion('2.6.14', revision), /revision/);
   assert.throws(() => firefoxVersion('2.6.14.656', 9), /limits/);
+});
+
+test('two-part releases retain the upstream identity and produce ordered Firefox versions', () => {
+  assert.equal(releaseVersion('v2.7', '2.7'), '2.7');
+  assert.throws(() => releaseVersion('v2.7', '2.7.1'), /disagree/);
+  assert.throws(() => releaseVersion('v2.7.1', '2.7'), /disagree/);
+  for (const version of ['2', '2.7-beta', '2.7.0.1.2']) {
+    assert.throws(() => releaseVersion(`v${version}`, version), /disagree/);
+    assert.throws(() => firefoxVersion(version, 15), /upstream version/);
+  }
+  const asset = {name:'rovalra-v2.7.zip', size:10,
+    browser_download_url:'https://github.com/NotValra/RoValra/releases/download/v2.7/rovalra-v2.7.zip'};
+  assert.equal(releaseAsset({assets:[asset]}), asset);
+  assert.throws(() => releaseAsset({assets:[asset],prerelease:true}), /stable/);
+  const version = firefoxVersion('2.7', 15).split('.').map(Number);
+  const previous = firefoxVersion('2.6.20', 14).split('.').map(Number);
+  const next = firefoxVersion('2.7.1', 1).split('.').map(Number);
+  assert(version[1] > previous[1]);
+  assert(next[2] > version[2]);
 });
 test('function contracts tolerate formatting but detect changed behavior', () => {
   assert.equal(normalizedHash('function x(){ return 1; }'),normalizedHash('function x() {\n return 1;\n}'));

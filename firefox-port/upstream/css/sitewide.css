@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.20
+ * rovalra v2.7
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -104,4 +104,9 @@ body:where(.dark-theme),
 
 .rovalra-canvas > canvas {
   border-radius: var(--radius-medium, 8px) !important;
+}
+
+img[src*="-ProfileFrame/"],
+:has(> img[src*="-ProfileFrame/"]) {
+  border-radius: 50% !important;
 }

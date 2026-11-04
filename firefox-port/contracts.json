@@ -1,7 +1,7 @@
 {
-  "upstreamVersion": "2.6.20",
+  "upstreamVersion": "2.7",
   "functions": {
-    "createSvgPath": "f843bb4b45d6217105bc458cd827691c1d64e59774b5c92dec924f47ef6925bd",
+    "createSvgPath": "b5cad5fa93dd3969ada40be2201eab4c7b4023648485df6ef3f672d1d9194457",
     "executeLaunchScript": "d8a60a6900d85d083d7e0e9e1cce059d1340f5382f367248452ce518bf341948",
     "launchGame": "874a59e15c328377da3e10aae3a56397c9c2621caf417b40317daf5c365f8f2c",
     "launchPrivateGame": "922a2ec2638f553f10bc60fdbd5c9d7cf3a8b0926cdc998304673216ffc5bfd3",
@@ -13,7 +13,7 @@
     "WorkerWrapper": "1406df4e45427459476a6f4e152ce2182753f5569d6a36cd1026370961295784",
     "runLaunch": "fbbdcbc5b96e3d24b513c1e361b9fa8328bf8d869da3dc59eb9a4d8524630f10",
     "openWebChat": "4971fdb98ee87f0720ba9467c3e6763a81c4b146dba77d51c9b330a946a7672e",
-    "createDOMPurify": "518c4f290f8ae4198f62a000be200176a2f3ef1f614a0715205ecde3e7bbf643",
+    "createDOMPurify": "67b6d5708ec6a76dc015496a5b49280104e209c24998faa2703ff840db6dc917",
     "toSafeId": "2788ad89faad9230cc2a179e381ebacb5656981c99004bfa62bc5cfc7ac4e1f5"
   },
   "permissions": [
@@ -88,8 +88,8 @@
     "fetchServerUptime": "7ddae979e8cce3b90b91b8ae12bf3dd89513006a513310eb68f16f44f5e9a8f1",
     "displayInactivePlaceStatus": "fa528ac3133a146037b53ab5c0630251e0e41ec25f48f1fe52d1b9fdb7c9d234",
     "fetchAndDisplayRegion": "0cdb0d2de091cc909cbc53a9da1f75a3ee19113b3b3a99b5a2b81124d72337e2",
-    "attachGlobalListeners2": "41342a8eebed0f96e505acee03acb9081c79d0ca74b7b525b36a066a0b5549d5",
-    "renderAndAppendServers": "8066b32ec02c0bae02f4f80006bdb382ea59f75eaad36b9b7b65dd85812bb695",
+    "attachGlobalListeners2": "236f523f59d6aeb1b8d8ad87eed2cb369978bbff5f99f9a2fae05d9f0eedc865",
+    "renderAndAppendServers": "a5af1c23d8e31d8b6043426b6c9c9b711c01fae78dc3e64fe76273025e066d3c",
     "fetchServerRegion2": "56d103874fc3be54e9adcedddbefebf7cd56839110229f0c2fdfeec909f77e87",
     "displayServerStatus": "3661c4ca0295f355b4b27bb54105d1ff3e88c61e7fef50d4dc670d756b261400"
   },

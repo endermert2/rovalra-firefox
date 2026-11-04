@@ -1,41 +1,24 @@
 /*!
- * rovalra v2.6.20
+ * rovalra v2.7
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
  */
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: !0 });
-const AccessoryAssetTypes = [
-  8,
-  41,
-  42,
-  43,
-  44,
-  45,
-  46,
-  47
-], LayeredAssetTypes = [
-  64,
-  65,
-  66,
-  67,
-  68,
-  69,
-  70,
-  71,
-  72,
-  41
-];
+const AccessoryAssetTypes = [8, 41, 42, 43, 44, 45, 46, 47], LayeredAssetTypes = [64, 65, 66, 67, 68, 69, 70, 71, 72, 41];
 (function() {
   "use strict";
   if (window.__ROVALRA_INTERCEPTOR_SETUP__)
     return;
   window.__ROVALRA_INTERCEPTOR_SETUP__ = !0;
-  const CATALOG_API_URL = "https://catalog.roblox.com/v1/catalog/items/details", CLIENT_STATUS_API_URL = "https://apis.roblox.com/matchmaking-api/v1/client-status", GAME_LAUNCH_SUCCESS_URL = "https://metrics.roblox.com/v1/games/report-event", GAME_SERVERS_API_URL = "https://games.roblox.com/", GAMES_ROBLOX_API = "https://games.roblox.com/", PRIVATE_SERVER_CREATE_PATH = "/v1/games/vip-servers/", TRADES_API_URL = "https://trades.roblox.com/v2/users/", TRADE_DETAILS_API_URL = "https://trades.roblox.com/v2/trades/", TRADES_LIST_API_URL = "https://trades.roblox.com/v1/trades/", GROUP_ROLES_API_HOST = "groups.roblox.com", GROUP_ROLES_API_PATH = /^\/v1\/users\/(\d+)\/groups\/roles$/, PROFILE_API_URL = "https://apis.roblox.com/profile-platform-api/v1/profiles/get", ACCOUNT_SETTINGS_UI_API_URL = "https://apis.roblox.com/guac-v2/v1/bundles/account-settings-ui", USER_SETTINGS_API_URL = "https://apis.roblox.com/user-settings-api/v1/user-settings", FREE_ROBLOX_PLUS_THEMES_SETTING = "FreeRobloxPlusThemesEnabled", ROBLOX_ADMIN_GROUP_ID = 1200769, OMNI_RECOMMENDATION_API_URL = "https://apis.roblox.com/discovery-api/omni-recommendation", FRIEND_CAROUSEL_TOPIC_ID = 6e8, FRIEND_CAROUSEL_TREATMENT_TYPE = "FriendCarousel", THUMBNAILS_API_HOST = "thumbnails.roblox.com", THUMBNAIL_BACKGROUND_SETTING = "disableThumbnailBackground", THUMBNAIL_PROFILE_FRAME_SETTING = "disableThumbnailProfileFrame", GAME_SERVERS_REQUEST_PATH = /^\/v[12]\/games\/\d+\/(?:servers\/(?:Public|Friend)|private-servers)\/?$/;
+  const CATALOG_API_URL = "https://catalog.roblox.com/v1/catalog/items/details", CLIENT_STATUS_API_URL = "https://apis.roblox.com/matchmaking-api/v1/client-status", GAME_LAUNCH_SUCCESS_URL = "https://metrics.roblox.com/v1/games/report-event", GAME_SERVERS_API_URL = "https://games.roblox.com/", GAMES_ROBLOX_API = "https://games.roblox.com/", PRIVATE_SERVER_CREATE_PATH = "/v1/games/vip-servers/", TRADES_API_URL = "https://trades.roblox.com/v2/users/", TRADE_DETAILS_API_URL = "https://trades.roblox.com/v2/trades/", TRADES_LIST_API_URL = "https://trades.roblox.com/v1/trades/", GROUP_ROLES_API_HOST = "groups.roblox.com", GROUP_ROLES_API_PATH = /^\/v1\/users\/(\d+)\/groups\/roles$/, PROFILE_API_URL = "https://apis.roblox.com/profile-platform-api/v1/profiles/get", ACCOUNT_SETTINGS_UI_API_URL = "https://apis.roblox.com/guac-v2/v1/bundles/account-settings-ui", USER_SETTINGS_API_URL = "https://apis.roblox.com/user-settings-api/v1/user-settings", FREE_ROBLOX_PLUS_THEMES_SETTING = "FreeRobloxPlusThemesEnabled", ROBLOX_ADMIN_GROUP_ID = 1200769, OMNI_RECOMMENDATION_API_URL = "https://apis.roblox.com/discovery-api/omni-recommendation", MARKETPLACE_WIDGETS_API_URL = "https://apis.roblox.com/marketplace-widgets/v1/widgets/web", MARKETPLACE_RFY_WIDGET_TYPE = "AvatarItemRfyWidget", MARKETPLACE_AD_SLOT_COUNT = 14, TOOLBOX_ASSET_API_HOST = "apis.roblox.com", TOOLBOX_ASSET_API_PATH = /^\/toolbox-service\/v2\/assets\/(\d+)\/?$/, STORE_ASSET_DETAILS_TIMEOUT_MS = 3e3, FRIEND_CAROUSEL_TOPIC_ID = 6e8, FRIEND_CAROUSEL_TREATMENT_TYPE = "FriendCarousel", THUMBNAILS_API_HOST = "thumbnails.roblox.com", THUMBNAIL_BACKGROUND_SETTING = "disableThumbnailBackground", THUMBNAIL_PROFILE_FRAME_SETTING = "disableThumbnailProfileFrame", CHANNEL_HOST = "play.roblox.com", CHANNEL_OVERRIDE_KEY = "rovalra_channelOverride", CHANNEL_CURRENT_KEY = "rovalra_currentChannel", LIVE_CHANNEL = "LIVE", CLIENT_SETTINGS_URL = /^https:\/\/clientsettings(?:cdn)?\.roblox\.com\/v2\/settings\/application\/WebClientApp(?:\/bucket\/([^/?#]+))?\/?([?#].*)?$/i, GAME_SERVERS_REQUEST_PATH = /^\/v[12]\/games\/\d+\/(?:servers\/(?:Public|Friend)|private-servers)\/?$/;
   let ASSET_TYPE_ACCESSORIES = [8, 41, 42, 43, 44, 45, 46, 47, 57, 58], ASSET_TYPE_LAYERED = [64, 65, 66, 67, 68, 69, 70, 71, 72], streamerModeEnabled = !1, settingsPageInfoEnabled = !0, accurateContinueEnabled = !0, accurateContinueGames = [], homeLayoutOrder = [], homeLayoutHidden = [], homeExtraSorts = [];
   const homeExtraSortSources = /* @__PURE__ */ new Map(), homeExtraSortKeys = /* @__PURE__ */ new Set();
-  let homeKnownSorts = [], homeLayoutReady = !1, homeLayoutReadyPromise = null, resolveHomeLayoutReady = null, robloxGroupFeaturesEnabled = !0, freeRobloxPlusThemesEnabled = !1, disableThumbnailBackground = !1, disableThumbnailProfileFrame = !1;
+  let homeKnownSorts = [], homeLayoutReady = !1, homeLayoutReadyPromise = null, resolveHomeLayoutReady = null, robloxGroupFeaturesEnabled = !0, freeRobloxPlusThemesEnabled = !1, disableThumbnailBackground = !1, disableThumbnailProfileFrame = !1, marketplaceAdItems = [], marketplaceAdsReady = !1, marketplaceAdsReadyPromise = null, resolveMarketplaceAdsReady = null;
+  document.addEventListener("rovalra-marketplace-ads", (e) => {
+    marketplaceAdItems = e.detail?.enabled && Array.isArray(e.detail.items) ? e.detail.items.filter((item) => item?.type && item?.id) : [], marketplaceAdsReady = !0, resolveMarketplaceAdsReady && (resolveMarketplaceAdsReady(), resolveMarketplaceAdsReady = null);
+  });
   function updateThumbnailBackgroundSetting(value) {
     disableThumbnailBackground = value === !0;
   }
@@ -251,8 +234,47 @@ const AccessoryAssetTypes = [
     }
   }
   __name(rewriteGameServersRequestUrl, "rewriteGameServersRequestUrl");
-  async function rewriteGameServersFetchArgs(args, requestUrl) {
-    const rewrittenUrl = rewriteGameServersRequestUrl(requestUrl);
+  function getChannelOverride() {
+    try {
+      return localStorage.getItem(CHANNEL_OVERRIDE_KEY)?.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+  __name(getChannelOverride, "getChannelOverride");
+  function reportChannel(channel) {
+    try {
+      sessionStorage.setItem(CHANNEL_CURRENT_KEY, channel);
+    } catch {
+    }
+    document.dispatchEvent(
+      new CustomEvent("rovalra-channel-detected", {
+        detail: { channel }
+      })
+    );
+  }
+  __name(reportChannel, "reportChannel");
+  function rewriteClientSettingsRequestUrl(url) {
+    if (typeof url != "string" || location.hostname !== CHANNEL_HOST)
+      return url;
+    const match = url.match(CLIENT_SETTINGS_URL);
+    if (!match) return url;
+    const requested = match[1] ? decodeURIComponent(match[1]) : LIVE_CHANNEL, override = getChannelOverride(), channel = override ?? requested;
+    if (reportChannel(
+      channel.toUpperCase() === LIVE_CHANNEL ? LIVE_CHANNEL : channel
+    ), !override || override === requested) return url;
+    const rest = match[2] ?? "";
+    return override.toUpperCase() === LIVE_CHANNEL ? `https://clientsettingscdn.roblox.com/v2/settings/application/WebClientApp${rest}` : `https://clientsettings.roblox.com/v2/settings/application/WebClientApp/bucket/${encodeURIComponent(override)}${rest}`;
+  }
+  __name(rewriteClientSettingsRequestUrl, "rewriteClientSettingsRequestUrl");
+  function rewriteRequestUrl(url) {
+    return rewriteClientSettingsRequestUrl(
+      rewriteGameServersRequestUrl(url)
+    );
+  }
+  __name(rewriteRequestUrl, "rewriteRequestUrl");
+  async function rewriteRequestFetchArgs(args, requestUrl) {
+    const rewrittenUrl = rewriteRequestUrl(requestUrl);
     if (rewrittenUrl === requestUrl) return args;
     const [input, init] = args;
     if (!(input instanceof Request))
@@ -278,7 +300,7 @@ const AccessoryAssetTypes = [
       return args;
     }
   }
-  __name(rewriteGameServersFetchArgs, "rewriteGameServersFetchArgs");
+  __name(rewriteRequestFetchArgs, "rewriteRequestFetchArgs");
   function isRobloxAdminGroupMember(data) {
     return data?.components?.Communities?.communityIds?.some(
       (groupId) => Number(groupId) === ROBLOX_ADMIN_GROUP_ID
@@ -497,6 +519,145 @@ const AccessoryAssetTypes = [
     ), data.sorts.length !== previousLength;
   }
   __name(hideHomeSorts, "hideHomeSorts");
+  function isMarketplaceWidgetsRequest(url) {
+    try {
+      const parsedUrl = new URL(url, window.location.origin), endpointUrl = new URL(MARKETPLACE_WIDGETS_API_URL);
+      return parsedUrl.origin === endpointUrl.origin && parsedUrl.pathname === endpointUrl.pathname;
+    } catch {
+      return !1;
+    }
+  }
+  __name(isMarketplaceWidgetsRequest, "isMarketplaceWidgetsRequest");
+  function waitForMarketplaceAdsState() {
+    return marketplaceAdsReady ? Promise.resolve() : (marketplaceAdsReadyPromise || (marketplaceAdsReadyPromise = new Promise((resolve) => {
+      const timeout = setTimeout(resolve, 700);
+      resolveMarketplaceAdsReady = /* @__PURE__ */ __name(() => {
+        clearTimeout(timeout), resolve();
+      }, "resolveMarketplaceAdsReady");
+    })), marketplaceAdsReadyPromise);
+  }
+  __name(waitForMarketplaceAdsState, "waitForMarketplaceAdsState");
+  function getMarketplaceItemKey(item) {
+    return `${item?.type}:${item?.id}`;
+  }
+  __name(getMarketplaceItemKey, "getMarketplaceItemKey");
+  function applyMarketplaceAds(data) {
+    const widgets = data?.widgets;
+    if (!marketplaceAdItems.length || !widgets || typeof widgets != "object")
+      return !1;
+    let changed = !1;
+    return Object.values(widgets).forEach((widget) => {
+      if (widget?.type !== MARKETPLACE_RFY_WIDGET_TYPE || !Array.isArray(widget.content))
+        return;
+      const adKeys = new Set(
+        marketplaceAdItems.map(getMarketplaceItemKey)
+      );
+      widget.content = widget.content.filter(
+        (item) => !adKeys.has(getMarketplaceItemKey(item))
+      );
+      const slotCount = Math.min(
+        MARKETPLACE_AD_SLOT_COUNT,
+        widget.content.length + marketplaceAdItems.length
+      ), items = marketplaceAdItems.slice(0, slotCount), slots = /* @__PURE__ */ new Set();
+      for (; slots.size < items.length; )
+        slots.add(Math.floor(Math.random() * slotCount));
+      [...slots].sort((a, b) => a - b).forEach((slot, i) => {
+        widget.content.splice(slot, 0, {
+          type: items[i].type,
+          id: items[i].id
+        });
+      }), changed = !0;
+    }), changed;
+  }
+  __name(applyMarketplaceAds, "applyMarketplaceAds");
+  function getToolboxAssetRequestId(url) {
+    if (location.hostname !== "create.roblox.com") return null;
+    try {
+      const parsedUrl = new URL(url, window.location.origin);
+      return parsedUrl.hostname !== TOOLBOX_ASSET_API_HOST ? null : parsedUrl.pathname.match(TOOLBOX_ASSET_API_PATH)?.[1] ?? null;
+    } catch {
+      return null;
+    }
+  }
+  __name(getToolboxAssetRequestId, "getToolboxAssetRequestId");
+  const storeAssetDetails = /* @__PURE__ */ new Map(), storeAssetDetailsWaiters = /* @__PURE__ */ new Map();
+  document.addEventListener("rovalra-store-asset-details", (e) => {
+    const assetId = String(e.detail?.assetId ?? "");
+    if (!assetId) return;
+    const entry = {
+      enabled: e.detail.enabled === !0,
+      details: e.detail.details ?? null
+    };
+    storeAssetDetails.set(assetId, entry), storeAssetDetailsWaiters.get(assetId)?.forEach((resolve) => resolve(entry)), storeAssetDetailsWaiters.delete(assetId);
+  });
+  function getStoreAssetDetails(assetId) {
+    return storeAssetDetails.has(assetId) ? Promise.resolve(storeAssetDetails.get(assetId)) : new Promise((resolve) => {
+      const timeout = setTimeout(
+        () => resolve(null),
+        STORE_ASSET_DETAILS_TIMEOUT_MS
+      ), waiters = storeAssetDetailsWaiters.get(assetId) || [];
+      waiters.push((entry) => {
+        clearTimeout(timeout), resolve(entry);
+      }), storeAssetDetailsWaiters.set(assetId, waiters), document.dispatchEvent(
+        new CustomEvent("rovalra-store-asset-details-request", {
+          detail: { assetId }
+        })
+      );
+    });
+  }
+  __name(getStoreAssetDetails, "getStoreAssetDetails");
+  function buildToolboxAssetFallback(assetId, details) {
+    const fallback = buildToolboxAssetTemplate(assetId);
+    if (!details) return fallback;
+    const creator = details.Creator;
+    if (creator) {
+      const isGroup = creator.CreatorType === "Group", targetId = creator.CreatorTargetId;
+      fallback.creator = {
+        creator: `${isGroup ? "group" : "user"}/${targetId}`,
+        ...isGroup ? { groupId: targetId } : { userId: targetId },
+        name: creator.Name,
+        verified: creator.HasVerifiedBadge === !0
+      };
+    }
+    return Object.assign(fallback.asset, {
+      id: details.AssetId ?? fallback.asset.id,
+      name: details.Name,
+      description: details.Description,
+      assetTypeId: details.AssetTypeId,
+      createTime: details.Created,
+      updateTime: details.Updated
+    }), details.IconImageAssetId && (fallback.asset.textureId = details.IconImageAssetId), fallback;
+  }
+  __name(buildToolboxAssetFallback, "buildToolboxAssetFallback");
+  function buildToolboxAssetTemplate(assetId) {
+    return {
+      voting: {
+        showVotes: !1,
+        upVotes: 30,
+        downVotes: 0,
+        canVote: !0,
+        hasVoted: !1,
+        voteCount: 30,
+        upVotePercent: 100
+      },
+      creator: {},
+      creatorStoreProduct: {
+        purchasePrice: {
+          currencyCode: "USD",
+          quantity: {
+            significand: 0,
+            exponent: 0
+          }
+        },
+        purchasable: !1
+      },
+      asset: {
+        textureId: 0,
+        id: Number(assetId)
+      }
+    };
+  }
+  __name(buildToolboxAssetTemplate, "buildToolboxAssetTemplate");
   async function applyHomeLayoutToFetchResponse(url, response) {
     if (!url.includes(OMNI_RECOMMENDATION_API_URL))
       return response;
@@ -520,9 +681,28 @@ const AccessoryAssetTypes = [
   __name(applyHomeLayoutToFetchResponse, "applyHomeLayoutToFetchResponse");
   const originalFetch = window.fetch;
   window.fetch = async function(...args) {
-    const [url] = args, originalRequestUrl = getRequestUrl(url), requestUrl = rewriteGameServersRequestUrl(originalRequestUrl);
-    args = await rewriteGameServersFetchArgs(args, originalRequestUrl), args = await rewriteThumbnailFetchArgs(args, requestUrl);
+    const [url] = args, originalRequestUrl = getRequestUrl(url), requestUrl = rewriteRequestUrl(originalRequestUrl);
+    args = await rewriteRequestFetchArgs(args, originalRequestUrl), args = await rewriteThumbnailFetchArgs(args, requestUrl);
     let response = await originalFetch(...args);
+    const toolboxAssetId = getToolboxAssetRequestId(requestUrl);
+    if (toolboxAssetId && response.status === 404) {
+      const entry = await getStoreAssetDetails(toolboxAssetId);
+      if (entry?.enabled) {
+        const newHeaders = new Headers(response.headers);
+        newHeaders.delete("content-length"), newHeaders.delete("content-encoding"), newHeaders.set(
+          "content-type",
+          "application/json; charset=utf-8"
+        ), response = new Response(
+          JSON.stringify(
+            buildToolboxAssetFallback(
+              toolboxAssetId,
+              entry.details
+            )
+          ),
+          { status: 200, statusText: "OK", headers: newHeaders }
+        );
+      }
+    }
     if (freeRobloxPlusThemesEnabled && isAccountSettingsUiRequest(requestUrl))
       try {
         const data = await response.clone().json();
@@ -551,7 +731,14 @@ const AccessoryAssetTypes = [
         });
       } catch {
       }
-    if (response = await applyHomeLayoutToFetchResponse(requestUrl, response), requestUrl.includes(PROFILE_API_URL))
+    if (response = await applyHomeLayoutToFetchResponse(requestUrl, response), isMarketplaceWidgetsRequest(requestUrl))
+      try {
+        await waitForMarketplaceAdsState();
+        const data = await response.clone().json();
+        applyMarketplaceAds(data) && (response = responseWithJson(response, data));
+      } catch {
+      }
+    if (requestUrl.includes(PROFILE_API_URL))
       try {
         const data = await response.clone().json(), changed = applyRobloxAdminProfileResponse(data);
         dispatchProfilePlatformResponse(data), changed && (response = responseWithJson(response, data));
@@ -631,10 +818,10 @@ const AccessoryAssetTypes = [
   };
   const originalXhrOpen = XMLHttpRequest.prototype.open, originalXhrSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    return typeof url == "string" && (url = rewriteGameServersRequestUrl(url)), typeof url == "string" && (disableThumbnailBackground || disableThumbnailProfileFrame) && (url = rewriteThumbnailRequestUrl(url)), this._rovalra_url = url, this._rovalra_method = method, streamerModeEnabled && typeof url == "string" && settingsPageInfoEnabled && location.hostname != "create.roblox.com" && (url.includes("/my/settings/json") && (this._rovalra_spoof_settings = !0), url.includes("/v1/emails") && (this._rovalra_email_settings = !0), url.includes("v1/phone") && (this._rovalra_spoof_phone = !0), url.includes("v1/birthdate") && (this._rovalra_spoof_birthdate = !0), url.includes("verified-age") && (this._rovalra_spoof_age = !0), url.includes("account-country") && (this._rovalra_spoof_country = !0), url.includes("age-group") && (this._rovalra_spoof_age_group = !0), url.includes("sessions") && (this._rovalra_spoof_sessions = !0)), typeof url == "string" && url.includes(OMNI_RECOMMENDATION_API_URL) && (this._rovalra_home_layout = !0), typeof url == "string" && url.includes(PROFILE_API_URL) && (this._rovalra_profile_api = !0), typeof url == "string" && isAccountSettingsUiRequest(url) && (this._rovalra_account_settings_ui = !0), originalXhrOpen.apply(this, [method, url, ...rest]);
+    return typeof url == "string" && (url = rewriteRequestUrl(url)), typeof url == "string" && (disableThumbnailBackground || disableThumbnailProfileFrame) && (url = rewriteThumbnailRequestUrl(url)), this._rovalra_url = url, this._rovalra_method = method, streamerModeEnabled && typeof url == "string" && settingsPageInfoEnabled && location.hostname != "create.roblox.com" && (url.includes("/my/settings/json") && (this._rovalra_spoof_settings = !0), url.includes("/v1/emails") && (this._rovalra_email_settings = !0), url.includes("v1/phone") && (this._rovalra_spoof_phone = !0), url.includes("v1/birthdate") && (this._rovalra_spoof_birthdate = !0), url.includes("verified-age") && (this._rovalra_spoof_age = !0), url.includes("account-country") && (this._rovalra_spoof_country = !0), url.includes("age-group") && (this._rovalra_spoof_age_group = !0), url.includes("sessions") && (this._rovalra_spoof_sessions = !0)), typeof url == "string" && url.includes(OMNI_RECOMMENDATION_API_URL) && (this._rovalra_home_layout = !0), typeof url == "string" && url.includes(PROFILE_API_URL) && (this._rovalra_profile_api = !0), typeof url == "string" && isAccountSettingsUiRequest(url) && (this._rovalra_account_settings_ui = !0), typeof url == "string" && isMarketplaceWidgetsRequest(url) && (this._rovalra_marketplace_widgets = !0), typeof url == "string" && (this._rovalra_toolbox_asset_id = getToolboxAssetRequestId(url)), originalXhrOpen.apply(this, [method, url, ...rest]);
   }, XMLHttpRequest.prototype.send = function(...args) {
     const xhr = this;
-    if ((disableThumbnailBackground || disableThumbnailProfileFrame) && isThumbnailsApiRequest(xhr._rovalra_url) && (args[0] = rewriteThumbnailRequestBody(args[0])), (xhr._rovalra_spoof_settings || xhr._rovalra_spoof_phone || xhr._rovalra_spoof_birthdate || xhr._rovalra_spoof_age || xhr._rovalra_spoof_country || xhr._rovalra_spoof_age_group || xhr._rovalra_spoof_sessions || xhr._rovalra_home_layout || xhr._rovalra_profile_api || xhr._rovalra_account_settings_ui) && (Object.defineProperty(xhr, "responseText", {
+    if ((disableThumbnailBackground || disableThumbnailProfileFrame) && isThumbnailsApiRequest(xhr._rovalra_url) && (args[0] = rewriteThumbnailRequestBody(args[0])), (xhr._rovalra_spoof_settings || xhr._rovalra_spoof_phone || xhr._rovalra_spoof_birthdate || xhr._rovalra_spoof_age || xhr._rovalra_spoof_country || xhr._rovalra_spoof_age_group || xhr._rovalra_spoof_sessions || xhr._rovalra_home_layout || xhr._rovalra_profile_api || xhr._rovalra_account_settings_ui || xhr._rovalra_marketplace_widgets) && (Object.defineProperty(xhr, "responseText", {
       configurable: !0,
       get: /* @__PURE__ */ __name(function() {
         if (xhr._rovalra_cached_response)
@@ -646,7 +833,7 @@ const AccessoryAssetTypes = [
         if (this.readyState !== 4) return original;
         try {
           const data = JSON.parse(original);
-          return xhr._rovalra_home_layout && (addHomeExtraSorts(data), dispatchHomeLayoutCategories(data), hideHomeSorts(data), applyAccurateContinue(data), reorderHomeSorts(data)), xhr._rovalra_account_settings_ui && freeRobloxPlusThemesEnabled && applyAccountSettingsUiOverrides(data), xhr._rovalra_profile_api && applyRobloxAdminProfileResponse(data), xhr._rovalra_spoof_settings && (data.UserEmail = "RoValra Streamer Mode Enabled", data.UserEmailVerified = !0, data.PreviousUserNames = "RoValra Streamer Mode Enabled", data.UserEmailMasked = !1), xhr._rovalra_email_settings && (data.verifiedEmail = "RoValra Streamer Mode Enabled"), xhr._rovalra_spoof_phone && (data.countryCode = data.prefix = data.phone = "RoValra Streamer Mode Enabled"), xhr._rovalra_spoof_birthdate && (data.birthMonth = data.birthDay = data.birthYear = 0), xhr._rovalra_spoof_age && (data.isVerified = !0, data.verifiedAge = 0, data.isSeventeenPlus = !1), xhr._rovalra_spoof_country && data.value && (data.value.countryName = data.value.localizedName = "RoValra Streamer Mode Enabled", data.value.countryId = 1), xhr._rovalra_spoof_age_group && (data.ageGroupTranslationKey = "RoValra Streamer Mode Enabled"), xhr._rovalra_spoof_sessions && data.sessions && data.sessions.forEach((s) => {
+          return xhr._rovalra_home_layout && (addHomeExtraSorts(data), dispatchHomeLayoutCategories(data), hideHomeSorts(data), applyAccurateContinue(data), reorderHomeSorts(data)), xhr._rovalra_account_settings_ui && freeRobloxPlusThemesEnabled && applyAccountSettingsUiOverrides(data), xhr._rovalra_profile_api && applyRobloxAdminProfileResponse(data), xhr._rovalra_marketplace_widgets && applyMarketplaceAds(data), xhr._rovalra_spoof_settings && (data.UserEmail = "RoValra Streamer Mode Enabled", data.UserEmailVerified = !0, data.PreviousUserNames = "RoValra Streamer Mode Enabled", data.UserEmailMasked = !1), xhr._rovalra_email_settings && (data.verifiedEmail = "RoValra Streamer Mode Enabled"), xhr._rovalra_spoof_phone && (data.countryCode = data.prefix = data.phone = "RoValra Streamer Mode Enabled"), xhr._rovalra_spoof_birthdate && (data.birthMonth = data.birthDay = data.birthYear = 0), xhr._rovalra_spoof_age && (data.isVerified = !0, data.verifiedAge = 0, data.isSeventeenPlus = !1), xhr._rovalra_spoof_country && data.value && (data.value.countryName = data.value.localizedName = "RoValra Streamer Mode Enabled", data.value.countryId = 1), xhr._rovalra_spoof_age_group && (data.ageGroupTranslationKey = "RoValra Streamer Mode Enabled"), xhr._rovalra_spoof_sessions && data.sessions && data.sessions.forEach((s) => {
             s.location && (s.location.city = s.location.subdivision = "", s.location.country = 'To view your sessions please disable "RoValra streamer mode"'), s.agent && (s.agent.os = "RoValra streamer mode enabled", s.agent.type = "App"), s.lastAccessedIp = "Hidden", s.lastAccessedTimestampEpochMilliseconds = "0";
           }), xhr._rovalra_cached_response = JSON.stringify(data), xhr._rovalra_cached_response;
         } catch {
@@ -667,7 +854,28 @@ const AccessoryAssetTypes = [
           }
         return this.responseText;
       }, "get")
-    })), xhr.addEventListener("load", function() {
+    })), xhr._rovalra_toolbox_asset_id) {
+      const proto = XMLHttpRequest.prototype, getOriginal = /* @__PURE__ */ __name((prop) => Object.getOwnPropertyDescriptor(proto, prop).get.call(xhr), "getOriginal"), isFallback = /* @__PURE__ */ __name(() => xhr._rovalra_toolbox_entry?.enabled === !0 && xhr.readyState === 4 && getOriginal("status") === 404, "isFallback"), fallbackText = /* @__PURE__ */ __name(() => JSON.stringify(
+        buildToolboxAssetFallback(
+          xhr._rovalra_toolbox_asset_id,
+          xhr._rovalra_toolbox_entry.details
+        )
+      ), "fallbackText");
+      Object.defineProperty(xhr, "status", {
+        configurable: !0,
+        get: /* @__PURE__ */ __name(() => isFallback() ? 200 : getOriginal("status"), "get")
+      }), Object.defineProperty(xhr, "statusText", {
+        configurable: !0,
+        get: /* @__PURE__ */ __name(() => isFallback() ? "OK" : getOriginal("statusText"), "get")
+      }), Object.defineProperty(xhr, "responseText", {
+        configurable: !0,
+        get: /* @__PURE__ */ __name(() => isFallback() ? fallbackText() : getOriginal("responseText"), "get")
+      }), Object.defineProperty(xhr, "response", {
+        configurable: !0,
+        get: /* @__PURE__ */ __name(() => isFallback() ? xhr.responseType === "json" ? JSON.parse(fallbackText()) : fallbackText() : getOriginal("response"), "get")
+      });
+    }
+    if (xhr.addEventListener("load", function() {
       if (typeof xhr._rovalra_url == "string") {
         const triggerEvent = /* @__PURE__ */ __name((eventName, detail) => document.dispatchEvent(
           new CustomEvent(eventName, { detail })
@@ -719,6 +927,20 @@ const AccessoryAssetTypes = [
       });
       return;
     }
+    if (xhr._rovalra_toolbox_asset_id) {
+      getStoreAssetDetails(xhr._rovalra_toolbox_asset_id).then(
+        (entry) => {
+          xhr._rovalra_toolbox_entry = entry, originalXhrSend.apply(xhr, args);
+        }
+      );
+      return;
+    }
+    if (xhr._rovalra_marketplace_widgets && !marketplaceAdsReady) {
+      waitForMarketplaceAdsState().then(() => {
+        originalXhrSend.apply(xhr, args);
+      });
+      return;
+    }
     return originalXhrSend.apply(this, args);
   };
   let multiAccessoryEnabled = !1;
@@ -757,8 +979,7 @@ const AccessoryAssetTypes = [
       }
       return newAssetList;
     }, console.log("RoValra: Multi-Accessory patch applied.");
-  }, "patchAvatarService");
-  (/* @__PURE__ */ __name(() => {
+  }, "patchAvatarService"), initializeHooks = /* @__PURE__ */ __name(() => {
     let robloxObj = window.Roblox;
     const defineServiceProperty = /* @__PURE__ */ __name((obj) => {
       let serviceObj = obj.AvatarAccoutrementService;
@@ -782,7 +1003,11 @@ const AccessoryAssetTypes = [
     const customEquipAsset = /* @__PURE__ */ __name((...args) => {
       const [assetToAdd, assetArr] = args;
       let accessoryCount = 0, layeredCount = 0;
-      const assetToAddIsAccessory = AccessoryAssetTypes.includes(assetToAdd.assetType.id), assetToAddIsLayered = LayeredAssetTypes.includes(assetToAdd.assetType.id), newAssetArr = [];
+      const assetToAddIsAccessory = AccessoryAssetTypes.includes(
+        assetToAdd.assetType.id
+      ), assetToAddIsLayered = LayeredAssetTypes.includes(
+        assetToAdd.assetType.id
+      ), newAssetArr = [];
       for (const asset of assetArr.toReversed()) {
         let canAdd = !0;
         AccessoryAssetTypes.includes(asset.assetType.id) && (accessoryCount++, accessoryCount >= 10 && assetToAddIsAccessory && (canAdd = !1)), LayeredAssetTypes.includes(asset.assetType.id) && (layeredCount++, layeredCount >= 10 && assetToAddIsLayered && (canAdd = !1)), !assetToAddIsAccessory && !assetToAddIsLayered && assetToAdd.assetType.id === asset.assetType.id && (canAdd = !1), canAdd && newAssetArr.push(asset);
@@ -792,12 +1017,21 @@ const AccessoryAssetTypes = [
     Object.defineProperty = function(obj, prop, descriptor) {
       return prop === "__esModule" && setTimeout(() => {
         if (Object.keys(obj).includes("addAssetToAvatar")) {
-          const originalGetter = Object.getOwnPropertyDescriptor(obj, "addAssetToAvatar").get, originalAddAssetToAvatar = originalGetter();
+          const originalGetter = Object.getOwnPropertyDescriptor(
+            obj,
+            "addAssetToAvatar"
+          ).get, originalAddAssetToAvatar = originalGetter();
           Object.defineProperty(obj, "addAssetToAvatar", {
             get() {
               return (...args) => {
-                const [asset] = args, isAccessory = AccessoryAssetTypes.includes(asset.assetType.id), isLayered = LayeredAssetTypes.includes(asset.assetType.id), needsHijack = isAccessory || isLayered;
-                return window.rovalraMultiEquipEnabled && needsHijack ? customEquipAsset(...args) : originalAddAssetToAvatar(...args);
+                const [asset] = args, isAccessory = AccessoryAssetTypes.includes(
+                  asset.assetType.id
+                ), isLayered = LayeredAssetTypes.includes(
+                  asset.assetType.id
+                ), needsHijack = isAccessory || isLayered;
+                return window.rovalraMultiEquipEnabled && needsHijack ? customEquipAsset(...args) : originalAddAssetToAvatar(
+                  ...args
+                );
               };
             },
             configurable: !0
@@ -805,7 +1039,47 @@ const AccessoryAssetTypes = [
         }
       }, 1), prop === "addAssetToAvatar" && (descriptor.configurable = !0), originalDefineProperty.call(Object, obj, prop, descriptor);
     };
-  }, "initializeHooks"))(), console.log(
+  }, "initializeHooks");
+  function hookCanvasFullscreen() {
+    if (location.hostname !== CHANNEL_HOST) return;
+    const CANVAS_ATTRIBUTE = "data-rovalra-fullscreen-canvas";
+    let redirectedCanvas = null;
+    const clearRedirect = /* @__PURE__ */ __name(() => {
+      redirectedCanvas?.removeAttribute(CANVAS_ATTRIBUTE), redirectedCanvas = null;
+    }, "clearRedirect");
+    ["requestFullscreen", "webkitRequestFullscreen"].forEach((name) => {
+      const original = Element.prototype[name];
+      original && (HTMLCanvasElement.prototype[name] = function(...args) {
+        if (!document.querySelector(".rovalra-overlay"))
+          return original.apply(this, args);
+        clearRedirect(), redirectedCanvas = this, this.setAttribute(CANVAS_ATTRIBUTE, "");
+        const result = original.apply(document.documentElement, args);
+        return result?.catch?.(() => {
+        }), result;
+      });
+    }), ["fullscreenElement", "webkitFullscreenElement"].forEach((name) => {
+      const descriptor = Object.getOwnPropertyDescriptor(
+        Document.prototype,
+        name
+      );
+      descriptor?.get && Object.defineProperty(Document.prototype, name, {
+        ...descriptor,
+        get() {
+          const element = descriptor.get.call(this);
+          return redirectedCanvas && element === this.documentElement ? redirectedCanvas : element;
+        }
+      });
+    }), ["fullscreenchange", "webkitfullscreenchange"].forEach(
+      (type) => window.addEventListener(
+        type,
+        () => {
+          document.fullscreenElement || clearRedirect();
+        },
+        !0
+      )
+    );
+  }
+  __name(hookCanvasFullscreen, "hookCanvasFullscreen"), initializeHooks(), hookCanvasFullscreen(), console.log(
     "RoValra: Privacy Spoofing and Multi-Accessory loaded successfully."
   );
 })();

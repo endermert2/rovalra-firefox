@@ -8,7 +8,7 @@ const MAX_ZIP = 40 * 1024 * 1024;
 const MAX_UNPACKED = 160 * 1024 * 1024;
 export function releaseAsset(release) {
   if (release.draft || release.prerelease) throw new Error('Only stable upstream releases are accepted');
-  const assets = release.assets.filter(asset => /^rovalra-v?\d+\.\d+\.\d+(?:\.\d+)?\.zip$/i.test(asset.name));
+  const assets = release.assets.filter(asset => /^rovalra-v?\d+\.\d+(?:\.\d+){0,2}\.zip$/i.test(asset.name));
   if (assets.length !== 1) throw new Error('Expected one RoValra release ZIP; upstream packaging needs review');
   const asset = assets[0];
   const url = new URL(asset.browser_download_url);

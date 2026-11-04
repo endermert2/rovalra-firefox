@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.6.20
+ * rovalra v2.7
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -5051,6 +5051,15 @@
     Marketplace: {
       title: "Marketplace",
       settings: {
+        betterGraphsEnabled: {
+          label: "Better Graphs",
+          description: [
+            "Replaces the price chart of limited items with one graph RAP and volume, with full history and series you can hide."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["2239549101"]
+        },
         itemSalesEnabled: {
           label: "Item Sales",
           contributors: [447170745],
@@ -5152,12 +5161,23 @@
           type: "checkbox",
           default: !0
         },
+        marketplaceRovalraAdsEnabled: {
+          label: "RoValra Marketplace Ads",
+          description: [
+            "Features a few items picked by RoValra within the first items of your Recommended For You section on the Marketplace.",
+            "These items are marked with a RoValra pill in the top right of their thumbnail."
+          ],
+          type: "checkbox",
+          default: !0
+        },
         bonusItemEnabled: {
           label: "Robux Purchase Bonus Item Selector",
           description: "Adds a bonus item selector to eligible Robux purchases of 2,000 Robux or more.",
           type: "checkbox",
           default: !1,
-          beta: "Currently missing gamepasses."
+          beta: "Currently missing gamepasses.",
+          locked: "Roblox patched this.",
+          isPermanent: !0
         },
         EnableItemDependencies: {
           label: "Item Dependencies",
@@ -5396,6 +5416,13 @@
           type: "checkbox",
           default: !0,
           contributors: ["447170745", "10646979010"]
+        },
+        storeSaleFilterEnabled: {
+          label: "Store Sale Filter",
+          description: "Adds a sale status filter to the store tab of experiences to show on sale, off sale or all passes and developer products.",
+          type: "checkbox",
+          default: !0,
+          contributors: ["2239549101"]
         },
         shopWidgetsEnabled: {
           label: "View In-Game Shop",
@@ -5642,10 +5669,12 @@
           label: "Server List Modifications",
           description: [
             "This adds multiple features to the server list.",
-            "These modifications will also apply to the 'Servers My Friends Are In' section."
+            "These modifications will also apply to the 'Servers My Friends Are In' section.",
+            "This will also add filters to Private servers"
           ],
           type: "checkbox",
           default: !0,
+          contributors: ["447170745", "2239549101"],
           childSettings: {
             PrivateServerGridEnabled: {
               label: "Private Server Grid",
@@ -5763,6 +5792,7 @@
           ],
           type: "checkbox",
           default: !0,
+          contributors: ["447170745", "2239549101"],
           childSettings: {
             privateServerFriendsToggleEnabled: {
               label: "Friends Allowed Toggle",
@@ -5926,6 +5956,27 @@
           type: "checkbox",
           default: !0
         },
+        profilePlaytimeEnabled: {
+          label: "Profile Playtime",
+          description: [
+            "Adds a Playtime section to the bottom of profiles with a heatmap and graph of what the user played and when."
+          ],
+          type: "checkbox",
+          default: !0,
+          childSettings: {
+            profilePlaytimePublic: {
+              label: "Public Playtime",
+              description: [
+                "Lets anyone with RoValra see the Playtime section on your profile.",
+                "When this is off, only you can see your playtime."
+              ],
+              type: "checkbox",
+              default: !1,
+              donatorTier: 3,
+              donatorReason: "Donator Tier 3 is required to make your playtime public."
+            }
+          }
+        },
         chatEligibilityTooltipEnabled: {
           label: "Chat Eligibility Tooltip",
           description: [
@@ -6070,6 +6121,21 @@
           type: "checkbox",
           default: !0,
           contributors: ["2020751790"]
+        },
+        followsYouEnabled: {
+          label: "Follows You Indicator",
+          description: 'Shows a "Follows you" label beside the username on the profile of anyone who follows you.'
+        },
+        friendRequestFiltersEnabled: {
+          label: "Friend Request Filters",
+          description: [
+            "Adds a Filters button to your friend requests to filter them by Roblox Plus, verified and Roblox admin badges, mutual friends, friend, follower and following counts, and join date.",
+            "Requests can also be sorted by date sent, mutual friends, friend, follower and following counts, or join date.",
+            "Shows the real number of friend requests and when each one was sent."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: ["2239549101"]
         },
         groupRoleEnabled: {
           label: "Show Community Roles",
@@ -6447,6 +6513,38 @@
     Home: {
       title: "Home",
       settings: {
+        homeGreetingEnabled: {
+          label: "Home Greeting",
+          description: [
+            "Replaces the Home page header with a greeting, your avatar and your username.",
+            "The greeting changes between good morning, good afternoon, good evening and good night based on your local time."
+          ],
+          type: "checkbox",
+          default: !1,
+          childSettings: {
+            homeGreetingCustomEnabled: {
+              label: "Custom Greeting",
+              description: [
+                "Use your own greeting message instead of the time based one."
+              ],
+              type: "checkbox",
+              default: !1
+            },
+            homeGreetingCustomMessage: {
+              label: "Custom Greeting Message",
+              description: [
+                "The greeting shown when Custom Greeting is enabled.",
+                "Use **{displayname}** where you want your display name to show."
+              ],
+              type: "input",
+              placeholder: "Hello, {displayname}",
+              default: "Hello, {displayname}",
+              maxLength: 100,
+              showCharacterCount: !0,
+              inputWidth: "320px"
+            }
+          }
+        },
         AccurateContinueEnabled: {
           label: "Accurate Continue",
           description: [
@@ -6955,6 +7053,14 @@
           type: "checkbox",
           default: !0
         },
+        tradeCompletedDateEnabled: {
+          label: "Trade Completed Date",
+          description: "Shows when a completed trade was completed, next to when it was sent.",
+          type: "checkbox",
+          default: !0,
+          storageKey: ["rovalra_trade_completed_dates"],
+          contributors: ["2239549101"]
+        },
         confirmTradeEnabled: {
           label: "Trade Protection",
           description: "This adds a small preview of the trade you're making in the accept / decline confirmation pop-up.",
@@ -7165,6 +7271,12 @@
           locked: "Replaced by Privacy Toggles in Navigation",
           deprecated: "Replaced by Privacy Toggles in Navigation.",
           hidden: !0
+        },
+        rovalraStoreSidebarLinkEnabled: {
+          label: "RoValra Store sidebar link",
+          description: "Adds a RoValra Store link below Communities in the Roblox sidebar that opens the RoValra store.",
+          type: "checkbox",
+          default: !0
         },
         sidebarCollapseEnabled: {
           label: "Collapsible Sidebar",
@@ -7441,6 +7553,15 @@
           type: "checkbox",
           default: !0,
           contributors: ["650766686"]
+        },
+        removeDownloadButton: {
+          label: "Remove Download Button",
+          description: [
+            "Removes the out of place download button from the topbar."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: ["3602693727"]
         }
       }
     },
@@ -7469,6 +7590,20 @@
               default: !0
             }
           }
+        },
+        updateChangelogHeaderEnabled: {
+          label: "Update Changelog Header",
+          description: [
+            "Shows a header at the top of every page after RoValra updates, linking to the changelog.",
+            "It goes away for good once you close it, open the changelog, or leave it alone for a minute."
+          ],
+          type: "checkbox",
+          default: !0,
+          storageKey: [
+            "lastSeenChangelogVersion",
+            "updateChangelogHideAt"
+          ],
+          contributors: ["2239549101"]
         },
         richRobloxLinksEnabled: {
           label: "Rich Roblox Links",
@@ -8296,6 +8431,34 @@ Standards{linkEnd}.`,
         }
       }
     },
+    Play: {
+      title: "Roblox Website Client",
+      settings: {
+        webclientinfo: {
+          label: "Web Client Info",
+          description: [
+            "The Roblox web client is a client running inside the website.",
+            "Currently this client is experimental and not fully rolled out.",
+            "It is not made to be a replacement for the normal client but instead an alternative for platforms that can't use the normal client such as chromebooks"
+          ]
+        },
+        serverLocationOverlayEnabled: {
+          label: "Server Location Overlay",
+          description: [
+            "Shows a notification on play.roblox.com with the location, version and channel of the server you joined.",
+            "Click the notification or press F3 to open an overlay with the same info."
+          ],
+          type: "checkbox",
+          default: !0
+        },
+        webClientSidebarLinkEnabled: {
+          label: "Web Client sidebar link",
+          description: "Adds a Web Client link below Communities in the Roblox sidebar that opens crossroads in the web client.",
+          type: "checkbox",
+          default: !1
+        }
+      }
+    },
     PublicDeveloper: {
       title: "Developer",
       settings: {
@@ -8366,6 +8529,15 @@ Standards{linkEnd}.`,
           type: "checkbox",
           default: !0,
           contributors: ["447170745", "126448532"]
+        },
+        offSaleCreatePageEnabled: {
+          label: "Off-sale Creator Store pages",
+          description: [
+            "Lets you view Creator Store pages for assets that would normally show as not found such as off sale stuff."
+          ],
+          type: "checkbox",
+          default: !0,
+          contributors: ["447170745"]
         }
       }
     },
@@ -8399,6 +8571,16 @@ Standards{linkEnd}.`,
           label: ["Override remotely disabled settings"],
           description: [
             "Allows RoValra features to remain enabled even when they're disabled by the remote settings service. This is for testing and may expose unstable features."
+          ],
+          type: "checkbox",
+          default: !1
+        },
+        channelOverlayEnabled: {
+          label: "Channel Overlay",
+          description: [
+            "Shows an overlay on play.roblox.com with your channel, which you can change.",
+            "It opens automatically whenever you are on play.roblox.com. Press F2 to show or hide it.",
+            "**CHANNEL SWITCHER IS USE AT YOUR OWN RISK** as I wasn't able to get a clear answer if this was 100% allowed or not from Roblox."
           ],
           type: "checkbox",
           default: !1
@@ -8574,6 +8756,26 @@ Standards{linkEnd}.`,
           ],
           type: "checkbox",
           default: !1
+        },
+        importCustomFramePreview: {
+          label: "Preview a custom frame",
+          description: [
+            "Pick a frame image to preview on your own profile. Frames are ~3:1 images with a thin transparent margin.",
+            "It's only kept in memory, like previewing a frame from the store, so it goes away when you reload or leave the page. Only you can see it."
+          ],
+          type: "button",
+          buttonText: "Import Frame",
+          event: "rovalra:importCustomFramePreview"
+        },
+        importCustomBorderPreview: {
+          label: "Preview a custom border",
+          description: [
+            "Pick a square border image to preview around your avatar on your own profile.",
+            "It's only kept in memory, like previewing a frame from the store, so it goes away when you reload or leave the page. Only you can see it."
+          ],
+          type: "button",
+          buttonText: "Import Border",
+          event: "rovalra:importCustomBorderPreview"
         },
         rendererDeveloperToggles: {
           label: "3D renderer Developer toggles",
