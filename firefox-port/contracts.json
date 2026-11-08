@@ -1,5 +1,5 @@
 {
-  "upstreamVersion": "2.7",
+  "upstreamVersion": "2.7.1",
   "functions": {
     "createSvgPath": "b5cad5fa93dd3969ada40be2201eab4c7b4023648485df6ef3f672d1d9194457",
     "executeLaunchScript": "d8a60a6900d85d083d7e0e9e1cce059d1340f5382f367248452ce518bf341948",
@@ -13,7 +13,7 @@
     "WorkerWrapper": "1406df4e45427459476a6f4e152ce2182753f5569d6a36cd1026370961295784",
     "runLaunch": "fbbdcbc5b96e3d24b513c1e361b9fa8328bf8d869da3dc59eb9a4d8524630f10",
     "openWebChat": "4971fdb98ee87f0720ba9467c3e6763a81c4b146dba77d51c9b330a946a7672e",
-    "createDOMPurify": "67b6d5708ec6a76dc015496a5b49280104e209c24998faa2703ff840db6dc917",
+    "createDOMPurify": "4c095b6610a4b76e9aed563c3b1c1016de6c2dbec420a5cda893e01ff1de5b05",
     "toSafeId": "2788ad89faad9230cc2a179e381ebacb5656981c99004bfa62bc5cfc7ac4e1f5"
   },
   "permissions": [

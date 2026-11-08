@@ -1,5 +1,5 @@
 /*!
- * rovalra v2.7
+ * rovalra v2.7.1
  * License: GPL-3.0
  * Repository: https://github.com/NotValra/RoValra
  * This extension is provided AS-IS without warranty.
@@ -5098,6 +5098,15 @@
               buttonText: "Open Setup",
               event: "rovalra:open40methodSetup"
             },
+            fortyMethodIndicatorEnabled: {
+              label: "40% Method Indicator",
+              description: [
+                "Shows if an item supports the 40% method on its thumbnail."
+              ],
+              type: "checkbox",
+              default: !1,
+              contributors: ["2239549101"]
+            },
             useSoberSupportDeeplinks: {
               label: "Use Roblox deeplinks for Sober support",
               description: "This is less stable and should only be used if on sober",
@@ -5219,6 +5228,15 @@
           type: "checkbox",
           default: !0,
           contributors: ["4866259395", "447170745"]
+        },
+        improvedAttributesEnabled: {
+          label: "Improved Attributes",
+          description: [
+            "Adds more attributes to item pages, like if an item has particles, scripts, sounds, lights, fire and more, or if it cannot be sold in experiences.",
+            "This feature was made possible because of {{[RoAvatar](https://github.com/steinann/RoAvatar) githubLink}} \u2764\uFE0F"
+          ],
+          type: "checkbox",
+          default: !0
         },
         ownedItemPriceEnabled: {
           label: "Price on Owned Item Pages",
@@ -6092,8 +6110,8 @@
             "Trusted Friends might not be available in some regions.",
             "**Note:** Roblox uses an algorithm that may prevent adding someone even if they meet these requirements. [Learn more here.](https://en.help.roblox.com/hc/en-us/articles/46158344285204)"
           ],
-          type: "true",
-          default: !1
+          type: "checkbox",
+          default: !0
           //isPermanent: true,
           //locked: 'Seemingly broke after a Roblox update. And Roblox is rolling out their own version of it.',
         },
@@ -6124,7 +6142,9 @@
         },
         followsYouEnabled: {
           label: "Follows You Indicator",
-          description: 'Shows a "Follows you" label beside the username on the profile of anyone who follows you.'
+          description: 'Shows a "Follows you" label beside the username on the profile of anyone who follows you.',
+          type: "checkbox",
+          default: !0
         },
         friendRequestFiltersEnabled: {
           label: "Friend Request Filters",
@@ -6618,11 +6638,14 @@
         friendLabelsEnabled: {
           label: "Friend Labels",
           description: [
-            "Lets you assign a label to your friends on the Home page."
+            "Create colored labels with icons for friends on Home and the Friends page."
           ],
           type: "checkbox",
           default: !1,
-          storageKey: "rovalra_friend_labels",
+          storageKey: [
+            "rovalra_friend_labels",
+            "rovalra_friend_labels_v2"
+          ],
           contributors: ["4632962611"]
         },
         friendUsernamesEnabled: {
@@ -6954,6 +6977,18 @@
           default: !0,
           indexedDbStore: "transactions",
           dependsOn: ["TotalSpentGamesEnabled"]
+        },
+        revenueEnabled: {
+          label: "Revenue Breakdown",
+          description: [
+            "Shows a timeline of how much Robux you have earned from sales, along with who bought from you and which experiences sold the most on the transactions page.",
+            "Also shows the same breakdown on the revenue page of communities you manage.",
+            "Sales are scanned in the background while the page is open, so the first scan may take a while."
+          ],
+          type: "checkbox",
+          default: !0,
+          indexedDbStore: "transactions",
+          contributors: ["2239549101"]
         },
         totalearnedEnabled: {
           label: "Total Earned",
@@ -7305,6 +7340,15 @@
           type: "checkbox",
           default: !1,
           contributors: ["4632962611"]
+        },
+        hideMessageCountEnabled: {
+          label: "Hide Message Count",
+          description: [
+            "Hides the message count beside Messages in the sidebar."
+          ],
+          type: "checkbox",
+          default: !1,
+          contributors: ["4502342102"]
         },
         sidebarLayoutEnabled: {
           label: "Sidebar Layout",
@@ -7703,7 +7747,11 @@
             "Replaces default Roblox playing and like icons on the site, with the new modern icons used by the client."
           ],
           type: "checkbox",
-          default: !0
+          default: !0,
+          lockedBy: {
+            setting: "roblox2016ThemeEnabled",
+            reason: "Turn off the 2016 Roblox Theme to use Modern Icons."
+          }
         },
         cssfixesEnabled: {
           label: "Site Fixes",
@@ -8155,6 +8203,18 @@ Standards{linkEnd}.`,
               event: "rovalra:openCustomThemeBackground"
             }
           }
+        },
+        roblox2016ThemeEnabled: {
+          label: "2016 Roblox Theme",
+          description: [
+            "Recreates the look of the 2016 Roblox website, based on the archived 2016 Roblox stylesheets.",
+            "2016 had no dark mode, so this always uses the light look.",
+            "This is made to be very similar to the 2016 UI but not 100% 1 to 1 in all places.",
+            "**YOU MAY ENCOUNTER BUGS**"
+          ],
+          type: "checkbox",
+          default: !1,
+          experimental: "May have bugs"
         },
         CustomThemeVariablesEnabled: {
           label: "Custom Theme Colors",

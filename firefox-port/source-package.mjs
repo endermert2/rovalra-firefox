@@ -24,6 +24,7 @@ source['firefox-port/UPSTREAM-REPAIR-2.6.15.md']=await fs.readFile(path.join(ROO
 source['firefox-port/UPSTREAM-REPAIR-2.6.18.md']=await fs.readFile(path.join(ROOT,'UPSTREAM-REPAIR-2.6.18.md'));
 source['firefox-port/AUDIT-REPAIR-2026-10-23.md']=await fs.readFile(path.join(ROOT,'AUDIT-REPAIR-2026-10-23.md'));
 source['firefox-port/UPSTREAM-REPAIR-2.6.20.md']=await fs.readFile(path.join(ROOT,'UPSTREAM-REPAIR-2.6.20.md'));
+source['firefox-port/UPSTREAM-REPAIR-2.7.1.md']=await fs.readFile(path.join(ROOT,'UPSTREAM-REPAIR-2.7.1.md'));
 // Include the original project's corresponding source, pinned to this release.
 const response=await fetch(`https://codeload.github.com/NotValra/RoValra/zip/refs/tags/v${state.upstreamVersion}`,
   {signal:AbortSignal.timeout(120000)});

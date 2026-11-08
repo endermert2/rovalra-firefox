@@ -100,6 +100,19 @@ test('changed upstream launcher is rejected before creating a new build', async 
   await assert.rejects(adaptFiles(input,config),/Upstream changed executeLaunchScript/);
 });
 
+test('unreviewed sanitizer behavior still stops adaptation and the reviewed build uses the pinned sanitizer', async () => {
+  const input = await filesIn(path.join(ROOT,'upstream'));
+  const changed = input['content.js'].toString().replace('function createDOMPurify() {',
+    'function createDOMPurify() { throw new Error("unreviewed sanitizer change");');
+  assert.notEqual(changed,input['content.js'].toString());
+  await assert.rejects(adaptFiles({...input,'content.js':Buffer.from(changed)},config,baseline.version),
+    /Upstream changed createDOMPurify; adapter review required/);
+  const result = await adaptFiles(input,config,baseline.version);
+  assert(result.files['firefox/purify.js'].equals(await fs.readFile(path.join(ROOT,'node_modules/dompurify/dist/purify.min.js'))));
+  const scripts = result.manifest.content_scripts.find(script=>script.js.includes('content.js')).js;
+  assert(scripts.indexOf('firefox/purify.js') < scripts.indexOf('content.js'));
+});
+
 test('unreviewed permissions and promotion of notifications to required still stop updates', async () => {
   const input = await filesIn(path.join(ROOT,'upstream'));
   for (const field of ['permissions','optional_permissions']) {

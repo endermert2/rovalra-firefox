@@ -2,9 +2,10 @@
 
 The port targets Firefox 142 or newer and is now distributed as a permanent,
 unsigned extension for **Developer Edition with signature enforcement disabled**.
-The current version is 2.7.0.15: upstream release 2.7 plus adapter revision 15.
+The current version is 2.7.1.16: upstream release 2.7.1 plus adapter revision 16.
 
-The [November 4 repair](#november-2026-updater-repair) supports upstream 2.7 and
+The [November 9 repair](UPSTREAM-REPAIR-2.7.1.md) reviews upstream 2.7.1's
+DOMPurify identifier renames and restores the updater. The November 4 repair
 pins minimatch 3.1.5 for the validator. The [October 29 repair](UPSTREAM-REPAIR-2.6.20.md)
 retains its fast-uri and undici lockfile fixes. DOMPurify remains pinned to
 3.4.17 and the workflow remains on Ubuntu 24.04.
@@ -21,7 +22,7 @@ The [October updater repair](UPDATER-REPAIR-2026-10-04.md) remains included.
 
 In Developer Edition, set `xpinstall.signatures.required` to `false` in
 `about:config`. Open `about:addons` → gear → **Install Add-on From File**, and
-select `build/rovalra-firefox-2.7.0.15-unsigned.xpi`. Accept the permissions and
+select `build/rovalra-firefox-2.7.1.16-unsigned.xpi`. Accept the permissions and
 refresh Roblox. Open Firefox normally on subsequent days; the add-on remains
 installed and retains its settings.
 
@@ -84,6 +85,24 @@ and the adapter for distribution under the existing license. It requires a prior
 `npm run update` to establish the exact downloaded release.
 
 ## November 2026 updater repair
+
+On November 9, upstream [v2.7.1](https://github.com/NotValra/RoValra/releases/tag/v2.7.1)
+was rejected with `Upstream changed createDOMPurify; adapter review required`.
+The reviewed function differs only in three identifier renames (`remove2`,
+`getAttributes`, and `element`); all other patch contracts and the decoder match.
+Revision 16 accepts its exact function hash, retains the pinned DOMPurify 3.4.17
+replacement, and adds a test that unreviewed sanitizer behavior still stops builds.
+The exact 2.7.1 input and checksum metadata are included for offline builds.
+
+Extract `build/rovalra-firefox-upload-2.7.1.16.zip` into the root of your GitHub
+clone, including `.github`, `.gitignore` and `firefox-port`. Commit and push the
+files, then start a **new workflow run** to publish `firefox-v2.7.1.16` while
+2.7.1 remains latest. Rerunning an old job uses its previous source. For local
+installation, use `build/rovalra-firefox-2.7.1.16-unsigned.xpi`.
+See [the repair guide](UPSTREAM-REPAIR-2.7.1.md), `build/VALIDATION.txt` and
+`build/SHA256SUMS.txt`. Previous generated packages have been removed locally.
+
+### November 4 dependency and version repair
 
 The [November 4 GitHub run](https://github.com/endermert2/rovalra-firefox/actions/runs/41787142798)
 failed in **Audit build dependencies**. Its report treated minimatch versions
@@ -182,7 +201,8 @@ functions are unrelated to the removed Firefox browser launcher.
 
 `npm test` covers archive safety, patch contracts, manifest conversion, Roblox
 launcher argument preservation, unsigned update-manifest construction, outfit-hook ordering and failure fallback,
-storage-listener removal, adaptation of the reviewed 2.7 input, two-part release versions, notification permission gating, decoder
+storage-listener removal, adaptation of the reviewed 2.7.1 input, rejection of unreviewed sanitizer changes,
+two-part release versions, notification permission gating, decoder
 script ordering, launcher ID validation, and hotfix version ordering.
 `npm run verify` runs Mozilla's standalone addons-linter; this does not contact its signing
 service. Raw HTML warnings remain in `build/lint.json`. Each warning is now checked against
